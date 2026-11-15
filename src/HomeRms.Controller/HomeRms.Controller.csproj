@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net9.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <RootNamespace>HomeRms.Controller</RootNamespace>
+    <AssemblyName>HomeRmsController</AssemblyName>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\HomeRms.Shared\HomeRms.Shared.csproj" />
+  </ItemGroup>
+
+</Project>

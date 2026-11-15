@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 460" font-family="Segoe UI, sans-serif">
+  <rect width="900" height="460" fill="#1e1e22"/>
+  <text x="450" y="34" fill="#e6e6e6" font-size="20" font-weight="bold" text-anchor="middle">Home RMS — consent-based remote administration (LAN)</text>
+
+  <!-- Controller -->
+  <rect x="40" y="80" width="300" height="300" rx="10" fill="#27272c" stroke="#4682b4" stroke-width="2"/>
+  <text x="190" y="110" fill="#8ab4e8" font-size="16" font-weight="bold" text-anchor="middle">Controller (WPF)</text>
+  <text x="190" y="135" fill="#cfcfd6" font-size="12" text-anchor="middle">your admin PC</text>
+  <rect x="70" y="155" width="240" height="40" rx="6" fill="#2f2f36"/><text x="190" y="180" fill="#e6e6e6" font-size="13" text-anchor="middle">System Inventory</text>
+  <rect x="70" y="205" width="240" height="40" rx="6" fill="#2f2f36"/><text x="190" y="230" fill="#e6e6e6" font-size="13" text-anchor="middle">Remote Shell (PowerShell)</text>
+  <rect x="70" y="255" width="240" height="40" rx="6" fill="#2f2f36"/><text x="190" y="280" fill="#e6e6e6" font-size="13" text-anchor="middle">Remote Desktop + input</text>
+  <rect x="70" y="320" width="240" height="36" rx="6" fill="#20303f"/><text x="190" y="343" fill="#8ab4e8" font-size="12" text-anchor="middle">client cert: homerms-controller</text>
+
+  <!-- link -->
+  <line x1="340" y1="230" x2="560" y2="230" stroke="#c0392b" stroke-width="3"/>
+  <polygon points="560,230 548,224 548,236" fill="#c0392b"/>
+  <polygon points="340,230 352,224 352,236" fill="#c0392b"/>
+  <text x="450" y="212" fill="#e6e6e6" font-size="13" font-weight="bold" text-anchor="middle">gRPC over mutual TLS</text>
+  <text x="450" y="252" fill="#b9b9c3" font-size="12" text-anchor="middle">HTTP/2 · port 7443</text>
+  <text x="450" y="270" fill="#b9b9c3" font-size="11" text-anchor="middle">both validated against shared CA</text>
+
+  <!-- Agent -->
+  <rect x="560" y="80" width="300" height="300" rx="10" fill="#27272c" stroke="#c0392b" stroke-width="2"/>
+  <text x="710" y="110" fill="#e88a8a" font-size="16" font-weight="bold" text-anchor="middle">Agent (tray app)</text>
+  <text x="710" y="135" fill="#cfcfd6" font-size="12" text-anchor="middle">runs in the user's session — not SYSTEM</text>
+  <rect x="590" y="155" width="240" height="40" rx="6" fill="#2f2f36"/><text x="710" y="180" fill="#e6e6e6" font-size="13" text-anchor="middle">Visible tray icon + activity log</text>
+  <rect x="590" y="205" width="240" height="40" rx="6" fill="#3a1f1f"/><text x="710" y="223" fill="#f0c0c0" font-size="12" text-anchor="middle">Consent prompt before control</text><text x="710" y="238" fill="#f0c0c0" font-size="11" text-anchor="middle">+ persistent "being viewed" banner</text>
+  <rect x="590" y="255" width="240" height="40" rx="6" fill="#2f2f36"/><text x="710" y="280" fill="#e6e6e6" font-size="13" text-anchor="middle">Capture · Input · Inventory · Shell</text>
+  <rect x="590" y="320" width="240" height="36" rx="6" fill="#3f2020"/><text x="710" y="343" fill="#e88a8a" font-size="12" text-anchor="middle">server cert: homerms-agent</text>
+
+  <text x="450" y="420" fill="#8a8a94" font-size="12" text-anchor="middle">No firewall evasion · no reverse tunnel · no hidden service · every action is logged and visible to the user</text>
+</svg>

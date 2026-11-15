@@ -1,0 +1,122 @@
+syntax = "proto3";
+
+option csharp_namespace = "HomeRms.Shared.Protocol";
+
+package homerms;
+
+// Consent-based remote administration service.
+// Every interactive-control RPC is gated by on-machine consent and a visible
+// indicator in the agent's tray; see ConsentManager on the agent side.
+service RemoteManagement {
+  // --- Identity / handshake ---
+  rpc GetAgentInfo (Empty) returns (AgentInfo);
+
+  // --- Inventory (read-only, still surfaced in the agent's activity log) ---
+  rpc GetInventory (Empty) returns (InventorySnapshot);
+
+  // --- Remote shell: bidirectional stream. Each command the agent runs is
+  // written to the visible activity log. ---
+  rpc Shell (stream ShellInput) returns (stream ShellOutput);
+
+  // --- Remote desktop: server-streamed frames. Starting a stream REQUIRES a
+  // consent grant and raises the persistent "being viewed" banner. ---
+  rpc StreamScreen (ScreenRequest) returns (stream ScreenFrame);
+
+  // --- Input injection: client-streamed mouse/keyboard events. Only honored
+  // while an active consent grant for control exists. ---
+  rpc SendInput (stream InputEvent) returns (InputAck);
+}
+
+message Empty {}
+
+message AgentInfo {
+  string machine_name = 1;
+  string os_version = 2;
+  string agent_version = 3;
+  string logged_in_user = 4;
+  int32 primary_screen_width = 5;
+  int32 primary_screen_height = 6;
+}
+
+// ---------------- Inventory ----------------
+message InventorySnapshot {
+  repeated InstalledApp apps = 1;
+  repeated RunningProcess processes = 2;
+  HardwareInfo hardware = 3;
+  string collected_at_utc = 4;
+}
+
+message InstalledApp {
+  string name = 1;
+  string version = 2;
+  string publisher = 3;
+  string install_date = 4;
+}
+
+message RunningProcess {
+  int32 pid = 1;
+  string name = 2;
+  int64 working_set_bytes = 3;
+}
+
+message HardwareInfo {
+  string cpu = 1;
+  int32 logical_cores = 2;
+  int64 total_ram_bytes = 3;
+  string gpu = 4;
+  repeated DiskInfo disks = 5;
+}
+
+message DiskInfo {
+  string name = 1;
+  int64 total_bytes = 2;
+  int64 free_bytes = 3;
+}
+
+// ---------------- Shell ----------------
+message ShellInput {
+  string data = 1;       // text typed into the shell (command + newline)
+  bool close = 2;        // request graceful shutdown of the shell
+}
+
+message ShellOutput {
+  string data = 1;       // stdout/stderr text
+  bool is_error = 2;
+}
+
+// ---------------- Screen ----------------
+message ScreenRequest {
+  int32 fps = 1;             // requested frames per second (clamped agent-side)
+  int32 quality = 2;         // JPEG quality 1-100
+  string operator_name = 3;  // shown in the agent's consent prompt + banner
+}
+
+message ScreenFrame {
+  bytes jpeg = 1;
+  int32 width = 2;
+  int32 height = 3;
+  int64 sequence = 4;
+}
+
+// ---------------- Input ----------------
+message InputEvent {
+  enum Kind {
+    MOUSE_MOVE = 0;
+    MOUSE_DOWN = 1;
+    MOUSE_UP = 2;
+    MOUSE_WHEEL = 3;
+    KEY_DOWN = 4;
+    KEY_UP = 5;
+  }
+  Kind kind = 1;
+  // Mouse: normalized 0..65535 absolute coordinates.
+  int32 x = 2;
+  int32 y = 3;
+  int32 button = 4;   // 0=left 1=right 2=middle
+  int32 wheel = 5;    // wheel delta
+  int32 key_code = 6; // virtual key code
+}
+
+message InputAck {
+  int64 events_applied = 1;
+}

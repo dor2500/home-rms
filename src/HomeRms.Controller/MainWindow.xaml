@@ -1,0 +1,105 @@
+<Window x:Class="HomeRms.Controller.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Home RMS — Controller" Height="760" Width="1120"
+        WindowStartupLocation="CenterScreen" Background="#1E1E22">
+    <Window.Resources>
+        <Style TargetType="TextBlock">
+            <Setter Property="Foreground" Value="#E6E6E6"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+        </Style>
+        <Style TargetType="Label">
+            <Setter Property="Foreground" Value="#E6E6E6"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+        </Style>
+    </Window.Resources>
+
+    <DockPanel>
+        <!-- Connection bar -->
+        <Border DockPanel.Dock="Top" Background="#27272C" Padding="10" BorderBrush="#3A3A40" BorderThickness="0,0,0,1">
+            <StackPanel Orientation="Horizontal">
+                <Label Content="Agent host:"/>
+                <TextBox x:Name="HostBox" Text="localhost" Width="200" Margin="4,0" VerticalContentAlignment="Center"/>
+                <Label Content="Port:"/>
+                <TextBox x:Name="PortBox" Text="7443" Width="70" Margin="4,0" VerticalContentAlignment="Center"/>
+                <Button x:Name="ConnectBtn" Content="Connect" Width="110" Margin="8,0" Click="OnConnectClick"/>
+                <TextBlock x:Name="StatusText" Text="Not connected" Margin="12,0" Foreground="#B9B9C3"/>
+            </StackPanel>
+        </Border>
+
+        <TabControl x:Name="Tabs" Background="#1E1E22" BorderThickness="0" IsEnabled="False">
+            <!-- Inventory -->
+            <TabItem Header="System Inventory">
+                <DockPanel Margin="8">
+                    <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,0,0,8">
+                        <Button x:Name="RefreshInvBtn" Content="Refresh inventory" Width="150" Click="OnRefreshInventory"/>
+                        <TextBlock x:Name="HardwareText" Margin="16,0" Text="" TextWrapping="Wrap"/>
+                    </StackPanel>
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="4"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <DockPanel Grid.Column="0">
+                            <TextBlock DockPanel.Dock="Top" Text="Installed applications" FontWeight="Bold" Margin="2"/>
+                            <DataGrid x:Name="AppsGrid" AutoGenerateColumns="False" IsReadOnly="True"
+                                      Background="#27272C" Foreground="#E6E6E6" GridLinesVisibility="Horizontal"
+                                      RowBackground="#27272C" AlternatingRowBackground="#2C2C32">
+                                <DataGrid.Columns>
+                                    <DataGridTextColumn Header="Name" Binding="{Binding Name}" Width="*"/>
+                                    <DataGridTextColumn Header="Version" Binding="{Binding Version}" Width="110"/>
+                                    <DataGridTextColumn Header="Publisher" Binding="{Binding Publisher}" Width="160"/>
+                                </DataGrid.Columns>
+                            </DataGrid>
+                        </DockPanel>
+                        <GridSplitter Grid.Column="1" Width="4" HorizontalAlignment="Stretch" Background="#3A3A40"/>
+                        <DockPanel Grid.Column="2">
+                            <TextBlock DockPanel.Dock="Top" Text="Running processes" FontWeight="Bold" Margin="2"/>
+                            <DataGrid x:Name="ProcGrid" AutoGenerateColumns="False" IsReadOnly="True"
+                                      Background="#27272C" Foreground="#E6E6E6" GridLinesVisibility="Horizontal"
+                                      RowBackground="#27272C" AlternatingRowBackground="#2C2C32">
+                                <DataGrid.Columns>
+                                    <DataGridTextColumn Header="PID" Binding="{Binding Pid}" Width="70"/>
+                                    <DataGridTextColumn Header="Name" Binding="{Binding Name}" Width="*"/>
+                                    <DataGridTextColumn Header="Memory (MB)" Binding="{Binding MemoryMb}" Width="110"/>
+                                </DataGrid.Columns>
+                            </DataGrid>
+                        </DockPanel>
+                    </Grid>
+                </DockPanel>
+            </TabItem>
+
+            <!-- Shell -->
+            <TabItem Header="Remote Shell">
+                <DockPanel Margin="8">
+                    <DockPanel DockPanel.Dock="Bottom" Margin="0,8,0,0">
+                        <Button x:Name="ShellSendBtn" DockPanel.Dock="Right" Content="Send" Width="90" Margin="8,0,0,0" Click="OnShellSend"/>
+                        <TextBox x:Name="ShellInputBox" VerticalContentAlignment="Center"
+                                 KeyDown="OnShellInputKeyDown" FontFamily="Cascadia Mono, Consolas"/>
+                    </DockPanel>
+                    <TextBox x:Name="ShellOutput" IsReadOnly="True" Background="#141418" Foreground="#D4D4D4"
+                             FontFamily="Cascadia Mono, Consolas" VerticalScrollBarVisibility="Auto"
+                             TextWrapping="Wrap" AcceptsReturn="True"/>
+                </DockPanel>
+            </TabItem>
+
+            <!-- Remote Desktop -->
+            <TabItem Header="Remote Desktop">
+                <DockPanel Margin="8">
+                    <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,0,0,8">
+                        <Button x:Name="StreamBtn" Content="Start viewing" Width="130" Click="OnToggleStream"/>
+                        <CheckBox x:Name="ControlCheck" Content="Send mouse / keyboard" Foreground="#E6E6E6"
+                                  VerticalAlignment="Center" Margin="16,0"/>
+                        <TextBlock x:Name="StreamStatus" Margin="12,0" Text="Idle"/>
+                    </StackPanel>
+                    <Border Background="Black" ClipToBounds="True">
+                        <Image x:Name="ScreenImage" Stretch="Uniform" Focusable="True"
+                               MouseMove="OnScreenMouseMove" MouseDown="OnScreenMouseDown" MouseUp="OnScreenMouseUp"
+                               MouseWheel="OnScreenMouseWheel" KeyDown="OnScreenKeyDown" KeyUp="OnScreenKeyUp"/>
+                    </Border>
+                </DockPanel>
+            </TabItem>
+        </TabControl>
+    </DockPanel>
+</Window>
