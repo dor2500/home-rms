@@ -11,6 +11,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "HomeRms.Agent", "src\HomeRm
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "HomeRms.Controller", "src\HomeRms.Controller\HomeRms.Controller.csproj", "{9A4741B8-69D0-40C7-8E67-0C4A5C4749C5}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "HomeRms.Controller.Mac", "src\HomeRms.Controller.Mac\HomeRms.Controller.Mac.csproj", "{88865C9D-F249-447A-A7B8-764C1EA796CE}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -57,6 +59,18 @@ Global
 		{9A4741B8-69D0-40C7-8E67-0C4A5C4749C5}.Release|x64.Build.0 = Release|Any CPU
 		{9A4741B8-69D0-40C7-8E67-0C4A5C4749C5}.Release|x86.ActiveCfg = Release|Any CPU
 		{9A4741B8-69D0-40C7-8E67-0C4A5C4749C5}.Release|x86.Build.0 = Release|Any CPU
+		{88865C9D-F249-447A-A7B8-764C1EA796CE}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{88865C9D-F249-447A-A7B8-764C1EA796CE}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{88865C9D-F249-447A-A7B8-764C1EA796CE}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{88865C9D-F249-447A-A7B8-764C1EA796CE}.Debug|x64.Build.0 = Debug|Any CPU
+		{88865C9D-F249-447A-A7B8-764C1EA796CE}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{88865C9D-F249-447A-A7B8-764C1EA796CE}.Debug|x86.Build.0 = Debug|Any CPU
+		{88865C9D-F249-447A-A7B8-764C1EA796CE}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{88865C9D-F249-447A-A7B8-764C1EA796CE}.Release|Any CPU.Build.0 = Release|Any CPU
+		{88865C9D-F249-447A-A7B8-764C1EA796CE}.Release|x64.ActiveCfg = Release|Any CPU
+		{88865C9D-F249-447A-A7B8-764C1EA796CE}.Release|x64.Build.0 = Release|Any CPU
+		{88865C9D-F249-447A-A7B8-764C1EA796CE}.Release|x86.ActiveCfg = Release|Any CPU
+		{88865C9D-F249-447A-A7B8-764C1EA796CE}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -65,5 +79,6 @@ Global
 		{E7AB3094-93DA-4076-B81B-21BB26DC7533} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
 		{6E30AEF6-C4E9-4CB0-B311-169F674B7D82} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
 		{9A4741B8-69D0-40C7-8E67-0C4A5C4749C5} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
+		{88865C9D-F249-447A-A7B8-764C1EA796CE} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
 	EndGlobalSection
 EndGlobal

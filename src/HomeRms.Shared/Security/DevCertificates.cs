@@ -32,7 +32,9 @@ public static class DevCertificates
     /// </summary>
     public static void EnsureDeploymentCertificates(string outputDir, string password)
     {
-        Directory.CreateDirectory(outputDir);
+        try { Directory.CreateDirectory(outputDir); }
+        catch { return; }
+
         var caPath = Path.Combine(outputDir, CaFileName);
 
         // 1. If the assembly carries embedded deployment certificates, sync them on first run
@@ -95,6 +97,10 @@ public static class DevCertificates
     {
         EnsureDeploymentCertificates(dir, password);
 
+        var storageFlags = OperatingSystem.IsWindows()
+            ? X509KeyStorageFlags.Exportable | X509KeyStorageFlags.UserKeySet
+            : X509KeyStorageFlags.Exportable;
+
         // Prefer the embedded deployment certificate if available and the disk copy is mismatched
         if (TryGetEmbeddedBytes(fileName) is { } embeddedBytes &&
             TryGetEmbeddedBytes(CaFileName) is { } embeddedCaBytes)
@@ -109,10 +115,7 @@ public static class DevCertificates
                     using var diskCa = X509CertificateLoader.LoadPkcs12FromFile(diskCaPath, password);
                     if (string.Equals(embeddedCa.Thumbprint, diskCa.Thumbprint, StringComparison.OrdinalIgnoreCase))
                     {
-                        return X509CertificateLoader.LoadPkcs12FromFile(
-                            diskPath,
-                            password,
-                            X509KeyStorageFlags.Exportable | X509KeyStorageFlags.UserKeySet);
+                        return X509CertificateLoader.LoadPkcs12FromFile(diskPath, password, storageFlags);
                     }
                 }
             }
@@ -121,17 +124,14 @@ public static class DevCertificates
                 // Fall through to loading directly from embedded bytes via user temp/local storage
             }
 
-            // Write to per-user LocalAppData if ProgramData was locked or unwritable
+            // Write to per-user LocalApplicationData if primary directory was locked or unwritable
             var fallbackDir = Path.Combine(
                 Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
                 "HomeRMS", "certs");
             Directory.CreateDirectory(fallbackDir);
             var fallbackPath = Path.Combine(fallbackDir, fileName);
             File.WriteAllBytes(fallbackPath, embeddedBytes);
-            return X509CertificateLoader.LoadPkcs12FromFile(
-                fallbackPath,
-                password,
-                X509KeyStorageFlags.Exportable | X509KeyStorageFlags.UserKeySet);
+            return X509CertificateLoader.LoadPkcs12FromFile(fallbackPath, password, storageFlags);
         }
 
         // NOTE: do not use EphemeralKeySet here. On Windows, SChannel cannot use an
@@ -140,7 +140,7 @@ public static class DevCertificates
         return X509CertificateLoader.LoadPkcs12FromFile(
             Path.Combine(dir, fileName),
             password,
-            X509KeyStorageFlags.Exportable | X509KeyStorageFlags.UserKeySet);
+            storageFlags);
     }
 
     /// <summary>Returns the CA certificate with the private key stripped, for peer validation.</summary>

@@ -1,0 +1,28 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net9.0</TargetFramework>
+    <RootNamespace>HomeRms.Controller.Mac</RootNamespace>
+    <AssemblyName>HomeRmsController</AssemblyName>
+    <AssemblyTitle>Home RMS Controller Console (macOS)</AssemblyTitle>
+    <Description>Home RMS Remote Management Console for macOS (mTLS / HTTP2)</Description>
+    <BuiltInComInteropSupport>true</BuiltInComInteropSupport>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Avalonia" Version="11.2.3" />
+    <PackageReference Include="Avalonia.Desktop" Version="11.2.3" />
+    <PackageReference Include="Avalonia.Themes.Fluent" Version="11.2.3" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <AvaloniaResource Include="..\HomeRms.Controller\Assets\controller.png" Link="Assets\controller.png" />
+    <AvaloniaResource Include="..\HomeRms.Controller\Assets\controller.ico" Link="Assets\controller.ico" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\HomeRms.Shared\HomeRms.Shared.csproj" />
+  </ItemGroup>
+
+</Project>

@@ -41,9 +41,11 @@ Runs in the signed-in user's interactive session with a system tray icon, status
 ```text
 HomeRms.sln
 ├── src/HomeRms.Shared          # gRPC Protobuf contract (rms.proto) + Mutual-TLS PKI generator & loader
-├── src/HomeRms.Agent           # WinForms tray & endpoint monitor hosting Kestrel gRPC server over mTLS
-├── src/HomeRms.Controller      # Modern dark-themed WPF console with multi-device sidebar & 3 modules
+├── src/HomeRms.Agent           # Windows-only WinForms tray & endpoint monitor hosting Kestrel gRPC server over mTLS
+├── src/HomeRms.Controller      # Windows dark-themed WPF console with multi-device sidebar & 3 modules
+├── src/HomeRms.Controller.Mac  # macOS native Controller app (Avalonia UI, Apple Silicon arm64 & Intel x64)
 ├── tools/New-DevCerts.ps1      # One-time deployment PKI certificate generator (CA + Agent + Controller)
+├── tools/Package-MacController.ps1 # Packages HomeRmsController.app bundles (.icns + Info.plist) for macOS
 └── tests/HomeRms.LoopbackTest  # Automated end-to-end integration test suite (info, inventory, shell, consent, screen)
 ```
 
@@ -87,9 +89,12 @@ Requires the **.NET 9 SDK** on Windows 10/11.
 # Compile the entire solution in Release mode
 dotnet build HomeRms.sln -c Release
 
-# Publish standalone single-file Release executables into ./dist
+# Publish standalone single-file Windows Release executables into ./dist
 dotnet publish src/HomeRms.Agent/HomeRms.Agent.csproj -c Release -r win-x64 --self-contained false -p:PublishSingleFile=true -o dist
 dotnet publish src/HomeRms.Controller/HomeRms.Controller.csproj -c Release -r win-x64 --self-contained false -p:PublishSingleFile=true -o dist
+
+# Package self-contained macOS Controller .app bundles (Apple Silicon arm64 & Intel x64) into ./dist
+./tools/Package-MacController.ps1
 ```
 
 ---
@@ -115,14 +120,16 @@ To allow incoming connections from your LAN, open TCP port `7443` for the `Priva
 New-NetFirewallRule -DisplayName "Home RMS Agent (mTLS)" -Direction Inbound -Protocol TCP -LocalPort 7443 -Profile Private -Action Allow
 ```
 
-### Step 3: Launch the Controller Console on Your Admin PC
+### Step 3: Launch the Controller Console (Windows or macOS)
+**On Windows:**
 ```powershell
-$env:HOMERMS_CERT_PASSWORD = 'choose-a-strong-pass'
 ./dist/HomeRmsController.exe
 ```
-1. Add your home computers in the **Add / Edit Endpoint** card on the bottom-left (saved automatically to `%AppData%\HomeRMS\machines.json`).
-2. Click **↻ Check Status** to probe all saved computers and see which ones are **Online**.
-3. Select a computer and click **Connect** (or double-click it in the sidebar) to inspect **System Inventory**, stream **Remote Desktop**, or open **Remote PowerShell**.
+
+**On macOS (Apple Silicon `arm64` or Intel `x64`):**
+1. Extract `HomeRmsController-macOS-osx-arm64.zip` (or `osx-x64.zip`).
+2. Double-click `Launch-HomeRMS-Mac.command` (or run `chmod +x HomeRmsController.app/Contents/MacOS/HomeRmsController && xattr -cr HomeRmsController.app && open HomeRmsController.app`).
+3. Add your Windows computers in the **Add / Edit Endpoint** card on the bottom-left (or click **↻ Check Status** to auto-discover Windows Agents on your LAN).
 
 ---
 
