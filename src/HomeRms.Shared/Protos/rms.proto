@@ -32,6 +32,10 @@ service RemoteManagement {
 
   // --- Terminate a running process by PID (recorded in the agent's audit log). ---
   rpc KillProcess (KillProcessRequest) returns (KillProcessResult);
+
+  // --- Bidirectional clipboard sync (Copy/Paste between Controller and Agent). ---
+  rpc GetClipboard (Empty) returns (ClipboardData);
+  rpc SetClipboard (ClipboardData) returns (ClipboardAck);
 }
 
 message Empty {}
@@ -151,4 +155,13 @@ message KillProcessRequest {
 message KillProcessResult {
   bool success = 1;
   string message = 2;
+}
+
+// ---------------- Clipboard Sync ----------------
+message ClipboardData {
+  string text = 1;
+}
+
+message ClipboardAck {
+  bool success = 1;
 }

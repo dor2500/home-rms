@@ -110,6 +110,22 @@ try
         if (!deployRes.Success || !deployRes.Output.Contains("SILENT_DEPLOY_OK_991"))
             failures.Add("DeployPackage failed or did not return expected silent installer output");
     }
+
+    // 7) bidirectional clipboard sync (SetClipboard + GetClipboard)
+    const string clipMarker = "CLIPBOARD_SYNC_OK_4821";
+    var setClip = await client.SetClipboardAsync(new ClipboardData { Text = clipMarker }, deadline: DateTime.UtcNow.AddSeconds(5));
+    var getClip = await client.GetClipboardAsync(new Empty(), deadline: DateTime.UtcNow.AddSeconds(5));
+    Console.WriteLine($"[test] Clipboard Sync OK -> set={setClip.Success}, got='{getClip.Text}'");
+    if (!setClip.Success || getClip.Text != clipMarker)
+        failures.Add("Clipboard sync round-trip did not match");
+
+    // 8) security EKU check: verify an Agent server cert CANNOT impersonate a Controller client cert
+    var agentCert = DevCertificates.Load(RmsPaths.CertDir, DevCertificates.AgentFileName, RmsPaths.CertPassword);
+    var caPublic = DevCertificates.LoadCaPublicOnly(RmsPaths.CertDir, RmsPaths.CertPassword);
+    var ekuRejected = !DevCertificates.ValidateAgainstCa(agentCert, caPublic, DevCertificates.ClientAuthOid);
+    Console.WriteLine($"[test] Security EKU Gate OK -> agent cert rejected for clientAuth={ekuRejected}");
+    if (!ekuRejected)
+        failures.Add("Security regression: Agent server cert was accepted for clientAuth");
 }
 catch (Exception ex)
 {

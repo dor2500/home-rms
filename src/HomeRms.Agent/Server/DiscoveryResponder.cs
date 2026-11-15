@@ -46,14 +46,24 @@ public sealed class DiscoveryResponder : IDisposable
     private async Task ListenLoopAsync(CancellationToken ct)
     {
         if (_udp is null) return;
+        var lastReplyUtc = DateTime.MinValue;
         while (!ct.IsCancellationRequested)
         {
             try
             {
                 var received = await _udp.ReceiveAsync(ct);
+                if (received.Buffer.Length > 64 || !IsPrivateLanIp(received.RemoteEndPoint.Address))
+                    continue;
+
+                // Rate-limit UDP responses to prevent reflection/flooding
+                var now = DateTime.UtcNow;
+                if ((now - lastReplyUtc).TotalMilliseconds < 200)
+                    continue;
+
                 var msg = Encoding.UTF8.GetString(received.Buffer).Trim();
                 if (string.Equals(msg, ProbeToken, StringComparison.Ordinal))
                 {
+                    lastReplyUtc = now;
                     var reply = $"{ReplyPrefix}|{Environment.MachineName}|{_grpcPort}";
                     var bytes = Encoding.UTF8.GetBytes(reply);
                     await _udp.SendAsync(bytes, received.RemoteEndPoint, ct);
@@ -62,6 +72,18 @@ public sealed class DiscoveryResponder : IDisposable
             catch (OperationCanceledException) { break; }
             catch { /* ignore malformed UDP packets */ }
         }
+    }
+
+    private static bool IsPrivateLanIp(IPAddress ip)
+    {
+        if (IPAddress.IsLoopback(ip)) return true;
+        if (ip.IsIPv4MappedToIPv6) ip = ip.MapToIPv4();
+        if (ip.AddressFamily != AddressFamily.InterNetwork) return false;
+        var b = ip.GetAddressBytes();
+        return b[0] == 10 ||
+               (b[0] == 172 && b[1] >= 16 && b[1] <= 31) ||
+               (b[0] == 192 && b[1] == 168) ||
+               (b[0] == 169 && b[1] == 254);
     }
 
     public void Dispose()

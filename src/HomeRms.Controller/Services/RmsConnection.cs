@@ -1,5 +1,6 @@
 using System.Net.Http;
 using System.Net.Security;
+using System.Security.Authentication;
 using System.Security.Cryptography.X509Certificates;
 using Grpc.Net.Client;
 using HomeRms.Shared;
@@ -31,10 +32,13 @@ public sealed class RmsConnection : IDisposable
         {
             SslOptions = new SslClientAuthenticationOptions
             {
+                EnabledSslProtocols = SslProtocols.Tls12 | SslProtocols.Tls13,
                 ClientCertificates = new X509CertificateCollection { clientCert },
                 RemoteCertificateValidationCallback = (_, cert, _, _) =>
                     cert is not null && DevCertificates.ValidateAgainstCa(
-                        cert as X509Certificate2 ?? X509CertificateLoader.LoadCertificate(cert.Export(X509ContentType.Cert)), ca)
+                        cert as X509Certificate2 ?? X509CertificateLoader.LoadCertificate(cert.Export(X509ContentType.Cert)),
+                        ca,
+                        DevCertificates.ServerAuthOid)
             }
         };
 

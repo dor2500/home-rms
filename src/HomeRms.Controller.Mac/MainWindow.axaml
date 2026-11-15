@@ -262,26 +262,28 @@
                     <Border x:Name="DesktopToolbarBorder" DockPanel.Dock="Top" Background="#1C212E" BorderBrush="#282F40" BorderThickness="1"
                             CornerRadius="12" Padding="16,12" Margin="0,0,0,14">
                         <DockPanel>
-                            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center" Spacing="10">
+                            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center" Spacing="8">
+                                <Button Content="📋 Paste to Remote" Click="OnSendClipboardClick"/>
+                                <Button Content="📥 Copy from Remote" Click="OnGetClipboardClick"/>
                                 <Border Background="#141822" BorderBrush="#282F40" BorderThickness="1"
-                                        CornerRadius="7" Padding="12,6" VerticalAlignment="Center">
+                                        CornerRadius="7" Padding="10,6" VerticalAlignment="Center">
                                     <TextBlock x:Name="StreamStatus" Text="Idle — not streaming" FontSize="12" Foreground="#9CA3AF"/>
                                 </Border>
                                 <Button Content="⛶  Full Screen (F11)" Click="OnToggleFullScreenClick"/>
                             </StackPanel>
 
-                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Spacing="12">
-                                <Button x:Name="StreamBtn" Content="▶  Start Viewing" Width="150" HorizontalContentAlignment="Center"
+                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Spacing="10">
+                                <Button x:Name="StreamBtn" Content="▶  Start Viewing" Width="142" HorizontalContentAlignment="Center"
                                         Background="#3B82F6" Foreground="White" FontWeight="SemiBold" Click="OnToggleStream"/>
 
-                                <CheckBox x:Name="ControlCheck" Content="Send Mouse &amp; Keyboard Input"
-                                          Margin="8,0,0,0" IsCheckedChanged="OnControlCheckChanged"/>
+                                <CheckBox x:Name="ControlCheck" Content="Control + Auto Copy/Paste"
+                                          Margin="6,0,0,0" IsCheckedChanged="OnControlCheckChanged"/>
 
-                                <TextBlock Text="Target FPS:" Foreground="#9CA3AF" VerticalAlignment="Center" Margin="8,0,0,0"/>
-                                <TextBox x:Name="FpsBox" Text="15" Width="56"/>
+                                <TextBlock Text="FPS:" Foreground="#9CA3AF" VerticalAlignment="Center" Margin="6,0,0,0"/>
+                                <TextBox x:Name="FpsBox" Text="15" Width="50"/>
 
-                                <TextBlock Text="JPEG Quality:" Foreground="#9CA3AF" VerticalAlignment="Center" Margin="8,0,0,0"/>
-                                <TextBox x:Name="QualityBox" Text="65" Width="56"/>
+                                <TextBlock Text="Quality:" Foreground="#9CA3AF" VerticalAlignment="Center" Margin="6,0,0,0"/>
+                                <TextBox x:Name="QualityBox" Text="65" Width="50"/>
                             </StackPanel>
                         </DockPanel>
                     </Border>
@@ -300,9 +302,11 @@
                             <Border x:Name="FullscreenHud" IsVisible="False" HorizontalAlignment="Right" VerticalAlignment="Top"
                                     Margin="0,14,18,0" Background="#CC151922" BorderBrush="#282F40"
                                     BorderThickness="1" CornerRadius="10" Padding="12,7">
-                                <StackPanel Orientation="Horizontal" Spacing="10">
+                                <StackPanel Orientation="Horizontal" Spacing="8">
                                     <TextBlock x:Name="FullscreenHudText" Text="Full Screen Remote Control" Foreground="#E2E8F0"
                                                FontSize="12" VerticalAlignment="Center"/>
+                                    <Button Content="📋 Paste" Click="OnSendClipboardClick"/>
+                                    <Button Content="📥 Copy" Click="OnGetClipboardClick"/>
                                     <Button Content="⛶  Exit Full Screen (Esc)" Click="OnToggleFullScreenClick"/>
                                     <Button Content="⏹  Stop Stream" Background="#EF4444" Foreground="White" Click="OnToggleStream"/>
                                 </StackPanel>

@@ -49,16 +49,16 @@ HomeRms.sln
 └── tests/HomeRms.LoopbackTest  # Automated end-to-end integration test suite (info, inventory, shell, consent, screen)
 ```
 
-### 1. Zero-Prompt Mutual-TLS (mTLS) Authentication
-Instead of typing passwords or hardcoding a plain pre-shared key into the binary, each deployment uses a dedicated 3-certificate PKI stored in `%ProgramData%\HomeRMS\certs`:
+### 1. Zero-Prompt Mutual-TLS (mTLS) Authentication & EKU Hardening
+Instead of typing passwords or hardcoding a plain pre-shared key into the binary, each deployment uses a dedicated 3-certificate PKI embedded inside the build and synced automatically on first run (`%ProgramData%\HomeRMS\certs` on Windows, `~/Library/Application Support/HomeRMS/certs` on macOS):
 
 | Certificate | File | Role & EKU |
 |---|---|---|
 | **Root CA** | `homerms-ca.pfx` | Self-signed deployment Certificate Authority trusted by both sides |
-| **Agent Server Cert** | `homerms-agent.pfx` | Server certificate (`serverAuth` EKU + `localhost` / LAN SANs) |
-| **Controller Client Cert** | `homerms-controller.pfx` | Client certificate (`clientAuth` EKU) presented automatically by the Controller |
+| **Agent Server Cert** | `homerms-agent.pfx` | Server certificate (`serverAuth` OID `1.3.6.1.5.5.7.3.1` + LAN SANs) |
+| **Controller Client Cert** | `homerms-controller.pfx` | Client certificate (`clientAuth` OID `1.3.6.1.5.5.7.3.2`) presented automatically by the Controller |
 
-Both Kestrel (on the Agent) and `SocketsHttpHandler` (on the Controller) validate certificates against your deployment's custom `homerms-ca` root via `X509ChainTrustMode.CustomRootTrust`. Connections without a valid certificate signed by your CA are rejected at the TLS handshake layer.
+Both Kestrel (on the Agent) and `SocketsHttpHandler` (on the Controller) enforce **TLS 1.2 / TLS 1.3**, validate certificates against your deployment's custom `homerms-ca` root thumbprint, and strictly verify the **Extended Key Usage (EKU)** OID (`clientAuth` vs `serverAuth`) so an Agent certificate can never impersonate a Controller client certificate.
 
 ### 2. Consent-First Security Model
 Unlike covert surveillance tools, **Home RMS** is designed around transparency and user consent:
@@ -73,9 +73,10 @@ Unlike covert surveillance tools, **Home RMS** is designed around transparency a
   - Reads `HKLM` (64-bit and `WOW6432Node`) and `HKCU` uninstall registry hives, deduplicating and sorting installed applications.
   - Enumerates all running processes and their working-set RAM consumption, with one-click **✕ End Process** termination directly from the Controller.
   - Queries WMI (`Win32_Processor`, `Win32_ComputerSystem`, `Win32_VideoController`) and `DriveInfo` for CPU model, logical cores, physical RAM, GPU adapter, and fixed disk capacity/free space.
-- **Remote Desktop, Full Screen Mode & Input (`ScreenCapturer.cs` & `InputInjector.cs`):**
+- **Remote Desktop, Full Screen Mode, Bidirectional Copy-Paste & Input (`ScreenCapturer.cs` & `InputInjector.cs`):**
   - Captures the primary display at physical DPI resolution using Win32 GDI `BitBlt` (`SRCCOPY | CAPTUREBLT`), overlays the live cursor position via `GetCursorInfo` + `DrawIcon`, and encodes frames as JPEG.
   - **Full Screen Mode (`⛶ Full Screen` / `F11` / `Esc`):** Expands the remote desktop stream edge-to-edge across your monitor with a floating HUD bar.
+  - **Bidirectional Copy & Paste (`GetClipboard` / `SetClipboard`):** Includes **📋 Paste to Remote** and **📥 Copy from Remote** buttons, plus automatic clipboard synchronization whenever you press `Ctrl+V` / `Cmd+V` or `Ctrl+C` / `Cmd+C` inside the Remote Desktop view.
   - Maps mouse movement, clicks (`Left`, `Right`, `Middle`), scroll wheel deltas, and keyboard virtual-key codes from the Controller's letterboxed viewport to normalized `0..65535` absolute coordinates injected via Win32 `SendInput`.
 - **Silent Software Deployment (`RemoteManagementService.DeployPackage`):**
   - Streams any local `.exe`, `.msi`, `.msp`, or `.ps1` installer package in 256 KB chunks over Mutual TLS to the remote computer (supports Drag & Drop or File Picker).
@@ -166,6 +167,82 @@ Example output:
 
 ==== LOOPBACK TEST PASSED ====
 ```
+
+---
+
+## מדריך מלא ומפורט למשתמש (בעברית)
+
+### 1. סקירה כללית — מה זה Home RMS?
+**Home RMS** היא מערכת שליטה וניהול מרחוק לרשת הביתית/משרדית (`LAN`), המורכבת משני חלקים:
+- **`HomeRmsAgent.exe` (מערכת הפעלה Windows בלבד):** רץ על מחשבי הקצה שברצונך לנהל. הוא פועל בשקט באזור השעון (System Tray), מאזין בפורט `7443` מעל **Mutual TLS (mTLS)** מוצפן, ומבטיח שקיפות מלאה: צפייה במסך דורשת אישור מפורש (`Allow / Deny`) של המשתמש או מציגה באנר אדום קבוע בראש המסך עם כפתור עצירה מיידי (**Stop**).
+- **`HomeRmsController` (זמין ל-Windows וגם ל-macOS):** קונסולת הניהול שממנה אתה מתחבר לכל המחשבים ברשת.
+
+---
+
+### 2. שלב א' — הפעלת ה-Agent במחשבי הקצה (Windows)
+1. הורד מה-[Releases](https://github.com/dor2500/home-rms/releases/latest) את הקובץ **`HomeRmsAgent.exe`** והפעל אותו במחשב הקצה.
+2. **הגדרה אוטומטית בהפעלה ראשונה (Zero-Setup):**
+   - ברגע ההפעלה הראשונה, ה-Agent מחלץ אוטומטית את תעודות ה-PKI המשותפות לתיקייה `C:\ProgramData\HomeRMS\certs`.
+   - הוא מוסיף אוטומטית חוקים בחומת האש של Windows (Windows Firewall) לפורט `7443` (TCP לתקשורת gRPC ו-UDP לגילוי אוטומטי ברשת).
+   - מופיע אייקון ירוק/כחול ב-System Tray (ליד השעון). לחיצה כפולה עליו פותחת את חלון **Endpoint Monitor** שמציג את כל הפעולות ביומן חי (`LIVE AUDIT & ACTIVITY LOG`).
+
+---
+
+### 3. שלב ב' — הפעלת תוכנת הניהול (Controller) ב-Windows או ב-Mac
+- **במחשב Windows:** הורד והפעל את **`HomeRmsController.exe`**.
+- **במחשב Mac:**
+  1. הורד את **`HomeRmsController-macOS-osx-arm64.zip`** (למעבדי Apple Silicon M1/M2/M3/M4) או **`HomeRmsController-macOS-osx-x64.zip`** (למעבדי Intel).
+  2. חלץ את קובץ ה-ZIP ולחץ לחיצה כפולה על **`Launch-HomeRMS-Mac.command`** (שמסיר אוטומטית את חסימת ה-Gatekeeper ופותח את האפליקציה `HomeRmsController.app`).
+
+---
+
+### 4. שלב ג' — חיבור למחשבים ושימוש ב-4 המודולים
+
+#### חיבור וגילוי אוטומטי של מחשבים ברשת (סרגל צד שמאלי)
+- לחץ על **↻ Check Status** בראש רשימת המחשבים: ה-Controller ישלח שידור UDP ברשת המקומית, **יגלה אוטומטית** כל מחשב שמריץ את `HomeRmsAgent.exe`, יוסיף אותו לרשימה ויציג סטטוס **Online** ירוק יחד עם שם המשתמש ורזולוציית המסך שלו.
+- ניתן גם להוסיף מחשב ידנית בכרטיס **ADD / EDIT ENDPOINT** בתחתית סרגל הצד (שם תצוגה, כתובת IP או שם מחשב, ופורט `7443`) וללחוץ **Save Endpoint**.
+- להתחברות: לחץ לחיצה כפולה על המחשב ברשימה או בחר אותו ולחץ על כפתור **Connect** הכחול בראש המסך.
+
+---
+
+#### לשונית 1: 📊 System Inventory (מפרט חומרה, תוכנות מותקנות ותהליכים)
+- מציגה 4 כרטיסי חומרה בזמן אמת: **מעבד (CPU)** ומספר ליבות, **זיכרון (RAM)**, **כרטיס מסך ורזולוציה (GPU)**, ו**כונני אחסון (Storage Volumes)** כולל שטח פנוי.
+- **חיפוש מהיר:** תיבת החיפוש מסננת בזמן אמת הן את רשימת התוכנות המותקנות והן את התהליכים הפעילים.
+- **סגירת תהליך מרחוק (✕ End Process):** בחר כל תהליך בטבלת **RUNNING PROCESSES** ולחץ על **✕ End Process** כדי לסיים אותו מרחוק מיד.
+
+---
+
+#### לשונית 2: 🖥️ Remote Desktop (שליטה מרחוק, מסך מלא והעתק-הדבק)
+1. לחץ על **▶ Start Viewing**: במחשב המרוחק יקפוץ חלון אישור (**Allow / Deny**). לאחר אישור, שידור המסך החי יופיע מולך.
+2. **שליטה בעכבר ובמקלדת + העתק-הדבק אוטומטי:**
+   - סמן את התיבה **Control + Auto Copy/Paste**.
+   - כעת כל תזוזת עכבר, קליק (שמאלי/ימני/אמצעי), גלילה והקלדה מועברים בזמן אמת למחשב המרוחק.
+3. **העתק-הדבק (Clipboard Sync) בין שני הצדדים:**
+   - **אוטומטי תוך כדי שליטה:** העתק טקסט במחשב שלך, לחץ בתוך מסך השליטה מרחוק והקש **`Ctrl+V`** (או **`Cmd+V`** במק) — הטקסט יסונכרן אוטומטית ללוח של המחשב המרוחק ויושתל מיד! באותו אופן, סימון טקסט במחשב המרוחק והקשה על **`Ctrl+C`** (או **`Cmd+C`**) יעתיקו את הטקסט ישירות ללוח של המחשב שלך.
+   - **כפתורים ייעודיים בסרגל:**
+     - **📋 Paste to Remote:** שולח את הטקסט שבלוח שלך אל המחשב המרוחק ומדביק אותו.
+     - **📥 Copy from Remote:** מושך את הטקסט שנמצא כרגע בלוח של המחשב המרוחק אל הלוח המקומי שלך.
+4. **מצב מסך מלא (Full Screen):**
+   - לחץ על הכפתור **⛶ Full Screen (F11)** (או הקש **`F11`** במקלדת) כדי להרחיב את השליטה מרחוק על פני 100% מהמסך שלך.
+   - במצב מסך מלא מופיע בפינה הימנית-עליונה סרגל צף עם כפתורי **📋 Paste**, **📥 Copy**, **⛶ Exit Full Screen (Esc)** ו-**⏹ Stop Stream** (או לחץ **`Esc`** ליציאה ממסך מלא).
+
+---
+
+#### לשונית 3: ⌨️ Remote PowerShell (טרמינל אינטראקטיבי מרחוק)
+- קונסולת PowerShell דו-כיוונית מלאה מול המחשב המרוחק.
+- **כפתורי פקודות מהירות (Quick Commands):** בלחיצה אחת ניתן להריץ `whoami & hostname`, `IP Configuration`, `Top CPU Processes`, `Disk Volumes` ו-`Uptime`.
+- תומך בהיסטוריית פקודות באמצעות מקשי החצים `Up` / `Down`.
+
+---
+
+#### לשונית 4: 📦 Silent Software Deploy (התקנת תוכנות שקטה מרחוק)
+מאפשר לך להעלות קובץ התקנה מהמחשב שלך ולהתקין אותו אצל הלקוח **בשקט מוחלט (Silent Mode)** ללא חלונות קופצים:
+1. **העלאת קובץ התקנה (`.exe` / `.msi` / `.msp` / `.ps1`):**
+   - לחץ על **📂 Browse File…** ובחר קובץ התקנה מהמחשב שלך (או **גרור והשלך** קובץ ישירות לתוך החלון).
+   - בשדה **Silent Flags**, השאר **`AUTO`** כדי שה-Agent יזהה אוטומטית את סוג המתקין (Inno Setup, NSIS, WiX/Burn, InstallShield או MSI) ויוסיף את הדגלים השקטים המתאימים, או בחר אחד מכפתורי ה-Preset (`/S`, `/VERYSILENT`, `/qn /norestart`).
+   - לחץ על **🚀 Upload & Install Silently**: תראה את אחוזי ההעלאה בזמן אמת, ולאחר מכן את פלט ההתקנה וקוד הסיום (`Exit Code 0`). בסיום ההתקנה, רשימת התוכנות של המחשב המרוחק מתרעננת אוטומטית.
+2. **התקנת תוכנות פופולריות בלחיצה אחת (One-Click Winget Silent Install):**
+   - לחץ על אחד הכפתורים (**7-Zip**, **Google Chrome**, **Mozilla Firefox**, **VLC Media Player**, **Notepad++**, **VS Code**) כדי להתקין אותם באופן שקט לחלוטין על המחשב המרוחק דרך `winget`.
 
 ---
 

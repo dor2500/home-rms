@@ -22,6 +22,9 @@ public static class DevCertificates
     public const string AgentFileName = "homerms-agent.pfx";
     public const string ControllerFileName = "homerms-controller.pfx";
 
+    public const string ServerAuthOid = "1.3.6.1.5.5.7.3.1";
+    public const string ClientAuthOid = "1.3.6.1.5.5.7.3.2";
+
     private static readonly string[] AllFiles = [CaFileName, AgentFileName, ControllerFileName];
 
     /// <summary>
@@ -150,9 +153,38 @@ public static class DevCertificates
         return X509CertificateLoader.LoadCertificate(full.Export(X509ContentType.Cert));
     }
 
-    /// <summary>Validates that <paramref name="peerCert"/> chains to <paramref name="ca"/>.</summary>
-    public static bool ValidateAgainstCa(X509Certificate2 peerCert, X509Certificate2 ca)
+    /// <summary>
+    /// Validates that <paramref name="peerCert"/> chains to <paramref name="ca"/> and
+    /// optionally enforces the required Extended Key Usage OID (<c>serverAuth</c> vs <c>clientAuth</c>)
+    /// so an Agent certificate can never impersonate a Controller client certificate.
+    /// </summary>
+    public static bool ValidateAgainstCa(X509Certificate2 peerCert, X509Certificate2 ca, string? expectedEkuOid = null)
     {
+        // Prevent self-signed CA itself from being presented directly as a leaf cert
+        if (string.Equals(peerCert.Thumbprint, ca.Thumbprint, StringComparison.OrdinalIgnoreCase))
+            return false;
+
+        if (!string.IsNullOrEmpty(expectedEkuOid))
+        {
+            var hasExpectedEku = false;
+            foreach (var ext in peerCert.Extensions)
+            {
+                if (ext is X509EnhancedKeyUsageExtension ekuExt)
+                {
+                    foreach (var oid in ekuExt.EnhancedKeyUsages)
+                    {
+                        if (string.Equals(oid.Value, expectedEkuOid, StringComparison.Ordinal))
+                        {
+                            hasExpectedEku = true;
+                            break;
+                        }
+                    }
+                }
+            }
+            if (!hasExpectedEku)
+                return false;
+        }
+
         using var chain = new X509Chain();
         chain.ChainPolicy.RevocationMode = X509RevocationMode.NoCheck;
         chain.ChainPolicy.TrustMode = X509ChainTrustMode.CustomRootTrust;

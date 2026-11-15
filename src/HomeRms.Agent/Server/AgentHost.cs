@@ -1,3 +1,4 @@
+using System.Security.Authentication;
 using System.Security.Cryptography.X509Certificates;
 using HomeRms.Agent.Core;
 using HomeRms.Shared;
@@ -33,8 +34,10 @@ public static class AgentHost
                 listen.Protocols = HttpProtocols.Http2;
                 listen.UseHttps(agentCert, https =>
                 {
+                    https.SslProtocols = SslProtocols.Tls12 | SslProtocols.Tls13;
                     https.ClientCertificateMode = ClientCertificateMode.RequireCertificate;
-                    https.ClientCertificateValidation = (cert, _, _) => DevCertificates.ValidateAgainstCa(cert, caCert);
+                    https.ClientCertificateValidation = (cert, _, _) =>
+                        DevCertificates.ValidateAgainstCa(cert, caCert, DevCertificates.ClientAuthOid);
                 });
             });
         });

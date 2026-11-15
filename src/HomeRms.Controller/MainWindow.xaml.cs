@@ -827,11 +827,89 @@ public partial class MainWindow : Window
         QueueInput(new InputEvent { Kind = InputEvent.Types.Kind.MouseWheel, Wheel = e.Delta });
     }
 
-    private void OnScreenKeyDown(object sender, KeyEventArgs e)
+    private async void OnScreenKeyDown(object sender, KeyEventArgs e)
     {
         if (_inputCall is null) return;
         e.Handled = true;
-        QueueInput(new InputEvent { Kind = InputEvent.Types.Kind.KeyDown, KeyCode = KeyInterop.VirtualKeyFromKey(e.Key) });
+        var vk = KeyInterop.VirtualKeyFromKey(e.Key);
+
+        // Auto-sync clipboard on Ctrl+V before injecting V into the remote desktop
+        if ((Keyboard.Modifiers & ModifierKeys.Control) == ModifierKeys.Control && e.Key == Key.V && _conn is not null)
+        {
+            try
+            {
+                if (Clipboard.ContainsText())
+                {
+                    var localText = Clipboard.GetText();
+                    await _conn.Client.SetClipboardAsync(new ClipboardData { Text = localText },
+                        deadline: DateTime.UtcNow.AddSeconds(3));
+                }
+            }
+            catch { }
+        }
+
+        QueueInput(new InputEvent { Kind = InputEvent.Types.Kind.KeyDown, KeyCode = vk });
+
+        // Auto-sync clipboard on Ctrl+C after remote app copies selection
+        if ((Keyboard.Modifiers & ModifierKeys.Control) == ModifierKeys.Control && e.Key == Key.C && _conn is not null)
+        {
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    await Task.Delay(200);
+                    if (_conn is null) return;
+                    var remoteClip = await _conn.Client.GetClipboardAsync(new Empty(),
+                        deadline: DateTime.UtcNow.AddSeconds(3));
+                    if (!string.IsNullOrEmpty(remoteClip.Text))
+                        Dispatcher.Invoke(() => { try { Clipboard.SetText(remoteClip.Text); } catch { } });
+                }
+                catch { }
+            });
+        }
+    }
+
+    private async void OnSendClipboardClick(object sender, RoutedEventArgs e)
+    {
+        if (_conn is null && !await ConnectToCurrentFieldsAsync()) return;
+        try
+        {
+            var text = Clipboard.ContainsText() ? Clipboard.GetText() : "";
+            await _conn!.Client.SetClipboardAsync(new ClipboardData { Text = text },
+                deadline: DateTime.UtcNow.AddSeconds(5));
+
+            // If live input control is active, also synthesize Ctrl+V so it pastes immediately
+            if (_inputCall is not null)
+            {
+                QueueInput(new InputEvent { Kind = InputEvent.Types.Kind.KeyDown, KeyCode = 0x11 }); // VK_CONTROL
+                QueueInput(new InputEvent { Kind = InputEvent.Types.Kind.KeyDown, KeyCode = 0x56 }); // VK_V
+                QueueInput(new InputEvent { Kind = InputEvent.Types.Kind.KeyUp, KeyCode = 0x56 });
+                QueueInput(new InputEvent { Kind = InputEvent.Types.Kind.KeyUp, KeyCode = 0x11 });
+            }
+
+            StatusText.Text = $"Sent clipboard to {_agentInfo?.MachineName} ({text.Length} chars).";
+        }
+        catch (Exception ex)
+        {
+            StatusText.Text = "Clipboard send failed: " + Short(ex);
+        }
+    }
+
+    private async void OnGetClipboardClick(object sender, RoutedEventArgs e)
+    {
+        if (_conn is null && !await ConnectToCurrentFieldsAsync()) return;
+        try
+        {
+            var res = await _conn!.Client.GetClipboardAsync(new Empty(),
+                deadline: DateTime.UtcNow.AddSeconds(5));
+            if (!string.IsNullOrEmpty(res.Text))
+                Clipboard.SetText(res.Text);
+            StatusText.Text = $"Copied clipboard from {_agentInfo?.MachineName} ({res.Text.Length} chars).";
+        }
+        catch (Exception ex)
+        {
+            StatusText.Text = "Clipboard fetch failed: " + Short(ex);
+        }
     }
 
     private void OnScreenKeyUp(object sender, KeyEventArgs e)
@@ -969,6 +1047,7 @@ public partial class MainWindow : Window
     private async void OnWingetQuickInstallClick(object sender, RoutedEventArgs e)
     {
         if (sender is not Button { Tag: string packageId }) return;
+        if (!System.Text.RegularExpressions.Regex.IsMatch(packageId, @"^[a-zA-Z0-9._\-]+$")) return;
         if (_conn is null && !await ConnectToCurrentFieldsAsync()) return;
 
         // Create a tiny temporary .ps1 script that runs winget silently and deploy it via DeployPackage

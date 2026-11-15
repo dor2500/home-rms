@@ -300,8 +300,14 @@
                     <Border x:Name="DesktopToolbarBorder" DockPanel.Dock="Top" Style="{StaticResource CardStyle}" Padding="16,12" Margin="0,0,0,14">
                         <DockPanel>
                             <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
+                                <Button Content="📋 Paste to Remote" Style="{StaticResource SmallPillButton}"
+                                        ToolTip="Send your local clipboard text to the remote PC (and paste if control is active)"
+                                        Margin="0,0,8,0" Click="OnSendClipboardClick"/>
+                                <Button Content="📥 Copy from Remote" Style="{StaticResource SmallPillButton}"
+                                        ToolTip="Pull the remote PC's clipboard text into your local clipboard"
+                                        Margin="0,0,10,0" Click="OnGetClipboardClick"/>
                                 <Border Background="#141822" BorderBrush="{StaticResource LineBrush}" BorderThickness="1"
-                                        CornerRadius="7" Padding="12,6" Margin="0,0,10,0">
+                                        CornerRadius="7" Padding="10,6" Margin="0,0,10,0">
                                     <TextBlock x:Name="StreamStatus" Text="Idle — not streaming"
                                                FontSize="12" Foreground="{StaticResource MutedBrush}"/>
                                 </Border>
@@ -310,22 +316,22 @@
                             </StackPanel>
 
                             <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                <Button x:Name="StreamBtn" Content="▶  Start Viewing" Width="150"
+                                <Button x:Name="StreamBtn" Content="▶  Start Viewing" Width="142"
                                         Style="{StaticResource PrimaryButton}" Click="OnToggleStream"/>
 
-                                <CheckBox x:Name="ControlCheck" Content="Send Mouse &amp; Keyboard Input"
-                                          Margin="20,0,0,0" Checked="OnControlCheckChanged"
+                                <CheckBox x:Name="ControlCheck" Content="Control + Auto Copy/Paste"
+                                          Margin="16,0,0,0" Checked="OnControlCheckChanged"
                                           Unchecked="OnControlCheckChanged"/>
 
-                                <Border Width="1" Height="22" Background="{StaticResource LineBrush}" Margin="20,0"/>
+                                <Border Width="1" Height="22" Background="{StaticResource LineBrush}" Margin="16,0"/>
 
-                                <TextBlock Text="Target FPS:" Foreground="{StaticResource MutedBrush}"
+                                <TextBlock Text="FPS:" Foreground="{StaticResource MutedBrush}"
                                            VerticalAlignment="Center" Margin="0,0,6,0"/>
-                                <TextBox x:Name="FpsBox" Text="15" Width="48" Margin="0,0,14,0"/>
+                                <TextBox x:Name="FpsBox" Text="15" Width="44" Margin="0,0,12,0"/>
 
-                                <TextBlock Text="JPEG Quality:" Foreground="{StaticResource MutedBrush}"
+                                <TextBlock Text="Quality:" Foreground="{StaticResource MutedBrush}"
                                            VerticalAlignment="Center" Margin="0,0,6,0"/>
-                                <TextBox x:Name="QualityBox" Text="65" Width="48"/>
+                                <TextBox x:Name="QualityBox" Text="65" Width="44"/>
                             </StackPanel>
                         </DockPanel>
                     </Border>
@@ -345,6 +351,10 @@
                                 <StackPanel Orientation="Horizontal">
                                     <TextBlock x:Name="FullscreenHudText" Text="Full Screen Remote Control" Foreground="#E2E8F0"
                                                FontSize="12" VerticalAlignment="Center" Margin="0,0,12,0"/>
+                                    <Button Content="📋 Paste" Style="{StaticResource SmallPillButton}"
+                                            Margin="0,0,6,0" Click="OnSendClipboardClick"/>
+                                    <Button Content="📥 Copy" Style="{StaticResource SmallPillButton}"
+                                            Margin="0,0,8,0" Click="OnGetClipboardClick"/>
                                     <Button Content="⛶  Exit Full Screen (Esc)" Style="{StaticResource SmallPillButton}"
                                             Margin="0,0,8,0" Click="OnToggleFullScreenClick"/>
                                     <Button Content="⏹  Stop Stream" Style="{StaticResource DangerButton}"

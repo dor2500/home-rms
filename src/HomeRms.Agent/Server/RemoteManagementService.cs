@@ -1,7 +1,9 @@
 using System.Diagnostics;
 using System.Runtime.Versioning;
 using System.Security.Cryptography.X509Certificates;
+using System.Text.RegularExpressions;
 using System.Threading.Channels;
+using System.Windows.Forms;
 using Grpc.Core;
 using HomeRms.Agent.Core;
 using HomeRms.Agent.Features;
@@ -162,11 +164,20 @@ public sealed class RemoteManagementService(ConsentCoordinator consent, Activity
         log.Write($"[shell] '{op}' closed the remote shell");
     }
 
+    private const long MaxDeployBytes = 512L * 1024 * 1024; // 512 MB limit against disk exhaustion
+    private static readonly HashSet<string> AllowedExtensions = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ".exe", ".msi", ".msp", ".ps1"
+    };
+
     public override async Task<DeployResult> DeployPackage(
         IAsyncStreamReader<PackageChunk> requestStream, ServerCallContext context)
     {
         var op = OperatorOf(context);
-        var deployDir = Path.Combine(Path.GetTempPath(), "HomeRMS-Deploy");
+        // Use per-user LocalApplicationData instead of shared %TEMP% to prevent multi-user symlink/TOCTOU attacks
+        var deployDir = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+            "HomeRMS", "DeployStaging");
         Directory.CreateDirectory(deployDir);
 
         string fileName = "installer.exe";
@@ -182,7 +193,10 @@ public sealed class RemoteManagementService(ConsentCoordinator consent, Activity
                 await foreach (var chunk in requestStream.ReadAllAsync(context.CancellationToken))
                 {
                     if (!string.IsNullOrWhiteSpace(chunk.FileName))
-                        fileName = Path.GetFileName(chunk.FileName);
+                    {
+                        var rawName = Path.GetFileName(chunk.FileName);
+                        fileName = Regex.Replace(rawName, @"[^a-zA-Z0-9._\-]", "_");
+                    }
                     if (!string.IsNullOrWhiteSpace(chunk.Arguments))
                         customArgs = chunk.Arguments.Trim();
                     if (chunk.TimeoutSeconds > 0)
@@ -190,10 +204,26 @@ public sealed class RemoteManagementService(ConsentCoordinator consent, Activity
 
                     if (chunk.Data.Length > 0)
                     {
-                        chunk.Data.WriteTo(fs);
                         totalBytes += chunk.Data.Length;
+                        if (totalBytes > MaxDeployBytes)
+                        {
+                            throw new InvalidOperationException($"Package exceeds maximum allowed size ({MaxDeployBytes / (1024 * 1024)} MB).");
+                        }
+                        chunk.Data.WriteTo(fs);
                     }
                 }
+            }
+
+            var ext = Path.GetExtension(fileName);
+            if (!AllowedExtensions.Contains(ext))
+            {
+                return new DeployResult
+                {
+                    Success = false,
+                    ExitCode = -1,
+                    CommandLine = fileName,
+                    Output = $"Blocked unsupported file extension '{ext}'. Allowed: .exe, .msi, .msp, .ps1."
+                };
             }
 
             if (totalBytes == 0)
@@ -364,5 +394,47 @@ public sealed class RemoteManagementService(ConsentCoordinator consent, Activity
                 Message = ex.Message
             });
         }
+    }
+
+    public override Task<ClipboardData> GetClipboard(Empty request, ServerCallContext context)
+    {
+        var op = OperatorOf(context);
+        var text = RunSta(() => Clipboard.ContainsText() ? Clipboard.GetText() : "") ?? "";
+        log.Write($"[clipboard] '{op}' copied clipboard text from this computer ({text.Length} chars)");
+        return Task.FromResult(new ClipboardData { Text = text });
+    }
+
+    public override Task<ClipboardAck> SetClipboard(ClipboardData request, ServerCallContext context)
+    {
+        var op = OperatorOf(context);
+        var text = request.Text ?? "";
+        if (text.Length > 1024 * 1024)
+            text = text[..(1024 * 1024)];
+
+        var ok = RunSta(() =>
+        {
+            if (string.IsNullOrEmpty(text))
+                Clipboard.Clear();
+            else
+                Clipboard.SetText(text);
+            return true;
+        });
+
+        log.Write($"[clipboard] '{op}' pasted clipboard text to this computer ({text.Length} chars)");
+        return Task.FromResult(new ClipboardAck { Success = ok });
+    }
+
+    private static T? RunSta<T>(Func<T> func)
+    {
+        T? result = default;
+        var thread = new Thread(() =>
+        {
+            try { result = func(); }
+            catch { }
+        });
+        thread.SetApartmentState(ApartmentState.STA);
+        thread.Start();
+        thread.Join(2000);
+        return result;
     }
 }
