@@ -34,7 +34,7 @@ public static class AgentHost
                 listen.UseHttps(agentCert, https =>
                 {
                     https.ClientCertificateMode = ClientCertificateMode.RequireCertificate;
-                    https.ClientCertificateValidation = (cert, _, _) => ValidateAgainstCa(cert, caCert);
+                    https.ClientCertificateValidation = (cert, _, _) => DevCertificates.ValidateAgainstCa(cert, caCert);
                 });
             });
         });
@@ -43,15 +43,5 @@ public static class AgentHost
         app.MapGrpcService<RemoteManagementService>();
         log.Write($"[host] listening on port {port} (mutual TLS required)");
         return app;
-    }
-
-    /// <summary>Accepts a client certificate only if it chains to our deployment CA.</summary>
-    private static bool ValidateAgainstCa(X509Certificate2 clientCert, X509Certificate2 ca)
-    {
-        using var chain = new X509Chain();
-        chain.ChainPolicy.RevocationMode = X509RevocationMode.NoCheck;
-        chain.ChainPolicy.TrustMode = X509ChainTrustMode.CustomRootTrust;
-        chain.ChainPolicy.CustomTrustStore.Add(ca);
-        return chain.Build(clientCert);
     }
 }

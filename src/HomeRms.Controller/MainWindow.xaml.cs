@@ -1,5 +1,8 @@
 using System.Collections.ObjectModel;
 using System.IO;
+using System.Net;
+using System.Net.Sockets;
+using System.Text;
 using System.Threading;
 using System.Threading.Channels;
 using System.Windows;
@@ -163,6 +166,8 @@ public partial class MainWindow : Window
         if (ProbeBtn is not null) ProbeBtn.IsEnabled = false;
         try
         {
+            await DiscoverLanAgentsAsync();
+
             var tasks = _machines.ToList().Select(async m =>
             {
                 if (m == _connectedProfile && _conn is not null)
@@ -195,6 +200,66 @@ public partial class MainWindow : Window
         finally
         {
             if (ProbeBtn is not null) ProbeBtn.IsEnabled = true;
+        }
+    }
+
+    private async Task DiscoverLanAgentsAsync()
+    {
+        try
+        {
+            using var udp = new UdpClient { EnableBroadcast = true };
+            var probe = Encoding.UTF8.GetBytes("HOMERMS_DISCOVER_V1");
+            await udp.SendAsync(probe, probe.Length, new IPEndPoint(IPAddress.Broadcast, 7443));
+
+            var changed = false;
+            using var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(450));
+            while (!cts.IsCancellationRequested)
+            {
+                var packet = await udp.ReceiveAsync(cts.Token);
+                var text = Encoding.UTF8.GetString(packet.Buffer).Trim();
+                var parts = text.Split('|');
+                if (parts.Length < 3 || parts[0] != "HOMERMS_AGENT_V1") continue;
+
+                var machineName = parts[1];
+                if (!int.TryParse(parts[2], out var port)) port = 7443;
+                var ip = packet.RemoteEndPoint.Address.ToString();
+
+                // Skip our own machine if localhost is already listed
+                if (string.Equals(machineName, Environment.MachineName, StringComparison.OrdinalIgnoreCase) &&
+                    _machines.Any(m => m.Host is "localhost" or "127.0.0.1"))
+                {
+                    continue;
+                }
+
+                var existing = _machines.FirstOrDefault(m =>
+                    (string.Equals(m.Host, ip, StringComparison.OrdinalIgnoreCase) ||
+                     string.Equals(m.Name, machineName, StringComparison.OrdinalIgnoreCase)) &&
+                    m.Port == port);
+
+                if (existing is null)
+                {
+                    _machines.Add(new MachineProfile
+                    {
+                        Name = machineName,
+                        Host = ip,
+                        Port = port,
+                        StatusLabel = "Discovered"
+                    });
+                    changed = true;
+                }
+                else if (existing.Host != ip && !string.Equals(existing.Host, "localhost", StringComparison.OrdinalIgnoreCase))
+                {
+                    existing.Host = ip;
+                    changed = true;
+                }
+            }
+
+            if (changed)
+                MachineStore.Save(_machines);
+        }
+        catch
+        {
+            // Expected timeout when UDP listen window closes
         }
     }
 

@@ -33,7 +33,7 @@ public sealed class RmsConnection : IDisposable
             {
                 ClientCertificates = new X509CertificateCollection { clientCert },
                 RemoteCertificateValidationCallback = (_, cert, _, _) =>
-                    cert is not null && ValidateAgainstCa(
+                    cert is not null && DevCertificates.ValidateAgainstCa(
                         cert as X509Certificate2 ?? X509CertificateLoader.LoadCertificate(cert.Export(X509ContentType.Cert)), ca)
             }
         };
@@ -44,15 +44,6 @@ public sealed class RmsConnection : IDisposable
             MaxReceiveMessageSize = 32 * 1024 * 1024
         });
         Client = new RemoteManagement.RemoteManagementClient(_channel);
-    }
-
-    private static bool ValidateAgainstCa(X509Certificate2 serverCert, X509Certificate2 ca)
-    {
-        using var chain = new X509Chain();
-        chain.ChainPolicy.RevocationMode = X509RevocationMode.NoCheck;
-        chain.ChainPolicy.TrustMode = X509ChainTrustMode.CustomRootTrust;
-        chain.ChainPolicy.CustomTrustStore.Add(ca);
-        return chain.Build(serverCert);
     }
 
     public void Dispose() => _channel.Dispose();

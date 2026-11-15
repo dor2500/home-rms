@@ -32,11 +32,19 @@ Write-Host "Generating Home RMS certificates (password: $Password)..." -Foregrou
 
 # Drive the same generation code the apps use, via a tiny inline program.
 $certDir = Join-Path $env:ProgramData 'HomeRMS/certs'
+$embeddedDir = Join-Path $root 'src/HomeRms.Shared/Certs'
+New-Item -ItemType Directory -Force -Path $embeddedDir | Out-Null
+
 $code = @"
 using HomeRms.Shared;
 using HomeRms.Shared.Security;
-DevCertificates.EnsureDeploymentCertificates(@"$certDir", "$Password");
-System.Console.WriteLine("Certificates written to: " + RmsPaths.CertDir);
+DevCertificates.GenerateNewCertificates(@"$embeddedDir", "$Password");
+foreach (var f in System.IO.Directory.GetFiles(@"$embeddedDir", "*.pfx"))
+{
+    System.IO.Directory.CreateDirectory(@"$certDir");
+    System.IO.File.Copy(f, System.IO.Path.Combine(@"$certDir", System.IO.Path.GetFileName(f)), overwrite: true);
+}
+System.Console.WriteLine("Certificates generated & synced to: " + @"$embeddedDir" + " and " + @"$certDir");
 "@
 
 $tmp = Join-Path $env:TEMP ("homerms-certgen-" + [guid]::NewGuid().ToString('N'))

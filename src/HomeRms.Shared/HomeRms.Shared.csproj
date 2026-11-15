@@ -16,6 +16,7 @@
 
   <ItemGroup>
     <Protobuf Include="Protos\rms.proto" GrpcServices="Both" />
+    <EmbeddedResource Include="Certs\*.pfx" />
   </ItemGroup>
 
 </Project>

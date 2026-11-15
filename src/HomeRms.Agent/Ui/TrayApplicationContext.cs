@@ -26,7 +26,8 @@ internal sealed class TrayApplicationContext : ApplicationContext, IConsentUi
         ActivityLog log,
         int port,
         bool autoConsent = false,
-        string? screenshotPath = null)
+        string? screenshotPath = null,
+        bool showWindowOnStartup = false)
     {
         _consent = consent;
         _autoConsent = autoConsent;
@@ -59,8 +60,10 @@ internal sealed class TrayApplicationContext : ApplicationContext, IConsentUi
 
         _consent.AttachUi(this);
 
-        _form.Show();
-        _tray.ShowBalloonTip(3000, "Home RMS", "Running. Nothing happens without your permission.", ToolTipIcon.Info);
+        if (showWindowOnStartup || !string.IsNullOrWhiteSpace(_screenshotPath))
+        {
+            _form.Show();
+        }
     }
 
     private void ShowMain()
