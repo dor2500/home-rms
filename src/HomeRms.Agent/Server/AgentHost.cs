@@ -22,7 +22,7 @@ public static class AgentHost
 
         var builder = WebApplication.CreateBuilder();
         builder.Logging.ClearProviders();
-        builder.Services.AddGrpc();
+        builder.Services.AddGrpc(o => o.MaxReceiveMessageSize = 64 * 1024 * 1024);
         builder.Services.AddSingleton(consent);
         builder.Services.AddSingleton(log);
 

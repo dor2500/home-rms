@@ -9,6 +9,7 @@ using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Media;
 using Avalonia.Media.Imaging;
+using Avalonia.Platform.Storage;
 using Avalonia.Threading;
 using Grpc.Core;
 using HomeRms.Controller.Mac.Models;
@@ -39,6 +40,8 @@ public partial class MainWindow : Window
     private Channel<InputEvent>? _inputChannel;
     private int _frameWidth = 1920;
     private int _frameHeight = 1080;
+    private bool _isFullScreen;
+    private WindowState _prevWindowState = WindowState.Normal;
 
     public MainWindow()
     {
@@ -59,6 +62,11 @@ public partial class MainWindow : Window
             "Connected over Mutual TLS (HTTP/2). Every command executed here is recorded in the remote agent's visible activity log.\r\n" +
             "--------------------------------------------------------------------------------------------------------------------\r\n";
 
+        DeployOutputBox.Text =
+            "Home RMS Silent Software Deployment Console (macOS -> Windows Agent)\r\n" +
+            "Select any .exe, .msi, .msp, or .ps1 file above to stream it over mTLS and install it silently on the remote Windows computer.\r\n" +
+            "--------------------------------------------------------------------------------------------------------------------\r\n";
+
         Opened += async (_, _) => await ProbeAllMachinesAsync();
         Closed += (_, _) => Disconnect();
     }
@@ -66,11 +74,66 @@ public partial class MainWindow : Window
     // ---------------- Navigation ----------------
     private void OnNavTabChanged(object? sender, RoutedEventArgs e)
     {
-        if (InventoryPanel is null || DesktopPanel is null || ShellPanel is null) return;
+        if (InventoryPanel is null || DesktopPanel is null || ShellPanel is null || DeployPanel is null) return;
+
+        if (_isFullScreen && NavDesktop.IsChecked != true)
+            SetFullScreen(false);
 
         InventoryPanel.IsVisible = NavInventory.IsChecked == true;
         DesktopPanel.IsVisible = NavDesktop.IsChecked == true;
         ShellPanel.IsVisible = NavShell.IsChecked == true;
+        DeployPanel.IsVisible = NavDeploy.IsChecked == true;
+    }
+
+    private void OnWindowKeyDown(object? sender, KeyEventArgs e)
+    {
+        if (e.Key == Key.F11)
+        {
+            e.Handled = true;
+            if (NavDesktop.IsChecked != true)
+                NavDesktop.IsChecked = true;
+            SetFullScreen(!_isFullScreen);
+        }
+        else if (e.Key == Key.Escape && _isFullScreen)
+        {
+            e.Handled = true;
+            SetFullScreen(false);
+        }
+    }
+
+    private void OnToggleFullScreenClick(object? sender, RoutedEventArgs e) => SetFullScreen(!_isFullScreen);
+
+    private void SetFullScreen(bool fullScreen)
+    {
+        if (_isFullScreen == fullScreen) return;
+        _isFullScreen = fullScreen;
+
+        if (fullScreen)
+        {
+            _prevWindowState = WindowState;
+            SidebarBorder.IsVisible = false;
+            TopBarBorder.IsVisible = false;
+            NavBarBorder.IsVisible = false;
+            DesktopToolbarBorder.IsVisible = false;
+            WorkspaceGrid.Margin = new Thickness(0);
+            ScreenCanvasBorder.CornerRadius = new CornerRadius(0);
+            ScreenCanvasBorder.BorderThickness = new Thickness(0);
+            FullscreenHud.IsVisible = true;
+            WindowState = WindowState.FullScreen;
+            ScreenImage.Focus();
+        }
+        else
+        {
+            WindowState = _prevWindowState == WindowState.Minimized ? WindowState.Normal : _prevWindowState;
+            SidebarBorder.IsVisible = true;
+            TopBarBorder.IsVisible = true;
+            NavBarBorder.IsVisible = true;
+            DesktopToolbarBorder.IsVisible = true;
+            WorkspaceGrid.Margin = new Thickness(24, 18, 24, 22);
+            ScreenCanvasBorder.CornerRadius = new CornerRadius(12);
+            ScreenCanvasBorder.BorderThickness = new Thickness(1);
+            FullscreenHud.IsVisible = false;
+        }
     }
 
     // ---------------- Machine List & Probing ----------------
@@ -418,6 +481,31 @@ public partial class MainWindow : Window
         ProcsCountText.Text = $"{filteredProcs.Count} / {_allProcs.Count} procs";
     }
 
+    private async void OnKillSelectedProcessClick(object? sender, RoutedEventArgs e)
+    {
+        if (ProcList.SelectedItem is not ProcItem selected)
+        {
+            StatusText.Text = "Select a process in the Running Processes list first.";
+            return;
+        }
+
+        if (_conn is null && !await ConnectToCurrentFieldsAsync())
+            return;
+
+        try
+        {
+            var res = await _conn!.Client.KillProcessAsync(new KillProcessRequest { Pid = selected.Pid },
+                deadline: DateTime.UtcNow.AddSeconds(10));
+            StatusText.Text = res.Message;
+            if (res.Success)
+                await RefreshInventoryCoreAsync();
+        }
+        catch (Exception ex)
+        {
+            StatusText.Text = "Process termination failed: " + Short(ex);
+        }
+    }
+
     // ---------------- Shell ----------------
     private async Task EnsureShellAsync()
     {
@@ -552,7 +640,9 @@ public partial class MainWindow : Window
                 Dispatcher.UIThread.Post(() =>
                 {
                     DesktopOverlay.IsVisible = false;
-                    StreamStatus.Text = $"LIVE  •  Frame #{frame.Sequence}  •  {frame.Width}×{frame.Height}  •  {bytes.Length / 1024} KB";
+                    var statusLine = $"LIVE  •  Frame #{frame.Sequence}  •  {frame.Width}×{frame.Height}  •  {bytes.Length / 1024} KB";
+                    StreamStatus.Text = statusLine;
+                    FullscreenHudText.Text = $"{_agentInfo?.MachineName}  •  {statusLine}";
                     using var ms = new MemoryStream(bytes);
                     ScreenImage.Source = new Bitmap(ms);
                 });
@@ -747,4 +837,133 @@ public partial class MainWindow : Window
 
     private static long Gb(long bytes) => bytes / (1024 * 1024 * 1024);
     private static string Short(Exception ex) => ex.Message.Split('\n')[0];
+
+    // ---------------- Silent Software Deployment ----------------
+    private async void OnBrowseDeployFileClick(object? sender, RoutedEventArgs e)
+    {
+        var files = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
+        {
+            Title = "Select Windows Installer Package (.exe, .msi, .msp, .ps1)",
+            AllowMultiple = false
+        });
+        if (files.Count > 0)
+        {
+            var localPath = files[0].TryGetLocalPath();
+            if (!string.IsNullOrWhiteSpace(localPath))
+                DeployFilePathBox.Text = localPath;
+        }
+    }
+
+    private void OnDeployPresetFlagClick(object? sender, RoutedEventArgs e)
+    {
+        if (sender is Button { Tag: string flags })
+            DeployArgsBox.Text = flags;
+    }
+
+    private void OnClearDeployLogClick(object? sender, RoutedEventArgs e) => DeployOutputBox.Text = "";
+
+    private async void OnStartDeployClick(object? sender, RoutedEventArgs e)
+    {
+        var path = (DeployFilePathBox.Text ?? "").Trim().Trim('"');
+        if (string.IsNullOrWhiteSpace(path) || !File.Exists(path))
+        {
+            AppendDeployLog("[!] Please choose a valid local installer file (.exe, .msi, .msp, or .ps1) first.");
+            return;
+        }
+
+        await DeployLocalFileCoreAsync(path, (DeployArgsBox.Text ?? "").Trim());
+    }
+
+    private async Task DeployLocalFileCoreAsync(string filePath, string args)
+    {
+        if (_conn is null && !await ConnectToCurrentFieldsAsync())
+            return;
+
+        var fileInfo = new FileInfo(filePath);
+        var fileName = fileInfo.Name;
+        var totalBytes = fileInfo.Length;
+
+        try
+        {
+            DeployRunBtn.IsEnabled = false;
+            DeployStatusBadge.Text = "Uploading…";
+            AppendDeployLog($"\r\n[{DateTime.Now:HH:mm:ss}] Preparing to deploy '{fileName}' ({totalBytes / 1024.0 / 1024.0:F2} MB) to {_agentInfo?.MachineName}…");
+
+            using var call = _conn!.Client.DeployPackage(deadline: DateTime.UtcNow.AddMinutes(10));
+            var buffer = new byte[256 * 1024];
+            long sent = 0;
+            var first = true;
+
+            await using (var fs = File.OpenRead(filePath))
+            {
+                int read;
+                while ((read = await fs.ReadAsync(buffer)) > 0)
+                {
+                    var chunk = new PackageChunk
+                    {
+                        Data = Google.Protobuf.ByteString.CopyFrom(buffer, 0, read)
+                    };
+                    if (first)
+                    {
+                        chunk.FileName = fileName;
+                        chunk.Arguments = string.IsNullOrWhiteSpace(args) ? "AUTO" : args;
+                        chunk.TimeoutSeconds = 300;
+                        first = false;
+                    }
+
+                    await call.RequestStream.WriteAsync(chunk);
+                    sent += read;
+                    var pct = totalBytes > 0 ? (int)(sent * 100 / totalBytes) : 100;
+                    DeployStatusBadge.Text = $"Uploading {pct}%";
+                }
+            }
+
+            await call.RequestStream.CompleteAsync();
+            DeployStatusBadge.Text = "Installing Silently…";
+            AppendDeployLog($"[{DateTime.Now:HH:mm:ss}] Upload complete (100%). Running silent installer on {_agentInfo?.MachineName}…");
+
+            var result = await call.ResponseAsync;
+            DeployStatusBadge.Text = result.Success ? $"Installed (Exit {result.ExitCode})" : $"Failed (Exit {result.ExitCode})";
+            AppendDeployLog($"[{DateTime.Now:HH:mm:ss}] Command: {result.CommandLine}");
+            AppendDeployLog($"[{DateTime.Now:HH:mm:ss}] Result : {(result.Success ? "SUCCESS" : "FAILED")} (Exit Code {result.ExitCode})");
+            if (!string.IsNullOrWhiteSpace(result.Output))
+                AppendDeployLog(result.Output);
+
+            if (result.Success)
+                await RefreshInventoryCoreAsync();
+        }
+        catch (Exception ex)
+        {
+            DeployStatusBadge.Text = "Deploy Failed";
+            AppendDeployLog($"[{DateTime.Now:HH:mm:ss}] ERROR: {ex.Message}");
+        }
+        finally
+        {
+            DeployRunBtn.IsEnabled = true;
+        }
+    }
+
+    private async void OnWingetQuickInstallClick(object? sender, RoutedEventArgs e)
+    {
+        if (sender is not Button { Tag: string packageId }) return;
+        if (_conn is null && !await ConnectToCurrentFieldsAsync()) return;
+
+        var tempScript = Path.Combine(Path.GetTempPath(), $"winget_{packageId}_{Guid.NewGuid():N}.ps1");
+        try
+        {
+            var scriptBody = $"winget install --id '{packageId}' -e --silent --accept-package-agreements --accept-source-agreements --disable-interactivity";
+            await File.WriteAllTextAsync(tempScript, scriptBody);
+            await DeployLocalFileCoreAsync(tempScript, "AUTO");
+        }
+        finally
+        {
+            try { if (File.Exists(tempScript)) File.Delete(tempScript); } catch { }
+        }
+    }
+
+    private void AppendDeployLog(string line)
+    {
+        DeployOutputBox.Text += line + "\r\n";
+        DeployOutputBox.CaretIndex = DeployOutputBox.Text?.Length ?? 0;
+    }
 }

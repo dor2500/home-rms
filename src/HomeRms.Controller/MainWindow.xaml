@@ -4,16 +4,17 @@
         Title="Home RMS — Remote Management Console" Height="820" Width="1320"
         MinHeight="680" MinWidth="1040"
         Icon="Assets/controller.ico"
+        PreviewKeyDown="OnWindowPreviewKeyDown"
         WindowStartupLocation="CenterScreen">
 
     <Grid Background="{StaticResource BgBrush}">
         <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="325"/>
+            <ColumnDefinition x:Name="SidebarColumn" Width="325"/>
             <ColumnDefinition Width="*"/>
         </Grid.ColumnDefinitions>
 
         <!-- ==================== LEFT SIDEBAR: COMPUTERS ==================== -->
-        <Border Grid.Column="0" Background="{StaticResource SurfaceBrush}"
+        <Border x:Name="SidebarBorder" Grid.Column="0" Background="{StaticResource SurfaceBrush}"
                 BorderBrush="{StaticResource LineBrush}" BorderThickness="0,0,1,0">
             <DockPanel LastChildFill="True" Margin="18">
 
@@ -114,7 +115,7 @@
         <DockPanel Grid.Column="1" LastChildFill="True">
 
             <!-- Top Machine Connection Bar -->
-            <Border DockPanel.Dock="Top" Background="{StaticResource SurfaceBrush}"
+            <Border x:Name="TopBarBorder" DockPanel.Dock="Top" Background="{StaticResource SurfaceBrush}"
                     BorderBrush="{StaticResource LineBrush}" BorderThickness="0,0,0,1" Padding="24,16">
                 <DockPanel>
                     <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
@@ -145,7 +146,7 @@
             </Border>
 
             <!-- Navigation Tabs Bar -->
-            <Border DockPanel.Dock="Top" Background="{StaticResource BgBrush}"
+            <Border x:Name="NavBarBorder" DockPanel.Dock="Top" Background="{StaticResource BgBrush}"
                     BorderBrush="{StaticResource LineBrush}" BorderThickness="0,0,0,1" Padding="24,12">
                 <DockPanel>
                     <TextBlock x:Name="SessionHintText" DockPanel.Dock="Right"
@@ -161,12 +162,15 @@
                         <RadioButton x:Name="NavShell" Content="⌨️  Remote PowerShell"
                                      Style="{StaticResource NavTab}"
                                      Checked="OnNavTabChanged"/>
+                        <RadioButton x:Name="NavDeploy" Content="📦  Silent Software Deploy"
+                                     Style="{StaticResource NavTab}"
+                                     Checked="OnNavTabChanged"/>
                     </StackPanel>
                 </DockPanel>
             </Border>
 
             <!-- Workspace Body -->
-            <Grid Margin="24,18,24,22">
+            <Grid x:Name="WorkspaceGrid" Margin="24,18,24,22">
 
                 <!-- ==================== 1. SYSTEM INVENTORY VIEW ==================== -->
                 <DockPanel x:Name="InventoryPanel" Visibility="Visible">
@@ -266,11 +270,15 @@
                                 <Border DockPanel.Dock="Top" Padding="16,12" BorderBrush="{StaticResource LineBrush}"
                                         BorderThickness="0,0,0,1">
                                     <DockPanel>
-                                        <Border DockPanel.Dock="Right" Background="#2422C55E" CornerRadius="6" Padding="8,2">
-                                            <TextBlock x:Name="ProcsCountText" Text="0 processes" FontSize="11"
-                                                       FontWeight="SemiBold" Foreground="#86EFAC"/>
-                                        </Border>
-                                        <TextBlock Text="RUNNING PROCESSES" Style="{StaticResource Caption}" Margin="0"/>
+                                        <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
+                                            <Button Content="✕ End Process" Style="{StaticResource SmallPillButton}"
+                                                    Margin="0,0,8,0" Click="OnKillSelectedProcessClick"/>
+                                            <Border Background="#2422C55E" CornerRadius="6" Padding="8,2" VerticalAlignment="Center">
+                                                <TextBlock x:Name="ProcsCountText" Text="0 processes" FontSize="11"
+                                                           FontWeight="SemiBold" Foreground="#86EFAC"/>
+                                            </Border>
+                                        </StackPanel>
+                                        <TextBlock Text="RUNNING PROCESSES" Style="{StaticResource Caption}" Margin="0" VerticalAlignment="Center"/>
                                     </DockPanel>
                                 </Border>
                                 <DataGrid x:Name="ProcGrid">
@@ -289,14 +297,16 @@
                 <DockPanel x:Name="DesktopPanel" Visibility="Collapsed">
 
                     <!-- Remote Desktop Toolbar Card -->
-                    <Border DockPanel.Dock="Top" Style="{StaticResource CardStyle}" Padding="16,12" Margin="0,0,0,14">
+                    <Border x:Name="DesktopToolbarBorder" DockPanel.Dock="Top" Style="{StaticResource CardStyle}" Padding="16,12" Margin="0,0,0,14">
                         <DockPanel>
                             <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
                                 <Border Background="#141822" BorderBrush="{StaticResource LineBrush}" BorderThickness="1"
-                                        CornerRadius="7" Padding="12,6">
+                                        CornerRadius="7" Padding="12,6" Margin="0,0,10,0">
                                     <TextBlock x:Name="StreamStatus" Text="Idle — not streaming"
                                                FontSize="12" Foreground="{StaticResource MutedBrush}"/>
                                 </Border>
+                                <Button x:Name="FullScreenBtn" Content="⛶  Full Screen (F11)"
+                                        Style="{StaticResource GhostButton}" Padding="12,7" Click="OnToggleFullScreenClick"/>
                             </StackPanel>
 
                             <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
@@ -321,12 +331,26 @@
                     </Border>
 
                     <!-- Screen Canvas -->
-                    <Border Background="#07090D" BorderBrush="{StaticResource LineBrush}" BorderThickness="1"
+                    <Border x:Name="ScreenCanvasBorder" Background="#07090D" BorderBrush="{StaticResource LineBrush}" BorderThickness="1"
                             CornerRadius="12" ClipToBounds="True">
                         <Grid>
                             <Image x:Name="ScreenImage" Stretch="Uniform" Focusable="True"
                                    MouseMove="OnScreenMouseMove" MouseDown="OnScreenMouseDown" MouseUp="OnScreenMouseUp"
                                    MouseWheel="OnScreenMouseWheel" KeyDown="OnScreenKeyDown" KeyUp="OnScreenKeyUp"/>
+
+                            <!-- Floating HUD in Full Screen Mode -->
+                            <Border x:Name="FullscreenHud" Visibility="Collapsed" HorizontalAlignment="Right" VerticalAlignment="Top"
+                                    Margin="0,14,18,0" Background="#CC151922" BorderBrush="{StaticResource LineBrush}"
+                                    BorderThickness="1" CornerRadius="10" Padding="12,7">
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock x:Name="FullscreenHudText" Text="Full Screen Remote Control" Foreground="#E2E8F0"
+                                               FontSize="12" VerticalAlignment="Center" Margin="0,0,12,0"/>
+                                    <Button Content="⛶  Exit Full Screen (Esc)" Style="{StaticResource SmallPillButton}"
+                                            Margin="0,0,8,0" Click="OnToggleFullScreenClick"/>
+                                    <Button Content="⏹  Stop Stream" Style="{StaticResource DangerButton}"
+                                            Padding="10,4" FontSize="11.5" Click="OnToggleStream"/>
+                                </StackPanel>
+                            </Border>
 
                             <!-- Empty state overlay when not streaming -->
                             <StackPanel x:Name="DesktopOverlay" HorizontalAlignment="Center" VerticalAlignment="Center">
@@ -337,7 +361,7 @@
                                 </Border>
                                 <TextBlock Text="Remote Desktop Stream Ready" FontSize="16" FontWeight="SemiBold"
                                            HorizontalAlignment="Center"/>
-                                <TextBlock Text="Click 'Start Viewing' above. The remote computer will show an on-screen Allow/Deny consent prompt."
+                                <TextBlock Text="Click 'Start Viewing' above (or press F11 for Full Screen). The remote computer will show an on-screen Allow/Deny consent prompt."
                                            Foreground="{StaticResource MutedBrush}" FontSize="12.5"
                                            HorizontalAlignment="Center" Margin="0,6,0,0"/>
                             </StackPanel>
@@ -389,6 +413,94 @@
                     <Border Background="#090C12" BorderBrush="{StaticResource LineBrush}" BorderThickness="1"
                             CornerRadius="12" Padding="4">
                         <TextBox x:Name="ShellOutput" IsReadOnly="True" Background="Transparent"
+                                 Foreground="#E2E8F0" BorderThickness="0" Padding="14,12"
+                                 FontFamily="Cascadia Mono, Consolas" FontSize="12.5"
+                                 VerticalScrollBarVisibility="Auto" TextWrapping="Wrap" AcceptsReturn="True"/>
+                    </Border>
+                </DockPanel>
+
+                <!-- ==================== 4. SILENT SOFTWARE DEPLOYMENT VIEW ==================== -->
+                <DockPanel x:Name="DeployPanel" Visibility="Collapsed" AllowDrop="True"
+                           PreviewDragOver="OnDeployDragOver" Drop="OnDeployFileDrop">
+
+                    <!-- Upload Installer Card (.exe / .msi / .ps1) -->
+                    <Border DockPanel.Dock="Top" Style="{StaticResource CardStyle}" Padding="18,16" Margin="0,0,0,14">
+                        <StackPanel>
+                            <DockPanel Margin="0,0,0,12">
+                                <Border DockPanel.Dock="Right" Background="#243B82F6" CornerRadius="6" Padding="10,3">
+                                    <TextBlock x:Name="DeployStatusBadge" Text="Ready to Deploy" FontSize="11.5"
+                                               FontWeight="SemiBold" Foreground="#93C5FD"/>
+                                </Border>
+                                <StackPanel>
+                                    <TextBlock Text="UPLOAD &amp; SILENTLY INSTALL PACKAGE (.EXE / .MSI / .MSP / .PS1)" Style="{StaticResource Caption}" Margin="0,0,0,3"/>
+                                    <TextBlock Text="Streams your local installer file over Mutual TLS to the remote computer and executes it in hidden/silent mode (or drag &amp; drop a file here)."
+                                               FontSize="12" Foreground="{StaticResource MutedBrush}"/>
+                                </StackPanel>
+                            </DockPanel>
+
+                            <Grid Margin="0,0,0,12">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="2*"/>
+                                    <ColumnDefinition Width="10"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="16"/>
+                                    <ColumnDefinition Width="1.2*"/>
+                                    <ColumnDefinition Width="14"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+
+                                <StackPanel Grid.Column="0">
+                                    <TextBlock Text="Local Installer File (.exe, .msi, .msp, .ps1)" FontSize="11.5" Foreground="{StaticResource MutedBrush}" Margin="0,0,0,4"/>
+                                    <TextBox x:Name="DeployFilePathBox" Text="" ToolTip="Select or drop a local .exe / .msi installer file"/>
+                                </StackPanel>
+
+                                <Button Grid.Column="2" Content="📂  Browse File…" Style="{StaticResource GhostButton}"
+                                        VerticalAlignment="Bottom" Padding="14,8" Click="OnBrowseDeployFileClick"/>
+
+                                <StackPanel Grid.Column="4">
+                                    <TextBlock Text="Silent Flags (AUTO detects NSIS / Inno / MSI / Burn, or enter custom)" FontSize="11.5" Foreground="{StaticResource MutedBrush}" Margin="0,0,0,4"/>
+                                    <TextBox x:Name="DeployArgsBox" Text="AUTO"/>
+                                </StackPanel>
+
+                                <Button x:Name="DeployRunBtn" Grid.Column="6" Content="🚀  Upload &amp; Install Silently"
+                                        Style="{StaticResource PrimaryButton}" VerticalAlignment="Bottom"
+                                        Padding="18,8" Click="OnStartDeployClick"/>
+                            </Grid>
+
+                            <!-- Preset Flag Pills -->
+                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                <TextBlock Text="FLAG PRESETS:" Style="{StaticResource Caption}" VerticalAlignment="Center" Margin="0,0,10,0"/>
+                                <Button Content="Smart Auto-Detect (AUTO)" Tag="AUTO" Style="{StaticResource SmallPillButton}" Margin="0,0,8,0" Click="OnDeployPresetFlagClick"/>
+                                <Button Content="NSIS / Standard (/S)" Tag="/S" Style="{StaticResource SmallPillButton}" Margin="0,0,8,0" Click="OnDeployPresetFlagClick"/>
+                                <Button Content="Inno Setup (/VERYSILENT /NORESTART)" Tag="/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /SP-" Style="{StaticResource SmallPillButton}" Margin="0,0,8,0" Click="OnDeployPresetFlagClick"/>
+                                <Button Content="MSI Quiet (/qn /norestart)" Tag="/qn /norestart" Style="{StaticResource SmallPillButton}" Margin="0,0,8,0" Click="OnDeployPresetFlagClick"/>
+                                <Button Content="Burn / WiX (/quiet /norestart)" Tag="/quiet /norestart" Style="{StaticResource SmallPillButton}" Click="OnDeployPresetFlagClick"/>
+                            </StackPanel>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Quick One-Click Winget Silent Installer Card -->
+                    <Border DockPanel.Dock="Top" Style="{StaticResource CardStyle}" Padding="14,10" Margin="0,0,0,14">
+                        <DockPanel>
+                            <Button DockPanel.Dock="Right" Content="Clear Log" Style="{StaticResource SmallPillButton}"
+                                    Click="OnClearDeployLogClick"/>
+                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                <TextBlock Text="ONE-CLICK WINGET SILENT INSTALL:" Style="{StaticResource Caption}"
+                                           VerticalAlignment="Center" Margin="0,0,12,0"/>
+                                <Button Content="7-Zip" Tag="7zip.7zip" Style="{StaticResource SmallPillButton}" Margin="0,0,8,0" Click="OnWingetQuickInstallClick"/>
+                                <Button Content="Google Chrome" Tag="Google.Chrome" Style="{StaticResource SmallPillButton}" Margin="0,0,8,0" Click="OnWingetQuickInstallClick"/>
+                                <Button Content="Mozilla Firefox" Tag="Mozilla.Firefox" Style="{StaticResource SmallPillButton}" Margin="0,0,8,0" Click="OnWingetQuickInstallClick"/>
+                                <Button Content="VLC Media Player" Tag="VideoLAN.VLC" Style="{StaticResource SmallPillButton}" Margin="0,0,8,0" Click="OnWingetQuickInstallClick"/>
+                                <Button Content="Notepad++" Tag="Notepad++.Notepad++" Style="{StaticResource SmallPillButton}" Margin="0,0,8,0" Click="OnWingetQuickInstallClick"/>
+                                <Button Content="VS Code" Tag="Microsoft.VisualStudioCode" Style="{StaticResource SmallPillButton}" Click="OnWingetQuickInstallClick"/>
+                            </StackPanel>
+                        </DockPanel>
+                    </Border>
+
+                    <!-- Deployment Progress & Output Console -->
+                    <Border Background="#090C12" BorderBrush="{StaticResource LineBrush}" BorderThickness="1"
+                            CornerRadius="12" Padding="4">
+                        <TextBox x:Name="DeployOutputBox" IsReadOnly="True" Background="Transparent"
                                  Foreground="#E2E8F0" BorderThickness="0" Padding="14,12"
                                  FontFamily="Cascadia Mono, Consolas" FontSize="12.5"
                                  VerticalScrollBarVisibility="Auto" TextWrapping="Wrap" AcceptsReturn="True"/>

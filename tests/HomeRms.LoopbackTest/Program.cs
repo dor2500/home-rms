@@ -92,6 +92,24 @@ try
             failures.Add("StreamScreen ended without delivering a frame");
         }
     }
+
+    // 6) silent software deployment (DeployPackage streaming upload + silent execution)
+    using (var deployCall = client.DeployPackage(deadline: DateTime.UtcNow.AddSeconds(30)))
+    {
+        var psPayload = System.Text.Encoding.UTF8.GetBytes("Write-Output 'SILENT_DEPLOY_OK_991'");
+        await deployCall.RequestStream.WriteAsync(new PackageChunk
+        {
+            FileName = "verify-silent-install.ps1",
+            Arguments = "AUTO",
+            TimeoutSeconds = 30,
+            Data = Google.Protobuf.ByteString.CopyFrom(psPayload)
+        });
+        await deployCall.RequestStream.CompleteAsync();
+        var deployRes = await deployCall.ResponseAsync;
+        Console.WriteLine($"[test] DeployPackage OK -> success={deployRes.Success}, exit={deployRes.ExitCode}, out='{deployRes.Output.Trim()}'");
+        if (!deployRes.Success || !deployRes.Output.Contains("SILENT_DEPLOY_OK_991"))
+            failures.Add("DeployPackage failed or did not return expected silent installer output");
+    }
 }
 catch (Exception ex)
 {

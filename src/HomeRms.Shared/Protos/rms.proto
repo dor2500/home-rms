@@ -25,6 +25,13 @@ service RemoteManagement {
   // --- Input injection: client-streamed mouse/keyboard events. Only honored
   // while an active consent grant for control exists. ---
   rpc SendInput (stream InputEvent) returns (InputAck);
+
+  // --- Silent software deployment: client-streams an installer (.exe / .msi / .ps1)
+  // in chunks, executes it silently on the agent, and returns the result. ---
+  rpc DeployPackage (stream PackageChunk) returns (DeployResult);
+
+  // --- Terminate a running process by PID (recorded in the agent's audit log). ---
+  rpc KillProcess (KillProcessRequest) returns (KillProcessResult);
 }
 
 message Empty {}
@@ -119,4 +126,29 @@ message InputEvent {
 
 message InputAck {
   int64 events_applied = 1;
+}
+
+// ---------------- Silent Software Deployment ----------------
+message PackageChunk {
+  string file_name = 1;        // e.g. "setup.exe" or "app.msi" (sent on first chunk)
+  string arguments = 2;        // silent arguments; empty = auto-detect silent flags
+  bytes data = 3;              // raw file chunk bytes
+  int32 timeout_seconds = 4;   // max install wait time (default 300s)
+}
+
+message DeployResult {
+  bool success = 1;
+  int32 exit_code = 2;
+  string command_line = 3;
+  string output = 4;
+}
+
+// ---------------- Process Control ----------------
+message KillProcessRequest {
+  int32 pid = 1;
+}
+
+message KillProcessResult {
+  bool success = 1;
+  string message = 2;
 }

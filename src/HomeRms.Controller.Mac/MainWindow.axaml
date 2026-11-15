@@ -8,12 +8,13 @@
         Icon="avares://HomeRmsController/Assets/controller.ico"
         Background="#0F1117"
         Foreground="#F3F4F6"
+        KeyDown="OnWindowKeyDown"
         WindowStartupLocation="CenterScreen">
 
-    <Grid ColumnDefinitions="325,*">
+    <Grid ColumnDefinitions="Auto,*">
 
         <!-- ==================== LEFT SIDEBAR: COMPUTERS ==================== -->
-        <Border Grid.Column="0" Background="#151922" BorderBrush="#282F40" BorderThickness="0,0,1,0" Padding="18">
+        <Border x:Name="SidebarBorder" Grid.Column="0" Width="325" Background="#151922" BorderBrush="#282F40" BorderThickness="0,0,1,0" Padding="18">
             <DockPanel LastChildFill="True">
 
                 <!-- Brand Header -->
@@ -95,7 +96,7 @@
         <DockPanel Grid.Column="1" LastChildFill="True">
 
             <!-- Top Machine Connection Bar -->
-            <Border DockPanel.Dock="Top" Background="#151922" BorderBrush="#282F40" BorderThickness="0,0,0,1" Padding="24,16">
+            <Border x:Name="TopBarBorder" DockPanel.Dock="Top" Background="#151922" BorderBrush="#282F40" BorderThickness="0,0,0,1" Padding="24,16">
                 <DockPanel>
                     <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center" Spacing="12">
                         <Border Background="#1A2232" BorderBrush="#282F40" BorderThickness="1"
@@ -125,7 +126,7 @@
             </Border>
 
             <!-- Navigation Tabs Bar -->
-            <Border DockPanel.Dock="Top" Background="#0F1117" BorderBrush="#282F40" BorderThickness="0,0,0,1" Padding="24,12">
+            <Border x:Name="NavBarBorder" DockPanel.Dock="Top" Background="#0F1117" BorderBrush="#282F40" BorderThickness="0,0,0,1" Padding="24,12">
                 <DockPanel>
                     <TextBlock DockPanel.Dock="Right" Text="All actions are logged on the remote Windows agent"
                                FontSize="12" Foreground="#9CA3AF" VerticalAlignment="Center"/>
@@ -136,12 +137,14 @@
                                      IsCheckedChanged="OnNavTabChanged"/>
                         <RadioButton x:Name="NavShell" Content="⌨️  Remote PowerShell" GroupName="Nav"
                                      IsCheckedChanged="OnNavTabChanged"/>
+                        <RadioButton x:Name="NavDeploy" Content="📦  Silent Software Deploy" GroupName="Nav"
+                                     IsCheckedChanged="OnNavTabChanged"/>
                     </StackPanel>
                 </DockPanel>
             </Border>
 
             <!-- Workspace Body -->
-            <Grid Margin="24,18,24,22">
+            <Grid x:Name="WorkspaceGrid" Margin="24,18,24,22">
 
                 <!-- ==================== 1. SYSTEM INVENTORY VIEW ==================== -->
                 <DockPanel x:Name="InventoryPanel" IsVisible="True">
@@ -228,10 +231,13 @@
                             <DockPanel>
                                 <Border DockPanel.Dock="Top" Padding="16,12" BorderBrush="#282F40" BorderThickness="0,0,0,1">
                                     <DockPanel>
-                                        <Border DockPanel.Dock="Right" Background="#2422C55E" CornerRadius="6" Padding="8,2">
-                                            <TextBlock x:Name="ProcsCountText" Text="0 processes" FontSize="11" FontWeight="SemiBold" Foreground="#86EFAC"/>
-                                        </Border>
-                                        <TextBlock Text="RUNNING PROCESSES" FontSize="11" FontWeight="Bold" Foreground="#9CA3AF"/>
+                                        <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center" Spacing="8">
+                                            <Button Content="✕ End Process" FontSize="11" Padding="8,3" Click="OnKillSelectedProcessClick"/>
+                                            <Border Background="#2422C55E" CornerRadius="6" Padding="8,2" VerticalAlignment="Center">
+                                                <TextBlock x:Name="ProcsCountText" Text="0 processes" FontSize="11" FontWeight="SemiBold" Foreground="#86EFAC"/>
+                                            </Border>
+                                        </StackPanel>
+                                        <TextBlock Text="RUNNING PROCESSES" FontSize="11" FontWeight="Bold" Foreground="#9CA3AF" VerticalAlignment="Center"/>
                                     </DockPanel>
                                 </Border>
                                 <ListBox x:Name="ProcList" Background="Transparent" BorderThickness="0">
@@ -253,13 +259,16 @@
                 <!-- ==================== 2. REMOTE DESKTOP VIEW ==================== -->
                 <DockPanel x:Name="DesktopPanel" IsVisible="False">
 
-                    <Border DockPanel.Dock="Top" Background="#1C212E" BorderBrush="#282F40" BorderThickness="1"
+                    <Border x:Name="DesktopToolbarBorder" DockPanel.Dock="Top" Background="#1C212E" BorderBrush="#282F40" BorderThickness="1"
                             CornerRadius="12" Padding="16,12" Margin="0,0,0,14">
                         <DockPanel>
-                            <Border DockPanel.Dock="Right" Background="#141822" BorderBrush="#282F40" BorderThickness="1"
-                                    CornerRadius="7" Padding="12,6" VerticalAlignment="Center">
-                                <TextBlock x:Name="StreamStatus" Text="Idle — not streaming" FontSize="12" Foreground="#9CA3AF"/>
-                            </Border>
+                            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center" Spacing="10">
+                                <Border Background="#141822" BorderBrush="#282F40" BorderThickness="1"
+                                        CornerRadius="7" Padding="12,6" VerticalAlignment="Center">
+                                    <TextBlock x:Name="StreamStatus" Text="Idle — not streaming" FontSize="12" Foreground="#9CA3AF"/>
+                                </Border>
+                                <Button Content="⛶  Full Screen (F11)" Click="OnToggleFullScreenClick"/>
+                            </StackPanel>
 
                             <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Spacing="12">
                                 <Button x:Name="StreamBtn" Content="▶  Start Viewing" Width="150" HorizontalContentAlignment="Center"
@@ -277,7 +286,7 @@
                         </DockPanel>
                     </Border>
 
-                    <Border Background="#07090D" BorderBrush="#282F40" BorderThickness="1" CornerRadius="12" ClipToBounds="True">
+                    <Border x:Name="ScreenCanvasBorder" Background="#07090D" BorderBrush="#282F40" BorderThickness="1" CornerRadius="12" ClipToBounds="True">
                         <Grid>
                             <Image x:Name="ScreenImage" Stretch="Uniform" Focusable="True"
                                    PointerMoved="OnScreenPointerMoved"
@@ -287,10 +296,22 @@
                                    KeyDown="OnScreenKeyDown"
                                    KeyUp="OnScreenKeyUp"/>
 
+                            <!-- Floating HUD in Full Screen Mode -->
+                            <Border x:Name="FullscreenHud" IsVisible="False" HorizontalAlignment="Right" VerticalAlignment="Top"
+                                    Margin="0,14,18,0" Background="#CC151922" BorderBrush="#282F40"
+                                    BorderThickness="1" CornerRadius="10" Padding="12,7">
+                                <StackPanel Orientation="Horizontal" Spacing="10">
+                                    <TextBlock x:Name="FullscreenHudText" Text="Full Screen Remote Control" Foreground="#E2E8F0"
+                                               FontSize="12" VerticalAlignment="Center"/>
+                                    <Button Content="⛶  Exit Full Screen (Esc)" Click="OnToggleFullScreenClick"/>
+                                    <Button Content="⏹  Stop Stream" Background="#EF4444" Foreground="White" Click="OnToggleStream"/>
+                                </StackPanel>
+                            </Border>
+
                             <StackPanel x:Name="DesktopOverlay" HorizontalAlignment="Center" VerticalAlignment="Center">
                                 <TextBlock Text="🖥️  Remote Desktop Stream Ready" FontSize="16" FontWeight="SemiBold"
                                            HorizontalAlignment="Center"/>
-                                <TextBlock Text="Click 'Start Viewing' above. The remote Windows computer will show an on-screen Allow/Deny consent prompt."
+                                <TextBlock Text="Click 'Start Viewing' above (or press F11 for Full Screen). The remote Windows computer will show an on-screen Allow/Deny consent prompt."
                                            Foreground="#9CA3AF" FontSize="12.5" HorizontalAlignment="Center" Margin="0,6,0,0"/>
                             </StackPanel>
                         </Grid>
@@ -333,6 +354,78 @@
 
                     <Border Background="#090C12" BorderBrush="#282F40" BorderThickness="1" CornerRadius="12" Padding="4">
                         <TextBox x:Name="ShellOutput" IsReadOnly="True" Background="Transparent"
+                                 Foreground="#E2E8F0" BorderThickness="0" Padding="14,12"
+                                 FontFamily="Menlo, Consolas, monospace" FontSize="12.5"
+                                 TextWrapping="Wrap" AcceptsReturn="True"/>
+                    </Border>
+                </DockPanel>
+
+                <!-- ==================== 4. SILENT SOFTWARE DEPLOYMENT VIEW ==================== -->
+                <DockPanel x:Name="DeployPanel" IsVisible="False">
+
+                    <Border DockPanel.Dock="Top" Background="#1C212E" BorderBrush="#282F40" BorderThickness="1"
+                            CornerRadius="12" Padding="18,16" Margin="0,0,0,14">
+                        <StackPanel>
+                            <DockPanel Margin="0,0,0,12">
+                                <Border DockPanel.Dock="Right" Background="#243B82F6" CornerRadius="6" Padding="10,3">
+                                    <TextBlock x:Name="DeployStatusBadge" Text="Ready to Deploy" FontSize="11.5"
+                                               FontWeight="SemiBold" Foreground="#93C5FD"/>
+                                </Border>
+                                <StackPanel>
+                                    <TextBlock Text="UPLOAD &amp; SILENTLY INSTALL PACKAGE (.EXE / .MSI / .MSP / .PS1)" FontSize="11" FontWeight="Bold" Foreground="#9CA3AF" Margin="0,0,0,3"/>
+                                    <TextBlock Text="Streams your local installer file from macOS over Mutual TLS to the Windows Agent and runs it silently."
+                                               FontSize="12" Foreground="#9CA3AF"/>
+                                </StackPanel>
+                            </DockPanel>
+
+                            <Grid ColumnDefinitions="2*,10,Auto,16,1.2*,14,Auto" Margin="0,0,0,12">
+                                <StackPanel Grid.Column="0">
+                                    <TextBlock Text="Local Installer File (.exe, .msi, .msp, .ps1)" FontSize="11.5" Foreground="#9CA3AF" Margin="0,0,0,4"/>
+                                    <TextBox x:Name="DeployFilePathBox" Text=""/>
+                                </StackPanel>
+
+                                <Button Grid.Column="2" Content="📂  Browse File…" VerticalAlignment="Bottom" Click="OnBrowseDeployFileClick"/>
+
+                                <StackPanel Grid.Column="4">
+                                    <TextBlock Text="Silent Flags (AUTO detects NSIS / Inno / MSI / Burn)" FontSize="11.5" Foreground="#9CA3AF" Margin="0,0,0,4"/>
+                                    <TextBox x:Name="DeployArgsBox" Text="AUTO"/>
+                                </StackPanel>
+
+                                <Button x:Name="DeployRunBtn" Grid.Column="6" Content="🚀  Upload &amp; Install Silently"
+                                        Background="#3B82F6" Foreground="White" FontWeight="SemiBold"
+                                        VerticalAlignment="Bottom" Padding="18,8" Click="OnStartDeployClick"/>
+                            </Grid>
+
+                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Spacing="8">
+                                <TextBlock Text="FLAG PRESETS:" FontSize="11" FontWeight="Bold" Foreground="#9CA3AF" VerticalAlignment="Center" Margin="0,0,4,0"/>
+                                <Button Content="Smart Auto-Detect (AUTO)" Tag="AUTO" Click="OnDeployPresetFlagClick"/>
+                                <Button Content="NSIS / Standard (/S)" Tag="/S" Click="OnDeployPresetFlagClick"/>
+                                <Button Content="Inno Setup (/VERYSILENT)" Tag="/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /SP-" Click="OnDeployPresetFlagClick"/>
+                                <Button Content="MSI Quiet (/qn /norestart)" Tag="/qn /norestart" Click="OnDeployPresetFlagClick"/>
+                                <Button Content="Burn / WiX (/quiet /norestart)" Tag="/quiet /norestart" Click="OnDeployPresetFlagClick"/>
+                            </StackPanel>
+                        </StackPanel>
+                    </Border>
+
+                    <Border DockPanel.Dock="Top" Background="#1C212E" BorderBrush="#282F40" BorderThickness="1"
+                            CornerRadius="12" Padding="14,10" Margin="0,0,0,14">
+                        <DockPanel>
+                            <Button DockPanel.Dock="Right" Content="Clear Log" Click="OnClearDeployLogClick"/>
+                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Spacing="8">
+                                <TextBlock Text="ONE-CLICK WINGET SILENT INSTALL:" FontSize="11" FontWeight="Bold" Foreground="#9CA3AF"
+                                           VerticalAlignment="Center" Margin="0,0,4,0"/>
+                                <Button Content="7-Zip" Tag="7zip.7zip" Click="OnWingetQuickInstallClick"/>
+                                <Button Content="Google Chrome" Tag="Google.Chrome" Click="OnWingetQuickInstallClick"/>
+                                <Button Content="Mozilla Firefox" Tag="Mozilla.Firefox" Click="OnWingetQuickInstallClick"/>
+                                <Button Content="VLC Media Player" Tag="VideoLAN.VLC" Click="OnWingetQuickInstallClick"/>
+                                <Button Content="Notepad++" Tag="Notepad++.Notepad++" Click="OnWingetQuickInstallClick"/>
+                                <Button Content="VS Code" Tag="Microsoft.VisualStudioCode" Click="OnWingetQuickInstallClick"/>
+                            </StackPanel>
+                        </DockPanel>
+                    </Border>
+
+                    <Border Background="#090C12" BorderBrush="#282F40" BorderThickness="1" CornerRadius="12" Padding="4">
+                        <TextBox x:Name="DeployOutputBox" IsReadOnly="True" Background="Transparent"
                                  Foreground="#E2E8F0" BorderThickness="0" Padding="14,12"
                                  FontFamily="Menlo, Consolas, monospace" FontSize="12.5"
                                  TextWrapping="Wrap" AcceptsReturn="True"/>

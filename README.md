@@ -69,15 +69,20 @@ Unlike covert surveillance tools, **Home RMS** is designed around transparency a
 - **Full Audit Log:** Every connection, inventory query, PowerShell command, and screen session is recorded with timestamps in the Agent's `LIVE AUDIT & ACTIVITY LOG`.
 
 ### 3. Core Modules
-- **System Inventory (`InventoryCollector.cs`):**
+- **System Inventory & Process Control (`InventoryCollector.cs` & `KillProcess`):**
   - Reads `HKLM` (64-bit and `WOW6432Node`) and `HKCU` uninstall registry hives, deduplicating and sorting installed applications.
-  - Enumerates all running processes and their working-set RAM consumption.
+  - Enumerates all running processes and their working-set RAM consumption, with one-click **✕ End Process** termination directly from the Controller.
   - Queries WMI (`Win32_Processor`, `Win32_ComputerSystem`, `Win32_VideoController`) and `DriveInfo` for CPU model, logical cores, physical RAM, GPU adapter, and fixed disk capacity/free space.
+- **Remote Desktop, Full Screen Mode & Input (`ScreenCapturer.cs` & `InputInjector.cs`):**
+  - Captures the primary display at physical DPI resolution using Win32 GDI `BitBlt` (`SRCCOPY | CAPTUREBLT`), overlays the live cursor position via `GetCursorInfo` + `DrawIcon`, and encodes frames as JPEG.
+  - **Full Screen Mode (`⛶ Full Screen` / `F11` / `Esc`):** Expands the remote desktop stream edge-to-edge across your monitor with a floating HUD bar.
+  - Maps mouse movement, clicks (`Left`, `Right`, `Middle`), scroll wheel deltas, and keyboard virtual-key codes from the Controller's letterboxed viewport to normalized `0..65535` absolute coordinates injected via Win32 `SendInput`.
+- **Silent Software Deployment (`RemoteManagementService.DeployPackage`):**
+  - Streams any local `.exe`, `.msi`, `.msp`, or `.ps1` installer package in 256 KB chunks over Mutual TLS to the remote computer (supports Drag & Drop or File Picker).
+  - **Smart Silent Flag Auto-Detection (`AUTO`):** Inspects `.exe` binaries to automatically apply silent installation flags for **Inno Setup** (`/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /SP-`), **NSIS** (`/S`), **WiX Burn** (`/quiet /norestart`), **InstallShield** (`/s /v"/qn /norestart"`), and **Windows Installer `.msi`** (`msiexec /i ... /qn /norestart`).
+  - Includes **One-Click Winget Silent Install** shortcuts for popular packages (`7-Zip`, `Google Chrome`, `Mozilla Firefox`, `VLC`, `Notepad++`, `VS Code`).
 - **Remote PowerShell (`RemoteManagementService.Shell`):**
   - Spawns an isolated, hidden `powershell.exe` process connected to a gRPC bidirectional stream (`AsyncDuplexStreamingCall`), streaming `stdout` and `stderr` in real time.
-- **Remote Desktop & Input (`ScreenCapturer.cs` & `InputInjector.cs`):**
-  - Captures the primary display at physical DPI resolution using Win32 GDI `BitBlt` (`SRCCOPY | CAPTUREBLT`), overlays the live cursor position via `GetCursorInfo` + `DrawIcon`, and encodes frames as JPEG.
-  - Maps mouse movement, clicks (`Left`, `Right`, `Middle`), scroll wheel deltas, and keyboard virtual-key codes from the Controller's letterboxed viewport to normalized `0..65535` absolute coordinates injected via Win32 `SendInput`.
 
 ---
 
