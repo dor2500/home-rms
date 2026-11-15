@@ -9,9 +9,12 @@ using HomeRms.Shared.Protocol;
 using HomeRms.Shared.Security;
 
 // Automated local-loopback test: start the agent's gRPC host in-process, connect
-// with a mutual-TLS client, and verify agent info, inventory, and a shell command.
-// Screen/input are exercised interactively from the real controller (they require
-// on-machine consent, which has no UI in this headless test).
+// with a mutual-TLS client, and verify:
+// 1. Agent info
+// 2. Software & hardware inventory
+// 3. Interactive PowerShell command round-trip
+// 4. Screen streaming denied when no consent grant exists
+// 5. Screen streaming succeeds and delivers valid JPEG frames once consent is granted
 
 const int port = 7444;
 var failures = new List<string>();
@@ -71,6 +74,24 @@ try
     {
         Console.WriteLine("[test] Consent gate OK -> screen denied without a grant");
     }
+
+    // 5) screen WITH simulated consent grant streams a real JPEG frame
+    consent.AttachUi(new AutoApproveConsentUi());
+    using (var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10)))
+    using (var stream = client.StreamScreen(new ScreenRequest { Fps = 10, Quality = 60, OperatorName = "loopback-test" }, cancellationToken: cts.Token))
+    {
+        if (await stream.ResponseStream.MoveNext(cts.Token))
+        {
+            var frame = stream.ResponseStream.Current;
+            Console.WriteLine($"[test] StreamScreen OK -> frame #{frame.Sequence} ({frame.Width}x{frame.Height}, {frame.Jpeg.Length} bytes JPEG)");
+            if (frame.Jpeg.Length < 100 || frame.Width <= 0 || frame.Height <= 0)
+                failures.Add("streamed frame had invalid dimensions or payload");
+        }
+        else
+        {
+            failures.Add("StreamScreen ended without delivering a frame");
+        }
+    }
 }
 catch (Exception ex)
 {
@@ -116,4 +137,10 @@ static RemoteManagement.RemoteManagementClient CreateClient(int port)
     var channel = GrpcChannel.ForAddress($"https://localhost:{port}",
         new GrpcChannelOptions { HttpHandler = handler, MaxReceiveMessageSize = 32 * 1024 * 1024 });
     return new RemoteManagement.RemoteManagementClient(channel);
+}
+
+sealed class AutoApproveConsentUi : IConsentUi
+{
+    public bool AskControlConsent(string operatorName, string action) => true;
+    public void SetViewingActive(bool active, string? operatorName) { }
 }

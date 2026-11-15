@@ -21,6 +21,8 @@ internal static class Program
         DevCertificates.EnsureDeploymentCertificates(RmsPaths.CertDir, RmsPaths.CertPassword);
 
         var port = ParsePort(args, RmsPaths.DefaultPort);
+        var autoConsent = args.Any(a => string.Equals(a, "--auto-consent", StringComparison.OrdinalIgnoreCase));
+        var screenshotPath = ParseStringArg(args, "--screenshot");
 
         Application.EnableVisualStyles();
         Application.SetCompatibleTextRenderingDefault(false);
@@ -42,7 +44,7 @@ internal static class Program
         }
 
         log.Write("[agent] started");
-        Application.Run(new TrayApplicationContext(consent, log));
+        Application.Run(new TrayApplicationContext(consent, log, port, autoConsent, screenshotPath));
 
         log.Write("[agent] shutting down");
         host.StopAsync(TimeSpan.FromSeconds(3)).GetAwaiter().GetResult();
@@ -54,5 +56,13 @@ internal static class Program
             if (args[i] is "--port" or "-p" && int.TryParse(args[i + 1], out var p))
                 return p;
         return fallback;
+    }
+
+    private static string? ParseStringArg(string[] args, string flag)
+    {
+        for (var i = 0; i < args.Length - 1; i++)
+            if (string.Equals(args[i], flag, StringComparison.OrdinalIgnoreCase))
+                return args[i + 1];
+        return null;
     }
 }
