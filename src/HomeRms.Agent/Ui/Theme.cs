@@ -46,16 +46,66 @@ internal static class Theme
         return b;
     }
 
-    /// <summary>A small filled circle used for the tray icon.</summary>
-    public static Icon CreateDot(Color color)
+    /// <summary>Loads the embedded Agent application icon for windows and dialogs.</summary>
+    public static Icon LoadAppIcon()
     {
-        using var bmp = new Bitmap(16, 16);
+        try
+        {
+            using var stream = typeof(Theme).Assembly.GetManifestResourceStream("HomeRms.Agent.Assets.agent.ico");
+            if (stream is not null)
+                return new Icon(stream);
+        }
+        catch { }
+
+        try
+        {
+            if (Icon.ExtractAssociatedIcon(Application.ExecutablePath) is { } assoc)
+                return assoc;
+        }
+        catch { }
+
+        return CreateDot(Accent);
+    }
+
+    /// <summary>Loads the embedded Agent brand bitmap for headers.</summary>
+    public static Bitmap? LoadBrandBitmap()
+    {
+        try
+        {
+            using var stream = typeof(Theme).Assembly.GetManifestResourceStream("HomeRms.Agent.Assets.agent.png");
+            if (stream is not null)
+                return new Bitmap(stream);
+        }
+        catch { }
+        return null;
+    }
+
+    /// <summary>Renders a crisp tray icon combining the Agent emblem with a live status indicator dot.</summary>
+    public static Icon CreateDot(Color statusColor)
+    {
+        using var bmp = new Bitmap(32, 32);
         using (var g = Graphics.FromImage(bmp))
         {
-            g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
+            g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.HighQuality;
+            g.InterpolationMode = System.Drawing.Drawing2D.InterpolationMode.HighQualityBicubic;
             g.Clear(Color.Transparent);
-            using var brush = new SolidBrush(color);
-            g.FillEllipse(brush, 1, 1, 14, 14);
+
+            using var brand = LoadBrandBitmap();
+            if (brand is not null)
+            {
+                g.DrawImage(brand, new Rectangle(0, 0, 32, 32));
+            }
+            else
+            {
+                using var fallbackBrush = new SolidBrush(Surface);
+                g.FillEllipse(fallbackBrush, 2, 2, 28, 28);
+            }
+
+            // Status indicator dot in bottom-right corner
+            using var ringBrush = new SolidBrush(Bg);
+            g.FillEllipse(ringBrush, 19, 19, 13, 13);
+            using var dotBrush = new SolidBrush(statusColor);
+            g.FillEllipse(dotBrush, 21, 21, 9, 9);
         }
         return Icon.FromHandle(bmp.GetHicon());
     }

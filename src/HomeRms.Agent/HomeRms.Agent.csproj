@@ -7,7 +7,15 @@
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <RootNamespace>HomeRms.Agent</RootNamespace>
     <AssemblyName>HomeRmsAgent</AssemblyName>
+    <AssemblyTitle>Home RMS Endpoint Agent</AssemblyTitle>
+    <Description>Home RMS Consent-Based Endpoint Agent (mTLS / HTTP2)</Description>
+    <ApplicationIcon>Assets\agent.ico</ApplicationIcon>
   </PropertyGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="Assets\agent.ico" />
+    <EmbeddedResource Include="Assets\agent.png" />
+  </ItemGroup>
 
   <ItemGroup>
     <FrameworkReference Include="Microsoft.AspNetCore.App" />

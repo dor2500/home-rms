@@ -1,6 +1,12 @@
-# Home RMS — Consent-Based LAN Remote Management System (.NET 9)
+<p align="center">
+  <img src="docs/logo.svg" width="108" height="108" alt="Home RMS Logo" />
+</p>
 
-A modern, self-hosted **Remote Management System (RMS)** built in **.NET 9 / C#** for administering computers on your home LAN with **Mutual TLS (Zero-Prompt PKI)** authentication, **explicit on-device user consent**, and **full audit logging**.
+<h1 align="center">Home RMS — Consent-Based LAN Remote Management System (.NET 9)</h1>
+
+<p align="center">
+  A modern, self-hosted <b>Remote Management System (RMS)</b> built in <b>.NET 9 / C#</b> for administering computers on your home LAN with <b>Mutual TLS (Zero-Prompt PKI)</b> authentication, <b>explicit on-device user consent</b>, and <b>full audit logging</b>.
+</p>
 
 ![Architecture](docs/architecture.svg)
 

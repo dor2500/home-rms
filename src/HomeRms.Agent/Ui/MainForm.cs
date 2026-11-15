@@ -28,6 +28,7 @@ internal sealed class MainForm : Form
 
         AutoScaleMode = AutoScaleMode.None;
         Text = "Home RMS Agent — Endpoint Monitor";
+        Icon = Theme.LoadAppIcon();
         ClientSize = new Size(880, 620);
         MinimumSize = new Size(760, 520);
         StartPosition = FormStartPosition.CenterScreen;
@@ -37,13 +38,25 @@ internal sealed class MainForm : Form
 
         // ---------- header ----------
         var header = new Panel { Dock = DockStyle.Top, Height = 86, BackColor = Theme.Surface, Padding = new Padding(28, 0, 28, 0) };
+        if (Theme.LoadBrandBitmap() is { } logoBmp)
+        {
+            var logoBox = new PictureBox
+            {
+                Image = logoBmp,
+                SizeMode = PictureBoxSizeMode.Zoom,
+                Size = new Size(52, 52),
+                Location = new Point(28, 17),
+                BackColor = Color.Transparent,
+            };
+            header.Controls.Add(logoBox);
+        }
         var appTitle = new Label
         {
             Text = "Home RMS Agent — Consent-Based Endpoint",
             Font = Theme.TitleFont,
             ForeColor = Theme.Text,
             AutoSize = true,
-            Location = new Point(28, 18),
+            Location = new Point(92, 18),
         };
         var appSub = new Label
         {
@@ -51,7 +64,7 @@ internal sealed class MainForm : Form
             ForeColor = Theme.Muted,
             Font = Theme.UiFont,
             AutoSize = true,
-            Location = new Point(28, 52),
+            Location = new Point(92, 52),
         };
         header.Controls.Add(appTitle);
         header.Controls.Add(appSub);

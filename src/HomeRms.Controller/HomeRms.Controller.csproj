@@ -6,7 +6,15 @@
     <UseWPF>true</UseWPF>
     <RootNamespace>HomeRms.Controller</RootNamespace>
     <AssemblyName>HomeRmsController</AssemblyName>
+    <AssemblyTitle>Home RMS Controller Console</AssemblyTitle>
+    <Description>Home RMS Remote Management Console (mTLS / HTTP2)</Description>
+    <ApplicationIcon>Assets\controller.ico</ApplicationIcon>
   </PropertyGroup>
+
+  <ItemGroup>
+    <Resource Include="Assets\controller.ico" />
+    <Resource Include="Assets\controller.png" />
+  </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\HomeRms.Shared\HomeRms.Shared.csproj" />

@@ -12,6 +12,7 @@ internal static class ConsentPrompt
         {
             AutoScaleMode = AutoScaleMode.None,
             Text = "Home RMS — Access Request",
+            Icon = Theme.LoadAppIcon(),
             FormBorderStyle = FormBorderStyle.FixedDialog,
             StartPosition = FormStartPosition.CenterScreen,
             MinimizeBox = false,
