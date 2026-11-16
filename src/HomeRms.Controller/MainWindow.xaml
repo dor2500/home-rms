@@ -330,11 +330,20 @@
 
                                 <TextBlock Text="FPS:" Foreground="{StaticResource MutedBrush}"
                                            VerticalAlignment="Center" Margin="0,0,6,0"/>
-                                <TextBox x:Name="FpsBox" Text="15" Width="44" Margin="0,0,12,0"/>
+                                <TextBox x:Name="FpsBox" Text="20" Width="40" Margin="0,0,10,0"/>
 
                                 <TextBlock Text="Quality:" Foreground="{StaticResource MutedBrush}"
                                            VerticalAlignment="Center" Margin="0,0,6,0"/>
-                                <TextBox x:Name="QualityBox" Text="65" Width="44"/>
+                                <TextBox x:Name="QualityBox" Text="65" Width="40" Margin="0,0,10,0"/>
+
+                                <TextBlock Text="Res:" Foreground="{StaticResource MutedBrush}"
+                                           VerticalAlignment="Center" Margin="0,0,6,0"/>
+                                <ComboBox x:Name="ScaleBox" Width="118" SelectedIndex="0"
+                                          Background="#11141C" Foreground="#F3F4F6" BorderBrush="#282F40">
+                                    <ComboBoxItem Content="1080p (Fast)" Tag="1920"/>
+                                    <ComboBoxItem Content="720p (Ultra)" Tag="1280"/>
+                                    <ComboBoxItem Content="Native (Full)" Tag="0"/>
+                                </ComboBox>
                             </StackPanel>
                         </DockPanel>
                     </Border>

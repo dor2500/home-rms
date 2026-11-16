@@ -40,13 +40,15 @@ Runs in the signed-in user's interactive session with a system tray icon, status
 
 ```text
 HomeRms.sln
-├── src/HomeRms.Shared          # gRPC Protobuf contract (rms.proto) + Mutual-TLS PKI generator & loader
-├── src/HomeRms.Agent           # Windows-only WinForms tray & endpoint monitor hosting Kestrel gRPC server over mTLS
-├── src/HomeRms.Controller      # Windows dark-themed WPF console with multi-device sidebar & 3 modules
-├── src/HomeRms.Controller.Mac  # macOS native Controller app (Avalonia UI, Apple Silicon arm64 & Intel x64)
+├── src/HomeRms.Shared          # gRPC Protobuf contract (rms.proto) + Mutual-TLS PKI generator & loader + SystemCatalog
+├── src/HomeRms.Agent           # Windows WinForms tray & endpoint monitor hosting Kestrel gRPC server over mTLS
+├── src/HomeRms.Agent.Linux     # Linux endpoint agent (systemd/apt/bash/X11/Wayland) hosting Kestrel gRPC over mTLS
+├── src/HomeRms.Controller      # Windows dark-themed WPF console with multi-device sidebar & 5 modules
+├── src/HomeRms.Controller.Mac  # Cross-platform macOS & Linux Controller app (Avalonia UI, arm64 & x64)
 ├── tools/New-DevCerts.ps1      # One-time deployment PKI certificate generator (CA + Agent + Controller)
 ├── tools/Package-MacController.ps1 # Packages HomeRmsController.app bundles (.icns + Info.plist) for macOS
-└── tests/HomeRms.LoopbackTest  # Automated end-to-end integration test suite (info, inventory, shell, consent, screen)
+├── tools/Package-Linux.ps1     # Packages self-contained Linux Agent & Linux Controller (.zip) for x64 & arm64
+└── tests/HomeRms.LoopbackTest  # Automated end-to-end integration test suite
 ```
 
 ### 1. Zero-Prompt Mutual-TLS (mTLS) Authentication & EKU Hardening
@@ -107,6 +109,9 @@ dotnet publish src/HomeRms.Controller/HomeRms.Controller.csproj -c Release -r wi
 
 # Package self-contained macOS Controller .app bundles (Apple Silicon arm64 & Intel x64) into ./dist
 ./tools/Package-MacController.ps1
+
+# Package self-contained Linux Agent & Linux Controller (x64 & arm64) into ./dist
+./tools/Package-Linux.ps1
 ```
 
 ---
@@ -122,17 +127,20 @@ Run the included PowerShell script to generate `homerms-ca.pfx`, `homerms-agent.
 
 Copy `%ProgramData%\HomeRMS\certs` to each target PC on your home network and set `HOMERMS_CERT_PASSWORD` to match. *(For local single-machine testing, both the Agent and Controller automatically generate dev certificates on first launch if none exist.)*
 
-### Step 2: Run the Agent on Target PCs
+### Step 2: Run the Agent on Target PCs (Windows or Linux)
+**On Windows:**
 ```powershell
-$env:HOMERMS_CERT_PASSWORD = 'choose-a-strong-pass'
 ./dist/HomeRmsAgent.exe --port 7443
 ```
-To allow incoming connections from your LAN, open TCP port `7443` for the `Private` network profile:
-```powershell
-New-NetFirewallRule -DisplayName "Home RMS Agent (mTLS)" -Direction Inbound -Protocol TCP -LocalPort 7443 -Profile Private -Action Allow
+*(Use `--elevate` if you need Administrator permissions for Services / Windows Update / HKLM Registry changes.)*
+
+**On Linux (`x64` or `arm64`):**
+```bash
+unzip HomeRmsAgent-linux-x64.zip -d homerms-agent && cd homerms-agent
+./run-agent.sh --port 7443 --auto-consent   # or omit --auto-consent on desktop sessions with zenity/kdialog
 ```
 
-### Step 3: Launch the Controller Console (Windows or macOS)
+### Step 3: Launch the Controller Console (Windows, macOS, or Linux)
 **On Windows:**
 ```powershell
 ./dist/HomeRmsController.exe
@@ -141,7 +149,12 @@ New-NetFirewallRule -DisplayName "Home RMS Agent (mTLS)" -Direction Inbound -Pro
 **On macOS (Apple Silicon `arm64` or Intel `x64`):**
 1. Extract `HomeRmsController-macOS-osx-arm64.zip` (or `osx-x64.zip`).
 2. Double-click `Launch-HomeRMS-Mac.command` (or run `chmod +x HomeRmsController.app/Contents/MacOS/HomeRmsController && xattr -cr HomeRmsController.app && open HomeRmsController.app`).
-3. Add your Windows computers in the **Add / Edit Endpoint** card on the bottom-left (or click **↻ Check Status** to auto-discover Windows Agents on your LAN).
+
+**On Linux (`x64` or `arm64`):**
+```bash
+unzip HomeRmsController-linux-x64.zip -d homerms-controller && cd homerms-controller
+./launch-controller.sh
+```
 
 ---
 

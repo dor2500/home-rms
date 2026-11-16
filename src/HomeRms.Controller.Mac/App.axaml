@@ -4,5 +4,73 @@
              RequestedThemeVariant="Dark">
     <Application.Styles>
         <FluentTheme />
+
+        <Style Selector="Button">
+            <Setter Property="Background" Value="#1C212E"/>
+            <Setter Property="Foreground" Value="#F3F4F6"/>
+            <Setter Property="BorderBrush" Value="#282F40"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="CornerRadius" Value="8"/>
+            <Setter Property="Padding" Value="13,7"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Cursor" Value="Hand"/>
+        </Style>
+        <Style Selector="Button:pointerover /template/ ContentPresenter">
+            <Setter Property="Opacity" Value="0.88"/>
+        </Style>
+
+        <Style Selector="TextBox">
+            <Setter Property="Background" Value="#11141C"/>
+            <Setter Property="Foreground" Value="#F3F4F6"/>
+            <Setter Property="BorderBrush" Value="#282F40"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="CornerRadius" Value="7"/>
+            <Setter Property="Padding" Value="10,7"/>
+        </Style>
+        <Style Selector="TextBox:focus /template/ Border#PART_BorderElement">
+            <Setter Property="BorderBrush" Value="#3B82F6"/>
+        </Style>
+
+        <Style Selector="RadioButton.nav">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="Foreground" Value="#9CA3AF"/>
+            <Setter Property="BorderBrush" Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="CornerRadius" Value="8"/>
+            <Setter Property="Padding" Value="14,8"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <ControlTemplate>
+                    <Border Background="{TemplateBinding Background}"
+                            BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}"
+                            CornerRadius="{TemplateBinding CornerRadius}"
+                            Padding="{TemplateBinding Padding}">
+                        <ContentPresenter Content="{TemplateBinding Content}"
+                                          HorizontalAlignment="Center"
+                                          VerticalAlignment="Center"/>
+                    </Border>
+                </ControlTemplate>
+            </Setter>
+        </Style>
+        <Style Selector="RadioButton.nav:pointerover">
+            <Setter Property="Foreground" Value="#FFFFFF"/>
+            <Setter Property="Background" Value="#182030"/>
+        </Style>
+        <Style Selector="RadioButton.nav:checked">
+            <Setter Property="Background" Value="#263B82F6"/>
+            <Setter Property="BorderBrush" Value="#3B82F6"/>
+            <Setter Property="Foreground" Value="#FFFFFF"/>
+        </Style>
+
+        <Style Selector="ListBoxItem">
+            <Setter Property="CornerRadius" Value="8"/>
+            <Setter Property="Padding" Value="8,6"/>
+            <Setter Property="Margin" Value="0,0,0,4"/>
+        </Style>
+        <Style Selector="ListBoxItem:selected /template/ ContentPresenter">
+            <Setter Property="Background" Value="#333B82F6"/>
+        </Style>
     </Application.Styles>
 </Application>

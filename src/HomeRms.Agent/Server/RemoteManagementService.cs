@@ -53,12 +53,14 @@ public sealed class RemoteManagementService(ConsentCoordinator consent, Activity
         if (!consent.RequestGrant(op, "view your screen"))
             throw new RpcException(new Status(StatusCode.PermissionDenied, "Screen sharing was declined on the device."));
 
-        var fps = Math.Clamp(request.Fps <= 0 ? 10 : request.Fps, 1, 30);
-        var delay = TimeSpan.FromMilliseconds(1000.0 / fps);
-        var quality = request.Quality <= 0 ? 60 : request.Quality;
+        var fps = Math.Clamp(request.Fps <= 0 ? 15 : request.Fps, 1, 30);
+        var intervalMs = 1000.0 / fps;
+        var quality = request.Quality <= 0 ? 65 : request.Quality;
+        var maxWidth = request.MaxWidth;
 
         using var _ = consent.BeginViewing(op);
         using var cap = new ScreenCapturer();
+        var sw = new Stopwatch();
         long seq = 0;
 
         while (!context.CancellationToken.IsCancellationRequested)
@@ -69,11 +71,12 @@ public sealed class RemoteManagementService(ConsentCoordinator consent, Activity
                 break;
             }
 
+            sw.Restart();
             byte[] jpeg;
-            try { jpeg = cap.CaptureJpeg(quality); }
+            int w, h;
+            try { (jpeg, w, h) = cap.CaptureJpeg(quality, maxWidth); }
             catch (Exception ex) { log.Write($"[screen] capture error: {ex.Message}"); break; }
 
-            var (w, h) = cap.PrimaryBounds;
             await responseStream.WriteAsync(new ScreenFrame
             {
                 Jpeg = Google.Protobuf.ByteString.CopyFrom(jpeg),
@@ -82,8 +85,12 @@ public sealed class RemoteManagementService(ConsentCoordinator consent, Activity
                 Sequence = ++seq
             });
 
-            try { await Task.Delay(delay, context.CancellationToken); }
-            catch (OperationCanceledException) { break; }
+            var remainingMs = intervalMs - sw.Elapsed.TotalMilliseconds;
+            if (remainingMs > 1)
+            {
+                try { await Task.Delay(TimeSpan.FromMilliseconds(remainingMs), context.CancellationToken); }
+                catch (OperationCanceledException) { break; }
+            }
         }
     }
 

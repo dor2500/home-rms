@@ -29,6 +29,9 @@ public static class AgentHost
 
         builder.WebHost.ConfigureKestrel(k =>
         {
+            k.Limits.MaxRequestBodySize = 512L * 1024 * 1024;
+            k.Limits.Http2.KeepAlivePingDelay = TimeSpan.FromSeconds(15);
+            k.Limits.Http2.KeepAlivePingTimeout = TimeSpan.FromSeconds(5);
             k.ListenAnyIP(port, listen =>
             {
                 listen.Protocols = HttpProtocols.Http2;

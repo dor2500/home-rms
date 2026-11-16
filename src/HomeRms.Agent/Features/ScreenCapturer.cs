@@ -41,7 +41,9 @@ public sealed class ScreenCapturer : IDisposable
         }
     }
 
-    public byte[] CaptureJpeg(int quality)
+    public byte[] CaptureJpeg(int quality) => CaptureJpeg(quality, 0).Jpeg;
+
+    public (byte[] Jpeg, int Width, int Height) CaptureJpeg(int quality, int maxWidth)
     {
         var (w, h) = PrimaryBounds;
         using var bmp = new Bitmap(w, h, PixelFormat.Format24bppRgb);
@@ -71,11 +73,27 @@ public sealed class ScreenCapturer : IDisposable
             }
         }
 
-        using var ms = new MemoryStream();
+        using var ms = new MemoryStream(128 * 1024);
         using var p = new EncoderParameters(1);
         p.Param[0] = new EncoderParameter(Encoder.Quality, (long)Math.Clamp(quality, 1, 100));
+
+        if (maxWidth > 0 && w > maxWidth)
+        {
+            var outW = maxWidth;
+            var outH = Math.Max(1, (int)Math.Round(h * (maxWidth / (double)w)));
+            using var scaled = new Bitmap(outW, outH, PixelFormat.Format24bppRgb);
+            using (var sg = Graphics.FromImage(scaled))
+            {
+                sg.CompositingMode = CompositingMode.SourceCopy;
+                sg.InterpolationMode = InterpolationMode.Bilinear;
+                sg.DrawImage(bmp, 0, 0, outW, outH);
+            }
+            scaled.Save(ms, _jpegCodec, p);
+            return (ms.ToArray(), outW, outH);
+        }
+
         bmp.Save(ms, _jpegCodec, p);
-        return ms.ToArray();
+        return (ms.ToArray(), w, h);
     }
 
     private static bool TryBitBltScreen(Graphics g, int width, int height)

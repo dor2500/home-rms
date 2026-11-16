@@ -2,7 +2,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:models="using:HomeRms.Controller.Mac.Models"
         x:Class="HomeRms.Controller.Mac.MainWindow"
-        Title="Home RMS — Remote Management Console (macOS)"
+        Title="Home RMS — Remote Management Console"
         Width="1320" Height="820"
         MinWidth="1040" MinHeight="680"
         Icon="avares://HomeRmsController/Assets/controller.ico"
@@ -130,16 +130,16 @@
                 <DockPanel>
                     <TextBlock DockPanel.Dock="Right" Text="All actions are logged on the remote Windows agent"
                                FontSize="12" Foreground="#9CA3AF" VerticalAlignment="Center"/>
-                    <StackPanel Orientation="Horizontal" Spacing="10">
-                        <RadioButton x:Name="NavInventory" Content="📊  System Inventory" GroupName="Nav"
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <RadioButton x:Name="NavInventory" Classes="nav" Content="📊  System Inventory" GroupName="Nav"
                                      IsChecked="True" IsCheckedChanged="OnNavTabChanged"/>
-                        <RadioButton x:Name="NavDesktop" Content="🖥️  Remote Desktop" GroupName="Nav"
+                        <RadioButton x:Name="NavDesktop" Classes="nav" Content="🖥️  Remote Desktop" GroupName="Nav"
                                      IsCheckedChanged="OnNavTabChanged"/>
-                        <RadioButton x:Name="NavShell" Content="⌨️  Remote PowerShell" GroupName="Nav"
+                        <RadioButton x:Name="NavShell" Classes="nav" Content="⌨️  Remote Shell" GroupName="Nav"
                                      IsCheckedChanged="OnNavTabChanged"/>
-                        <RadioButton x:Name="NavDeploy" Content="📦  Silent Software Deploy" GroupName="Nav"
+                        <RadioButton x:Name="NavDeploy" Classes="nav" Content="📦  Silent Deploy" GroupName="Nav"
                                      IsCheckedChanged="OnNavTabChanged"/>
-                        <RadioButton x:Name="NavSystem" Content="⚙️  System Control" GroupName="Nav"
+                        <RadioButton x:Name="NavSystem" Classes="nav" Content="⚙️  System Control" GroupName="Nav"
                                      IsCheckedChanged="OnNavTabChanged"/>
                     </StackPanel>
                 </DockPanel>
@@ -282,10 +282,17 @@
                                           Margin="6,0,0,0" IsCheckedChanged="OnControlCheckChanged"/>
 
                                 <TextBlock Text="FPS:" Foreground="#9CA3AF" VerticalAlignment="Center" Margin="6,0,0,0"/>
-                                <TextBox x:Name="FpsBox" Text="15" Width="50"/>
+                                <TextBox x:Name="FpsBox" Text="20" Width="46"/>
 
                                 <TextBlock Text="Quality:" Foreground="#9CA3AF" VerticalAlignment="Center" Margin="6,0,0,0"/>
-                                <TextBox x:Name="QualityBox" Text="65" Width="50"/>
+                                <TextBox x:Name="QualityBox" Text="65" Width="46"/>
+
+                                <TextBlock Text="Res:" Foreground="#9CA3AF" VerticalAlignment="Center" Margin="6,0,0,0"/>
+                                <ComboBox x:Name="ScaleBox" Width="118" SelectedIndex="0">
+                                    <ComboBoxItem Content="1080p (Fast)" Tag="1920"/>
+                                    <ComboBoxItem Content="720p (Ultra)" Tag="1280"/>
+                                    <ComboBoxItem Content="Native (Full)" Tag="0"/>
+                                </ComboBox>
                             </StackPanel>
                         </DockPanel>
                     </Border>

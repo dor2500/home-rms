@@ -96,13 +96,25 @@ public static class DevCertificates
         File.WriteAllBytes(Path.Combine(outputDir, ControllerFileName), controller.Export(X509ContentType.Pfx, password));
     }
 
+    private static readonly object CacheLock = new();
+    private static readonly Dictionary<string, X509Certificate2> CertCache = new(StringComparer.OrdinalIgnoreCase);
+
     public static X509Certificate2 Load(string dir, string fileName, string password)
     {
+        var cacheKey = $"{dir}|{fileName}";
+        lock (CacheLock)
+        {
+            if (CertCache.TryGetValue(cacheKey, out var cached))
+                return cached;
+        }
+
         EnsureDeploymentCertificates(dir, password);
 
         var storageFlags = OperatingSystem.IsWindows()
             ? X509KeyStorageFlags.Exportable | X509KeyStorageFlags.UserKeySet
             : X509KeyStorageFlags.Exportable;
+
+        X509Certificate2 loaded;
 
         // Prefer the embedded deployment certificate if available and the disk copy is mismatched
         if (TryGetEmbeddedBytes(fileName) is { } embeddedBytes &&
@@ -118,7 +130,9 @@ public static class DevCertificates
                     using var diskCa = X509CertificateLoader.LoadPkcs12FromFile(diskCaPath, password);
                     if (string.Equals(embeddedCa.Thumbprint, diskCa.Thumbprint, StringComparison.OrdinalIgnoreCase))
                     {
-                        return X509CertificateLoader.LoadPkcs12FromFile(diskPath, password, storageFlags);
+                        loaded = X509CertificateLoader.LoadPkcs12FromFile(diskPath, password, storageFlags);
+                        lock (CacheLock) CertCache[cacheKey] = loaded;
+                        return loaded;
                     }
                 }
             }
@@ -134,23 +148,36 @@ public static class DevCertificates
             Directory.CreateDirectory(fallbackDir);
             var fallbackPath = Path.Combine(fallbackDir, fileName);
             File.WriteAllBytes(fallbackPath, embeddedBytes);
-            return X509CertificateLoader.LoadPkcs12FromFile(fallbackPath, password, storageFlags);
+            loaded = X509CertificateLoader.LoadPkcs12FromFile(fallbackPath, password, storageFlags);
+            lock (CacheLock) CertCache[cacheKey] = loaded;
+            return loaded;
         }
 
         // NOTE: do not use EphemeralKeySet here. On Windows, SChannel cannot use an
         // ephemeral private key for the Kestrel SERVER certificate, which aborts the
         // TLS handshake. A persisted user key set works for both server and client.
-        return X509CertificateLoader.LoadPkcs12FromFile(
+        loaded = X509CertificateLoader.LoadPkcs12FromFile(
             Path.Combine(dir, fileName),
             password,
             storageFlags);
+        lock (CacheLock) CertCache[cacheKey] = loaded;
+        return loaded;
     }
+
+    private static X509Certificate2? _cachedCaPublic;
 
     /// <summary>Returns the CA certificate with the private key stripped, for peer validation.</summary>
     public static X509Certificate2 LoadCaPublicOnly(string dir, string password)
     {
-        using var full = Load(dir, CaFileName, password);
-        return X509CertificateLoader.LoadCertificate(full.Export(X509ContentType.Cert));
+        lock (CacheLock)
+        {
+            if (_cachedCaPublic is not null)
+                return _cachedCaPublic;
+        }
+        var full = Load(dir, CaFileName, password);
+        var pub = X509CertificateLoader.LoadCertificate(full.Export(X509ContentType.Cert));
+        lock (CacheLock) _cachedCaPublic = pub;
+        return pub;
     }
 
     /// <summary>

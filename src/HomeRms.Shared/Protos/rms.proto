@@ -119,6 +119,7 @@ message ScreenRequest {
   int32 fps = 1;             // requested frames per second (clamped agent-side)
   int32 quality = 2;         // JPEG quality 1-100
   string operator_name = 3;  // shown in the agent's consent prompt + banner
+  int32 max_width = 4;       // optional max frame width for faster streaming (0 = native)
 }
 
 message ScreenFrame {

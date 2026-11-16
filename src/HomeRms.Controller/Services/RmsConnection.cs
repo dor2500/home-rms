@@ -30,6 +30,12 @@ public sealed class RmsConnection : IDisposable
         // which gRPC requires, and supports mutual-TLS client certs cleanly.
         var handler = new SocketsHttpHandler
         {
+            ConnectTimeout = TimeSpan.FromSeconds(3),
+            EnableMultipleHttp2Connections = true,
+            KeepAlivePingDelay = TimeSpan.FromSeconds(15),
+            KeepAlivePingTimeout = TimeSpan.FromSeconds(5),
+            KeepAlivePingPolicy = HttpKeepAlivePingPolicy.Always,
+            PooledConnectionIdleTimeout = Timeout.InfiniteTimeSpan,
             SslOptions = new SslClientAuthenticationOptions
             {
                 EnabledSslProtocols = SslProtocols.Tls12 | SslProtocols.Tls13,

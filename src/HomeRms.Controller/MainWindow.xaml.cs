@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.Diagnostics;
 using System.IO;
 using System.Net;
 using System.Net.Sockets;
@@ -470,9 +471,11 @@ public partial class MainWindow : Window
             StatusText.Text = $"Establishing Mutual-TLS handshake with {host}:{port}…";
             SetBadge("Connecting…", Color.FromArgb(45, 245, 158, 11), Color.FromRgb(251, 191, 36));
 
+            var sw = Stopwatch.StartNew();
             var conn = new RmsConnection(host, port);
             _agentInfo = await conn.Client.GetAgentInfoAsync(new Empty(),
                 deadline: DateTime.UtcNow.AddSeconds(8));
+            sw.Stop();
             _conn = conn;
             _frameWidth = _agentInfo.PrimaryScreenWidth;
             _frameHeight = _agentInfo.PrimaryScreenHeight;
@@ -490,8 +493,8 @@ public partial class MainWindow : Window
 
             TargetTitleText.Text = $"{_agentInfo.MachineName} ({host}:{port})";
             StatusText.Text =
-                $"Signed-in user: {_agentInfo.LoggedInUser}   •   Display: {_agentInfo.PrimaryScreenWidth}×{_agentInfo.PrimaryScreenHeight}   •   OS: {_agentInfo.OsVersion}";
-            SetBadge("Connected", Color.FromArgb(45, 34, 197, 94), Color.FromRgb(74, 222, 128));
+                $"User: {_agentInfo.LoggedInUser}  •  Display: {_agentInfo.PrimaryScreenWidth}×{_agentInfo.PrimaryScreenHeight}  •  Ping: {sw.ElapsedMilliseconds} ms  •  OS: {_agentInfo.OsVersion}";
+            SetBadge($"Connected ({sw.ElapsedMilliseconds}ms)", Color.FromArgb(45, 34, 197, 94), Color.FromRgb(74, 222, 128));
 
             ConnectBtn.Content = "Disconnect";
             ConnectBtn.Style = (Style)FindResource("DangerButton");
@@ -783,13 +786,22 @@ public partial class MainWindow : Window
         StreamBtn.Style = (Style)FindResource("DangerButton");
         StreamStatus.Text = "Awaiting on-machine consent…";
 
-        var fps = int.TryParse(FpsBox.Text, out var f) ? Math.Clamp(f, 1, 30) : 15;
+        var fps = int.TryParse(FpsBox.Text, out var f) ? Math.Clamp(f, 1, 30) : 20;
         var quality = int.TryParse(QualityBox.Text, out var q) ? Math.Clamp(q, 20, 95) : 65;
+        var maxWidth = ScaleBox.SelectedItem is ComboBoxItem { Tag: string ts } && int.TryParse(ts, out var mw) ? mw : 1920;
+
+        byte[]? latestFrame = null;
+        int latestW = 0, latestH = 0;
+        long latestSeq = 0;
+        int uiPending = 0;
+        var fpsSw = Stopwatch.StartNew();
+        int fpsCount = 0;
+        double currentFps = 0;
 
         try
         {
             using var call = _conn.Client.StreamScreen(
-                new ScreenRequest { Fps = fps, Quality = quality, OperatorName = Environment.UserName },
+                new ScreenRequest { Fps = fps, Quality = quality, OperatorName = Environment.UserName, MaxWidth = maxWidth },
                 cancellationToken: _streamCts.Token);
 
             await foreach (var frame in call.ResponseStream.ReadAllAsync(_streamCts.Token))
@@ -799,15 +811,42 @@ public partial class MainWindow : Window
 
                 _frameWidth = frame.Width;
                 _frameHeight = frame.Height;
-                var bytes = frame.Jpeg.ToByteArray();
-                Dispatcher.Invoke(() =>
+                latestW = frame.Width;
+                latestH = frame.Height;
+                latestSeq = frame.Sequence;
+                Interlocked.Exchange(ref latestFrame, frame.Jpeg.ToByteArray());
+
+                fpsCount++;
+                if (fpsSw.ElapsedMilliseconds >= 1000)
                 {
-                    DesktopOverlay.Visibility = Visibility.Collapsed;
-                    var statusLine = $"LIVE  •  Frame #{frame.Sequence}  •  {frame.Width}×{frame.Height}  •  {bytes.Length / 1024} KB";
-                    StreamStatus.Text = statusLine;
-                    FullscreenHudText.Text = $"{_agentInfo?.MachineName}  •  {statusLine}";
-                    ScreenImage.Source = Decode(bytes);
-                });
+                    currentFps = fpsCount * 1000.0 / fpsSw.ElapsedMilliseconds;
+                    fpsCount = 0;
+                    fpsSw.Restart();
+                }
+
+                // Latest-frame-wins UI dispatch: never build up a backlog of frames
+                if (Interlocked.CompareExchange(ref uiPending, 1, 0) == 0)
+                {
+                    _ = Dispatcher.BeginInvoke(() =>
+                    {
+                        try
+                        {
+                            var bytes = Interlocked.Exchange(ref latestFrame, null);
+                            if (bytes is not null)
+                            {
+                                DesktopOverlay.Visibility = Visibility.Collapsed;
+                                var statusLine = $"LIVE  •  {currentFps:0.0} FPS  •  {latestW}×{latestH}  •  {bytes.Length / 1024} KB";
+                                StreamStatus.Text = statusLine;
+                                FullscreenHudText.Text = $"{_agentInfo?.MachineName}  •  {statusLine}";
+                                ScreenImage.Source = Decode(bytes);
+                            }
+                        }
+                        finally
+                        {
+                            Interlocked.Exchange(ref uiPending, 0);
+                        }
+                    });
+                }
             }
         }
         catch (OperationCanceledException) { }
@@ -912,9 +951,14 @@ public partial class MainWindow : Window
         return true;
     }
 
+    private long _lastMoveTicks;
+
     private void OnScreenMouseMove(object sender, MouseEventArgs e)
     {
         if (_inputCall is null) return;
+        var now = Environment.TickCount64;
+        if (now - _lastMoveTicks < 16) return; // Cap mouse-move rate to ~60Hz for low latency
+        _lastMoveTicks = now;
         if (TryMapToScreen(e.GetPosition(ScreenImage), out var x, out var y))
             QueueInput(new InputEvent { Kind = InputEvent.Types.Kind.MouseMove, X = x, Y = y });
     }
