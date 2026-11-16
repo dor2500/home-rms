@@ -1,54 +1,142 @@
 <Window x:Class="HomeRms.Controller.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="Home RMS — Remote Management Console" Height="820" Width="1320"
-        MinHeight="680" MinWidth="1040"
+        Title="Home RMS" Height="880" Width="1380"
+        MinHeight="700" MinWidth="1100"
         Icon="Assets/controller.ico"
+        FontFamily="Segoe UI Variable Text, Segoe UI" FontSize="14"
+        Foreground="{DynamicResource TextFillColorPrimaryBrush}"
         PreviewKeyDown="OnWindowPreviewKeyDown"
         PreviewKeyUp="OnWindowPreviewKeyUp"
         WindowStartupLocation="CenterScreen">
 
-    <Grid Background="{StaticResource BgBrush}">
+    <Grid>
         <Grid.ColumnDefinitions>
-            <ColumnDefinition x:Name="SidebarColumn" Width="325"/>
+            <ColumnDefinition x:Name="SidebarColumn" Width="300"/>
             <ColumnDefinition Width="*"/>
         </Grid.ColumnDefinitions>
 
-        <!-- ==================== LEFT SIDEBAR: COMPUTERS ==================== -->
-        <Border x:Name="SidebarBorder" Grid.Column="0" Background="{StaticResource SurfaceBrush}"
-                BorderBrush="{StaticResource LineBrush}" BorderThickness="0,0,1,0">
-            <DockPanel LastChildFill="True" Margin="18">
+        <!-- ==================== NAVIGATION PANE ==================== -->
+        <Border x:Name="SidebarBorder" Grid.Column="0" Background="Transparent">
+            <Grid Margin="12,14,12,12">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
 
-                <!-- Brand Header -->
-                <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,2,0,20">
-                    <Image Source="Assets/controller.png" Width="44" Height="44" Margin="0,0,12,0"
+                <!-- App identity -->
+                <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="6,0,0,18">
+                    <Image Source="Assets/controller.png" Width="36" Height="36" Margin="0,0,12,0"
                            RenderOptions.BitmapScalingMode="HighQuality"/>
                     <StackPanel VerticalAlignment="Center">
-                        <TextBlock Text="Home RMS" FontSize="18" FontWeight="Bold"/>
-                        <TextBlock Text="Consent-Based LAN Console" FontSize="11.5" Foreground="{StaticResource MutedBrush}"/>
+                        <TextBlock Text="Home RMS" Style="{StaticResource BodyStrong}" FontSize="15"/>
+                        <TextBlock Text="Remote management console" Style="{StaticResource SecondaryText}"/>
                     </StackPanel>
                 </StackPanel>
 
-                <!-- Add / Edit Endpoint Card (Docked Bottom) -->
-                <Border DockPanel.Dock="Bottom" Style="{StaticResource CardStyle}" Padding="14" Margin="0,12,0,0">
-                    <StackPanel>
-                        <TextBlock Text="ADD / EDIT ENDPOINT" Style="{StaticResource Caption}" Margin="0,0,0,10"/>
+                <!-- Pages -->
+                <StackPanel x:Name="NavBarBorder" Grid.Row="1" Margin="0,0,0,10">
+                    <RadioButton x:Name="NavInventory" Content="Overview" Tag="&#xE9D9;" GroupName="MainNav"
+                                 Style="{StaticResource NavItem}" IsChecked="True" Checked="OnNavTabChanged"/>
+                    <RadioButton x:Name="NavDesktop" Content="Remote desktop" Tag="&#xE7F4;" GroupName="MainNav"
+                                 Style="{StaticResource NavItem}" Checked="OnNavTabChanged"/>
+                    <RadioButton x:Name="NavShell" Content="PowerShell" Tag="&#xE756;" GroupName="MainNav"
+                                 Style="{StaticResource NavItem}" Checked="OnNavTabChanged"/>
+                    <RadioButton x:Name="NavDeploy" Content="Deploy software" Tag="&#xE896;" GroupName="MainNav"
+                                 Style="{StaticResource NavItem}" Checked="OnNavTabChanged"/>
+                    <RadioButton x:Name="NavUpdates" Content="Windows Update" Tag="&#xE895;" GroupName="MainNav"
+                                 Style="{StaticResource NavItem}" Checked="OnNavTabChanged"/>
+                    <RadioButton x:Name="NavSystem" Content="System &amp; settings" Tag="&#xE713;" GroupName="MainNav"
+                                 Style="{StaticResource NavItem}" Checked="OnNavTabChanged"/>
+                </StackPanel>
 
-                        <TextBlock Text="Display Name" FontSize="11.5" Foreground="{StaticResource MutedBrush}" Margin="0,0,0,4"/>
-                        <TextBox x:Name="NameBox" Text="Living Room PC" Margin="0,0,0,8"/>
+                <!-- Devices header -->
+                <DockPanel Grid.Row="2" Margin="6,6,0,6">
+                    <Border DockPanel.Dock="Top" Height="1" Background="{DynamicResource DividerStrokeColorDefaultBrush}"
+                            Margin="-6,0,0,12"/>
+                    <Button x:Name="ProbeBtn" DockPanel.Dock="Right" Style="{StaticResource SubtleButton}"
+                            ToolTip="Check status and discover agents on the LAN" Padding="8,5"
+                            Click="OnProbeMachinesClick">
+                        <TextBlock Text="&#xE72C;" Style="{StaticResource IconGlyph}" FontSize="14"/>
+                    </Button>
+                    <TextBlock Text="Devices" Style="{StaticResource BodyStrong}" VerticalAlignment="Center"/>
+                </DockPanel>
+
+                <!-- Device list -->
+                <ListBox x:Name="MachinesList" Grid.Row="3" Background="Transparent" BorderThickness="0" Padding="0"
+                         ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                         ItemContainerStyle="{StaticResource MachineItem}"
+                         SelectionChanged="OnMachineSelectionChanged"
+                         MouseDoubleClick="OnMachineDoubleClick">
+                    <ListBox.ItemTemplate>
+                        <DataTemplate>
+                            <Grid ToolTip="Double-click to connect">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+
+                                <Grid Grid.Column="0" Width="36" Height="36" Margin="0,0,12,0" VerticalAlignment="Center">
+                                    <Border Style="{StaticResource IconTile}" Width="36" Height="36"/>
+                                    <TextBlock Text="&#xE770;" Style="{StaticResource IconGlyph}" FontSize="18"
+                                               HorizontalAlignment="Center"/>
+                                    <Ellipse x:Name="Dot" Width="10" Height="10" HorizontalAlignment="Right" VerticalAlignment="Bottom"
+                                             Margin="0,0,-2,-2" StrokeThickness="2"
+                                             Stroke="{DynamicResource SolidBackgroundFillColorBaseBrush}"
+                                             Fill="{DynamicResource SystemFillColorNeutralBrush}"/>
+                                </Grid>
+
+                                <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                    <TextBlock Text="{Binding DisplayTitle}" FontSize="14" TextTrimming="CharacterEllipsis"/>
+                                    <TextBlock Text="{Binding Subtitle}" Style="{StaticResource SecondaryText}"
+                                               TextTrimming="CharacterEllipsis" Margin="0,1,0,0"/>
+                                </StackPanel>
+
+                                <TextBlock x:Name="Status" Grid.Column="2" Text="{Binding StatusLabel}" FontSize="11"
+                                           Foreground="{DynamicResource TextFillColorTertiaryBrush}"
+                                           VerticalAlignment="Center" Margin="8,0,0,0"/>
+                            </Grid>
+                            <DataTemplate.Triggers>
+                                <DataTrigger Binding="{Binding IsOnline}" Value="True">
+                                    <Setter TargetName="Dot" Property="Fill" Value="{DynamicResource SystemFillColorSuccessBrush}"/>
+                                </DataTrigger>
+                                <DataTrigger Binding="{Binding IsConnected}" Value="True">
+                                    <Setter TargetName="Dot" Property="Fill" Value="{DynamicResource AccentFillColorDefaultBrush}"/>
+                                    <Setter TargetName="Status" Property="Foreground" Value="{DynamicResource AccentTextFillColorPrimaryBrush}"/>
+                                </DataTrigger>
+                            </DataTemplate.Triggers>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+
+                <!-- Add / edit endpoint -->
+                <Expander Grid.Row="4" Margin="0,10,0,0">
+                    <Expander.Header>
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="&#xE710;" Style="{StaticResource IconGlyph}" FontSize="14" Margin="0,0,12,0"/>
+                            <TextBlock Text="Add or edit a device" VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </Expander.Header>
+                    <StackPanel Margin="0,4,0,0">
+                        <TextBlock Text="Display name" Style="{StaticResource FieldLabel}"/>
+                        <TextBox x:Name="NameBox" Text="Living Room PC" Margin="0,0,0,10"/>
 
                         <Grid Margin="0,0,0,12">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*"/>
                                 <ColumnDefinition Width="8"/>
-                                <ColumnDefinition Width="82"/>
+                                <ColumnDefinition Width="80"/>
                             </Grid.ColumnDefinitions>
                             <StackPanel Grid.Column="0">
-                                <TextBlock Text="Host / LAN IP" FontSize="11.5" Foreground="{StaticResource MutedBrush}" Margin="0,0,0,4"/>
+                                <TextBlock Text="Host or LAN IP" Style="{StaticResource FieldLabel}"/>
                                 <TextBox x:Name="HostBox" Text="localhost"/>
                             </StackPanel>
                             <StackPanel Grid.Column="2">
-                                <TextBlock Text="Port" FontSize="11.5" Foreground="{StaticResource MutedBrush}" Margin="0,0,0,4"/>
+                                <TextBlock Text="Port" Style="{StaticResource FieldLabel}"/>
                                 <TextBox x:Name="PortBox" Text="7443"/>
                             </StackPanel>
                         </Grid>
@@ -59,560 +147,630 @@
                                 <ColumnDefinition Width="8"/>
                                 <ColumnDefinition Width="Auto"/>
                             </Grid.ColumnDefinitions>
-                            <Button Grid.Column="0" Content="Save Endpoint" Style="{StaticResource GhostButton}"
-                                    Click="OnSaveMachineClick" Padding="10,7"/>
-                            <Button Grid.Column="2" Content="Remove" Style="{StaticResource GhostButton}"
-                                    Click="OnRemoveMachineClick" Padding="12,7"/>
+                            <Button Grid.Column="0" Style="{StaticResource PrimaryButton}" Click="OnSaveMachineClick">
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="&#xE74E;" Style="{StaticResource IconGlyph}" FontSize="14" Margin="0,0,8,0"/>
+                                    <TextBlock Text="Save device"/>
+                                </StackPanel>
+                            </Button>
+                            <Button Grid.Column="2" Style="{StaticResource StandardButton}" ToolTip="Remove the selected device"
+                                    Click="OnRemoveMachineClick">
+                                <TextBlock Text="&#xE74D;" Style="{StaticResource IconGlyph}" FontSize="14"/>
+                            </Button>
                         </Grid>
                     </StackPanel>
-                </Border>
-
-                <!-- Computers Section Header -->
-                <DockPanel DockPanel.Dock="Top" Margin="0,0,0,10">
-                    <Button x:Name="ProbeBtn" DockPanel.Dock="Right" Content="↻ Check Status"
-                            Style="{StaticResource SmallPillButton}" Click="OnProbeMachinesClick"/>
-                    <TextBlock Text="HOME COMPUTERS" Style="{StaticResource Caption}" VerticalAlignment="Center" Margin="0"/>
-                </DockPanel>
-
-                <!-- Computers List -->
-                <ListBox x:Name="MachinesList" Background="Transparent" BorderThickness="0"
-                         ScrollViewer.HorizontalScrollBarVisibility="Disabled"
-                         ItemContainerStyle="{StaticResource MachineItem}"
-                         SelectionChanged="OnMachineSelectionChanged"
-                         MouseDoubleClick="OnMachineDoubleClick">
-                    <ListBox.ItemTemplate>
-                        <DataTemplate>
-                            <Grid>
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="Auto"/>
-                                    <ColumnDefinition Width="*"/>
-                                    <ColumnDefinition Width="Auto"/>
-                                </Grid.ColumnDefinitions>
-
-                                <Ellipse Grid.Column="0" Width="10" Height="10" Fill="{Binding DotBrush}"
-                                         VerticalAlignment="Center" Margin="2,0,12,0"/>
-
-                                <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                                    <TextBlock Text="{Binding DisplayTitle}" FontWeight="SemiBold" FontSize="13.5"
-                                               TextTrimming="CharacterEllipsis"/>
-                                    <TextBlock Text="{Binding Subtitle}" FontSize="11.5"
-                                               Foreground="{StaticResource MutedBrush}"
-                                               TextTrimming="CharacterEllipsis" Margin="0,2,0,0"/>
-                                </StackPanel>
-
-                                <Border Grid.Column="2" Background="{Binding BadgeBackground}" CornerRadius="6"
-                                        Padding="8,3" VerticalAlignment="Center" Margin="6,0,0,0">
-                                    <TextBlock Text="{Binding StatusLabel}" FontSize="10.5" FontWeight="SemiBold"/>
-                                </Border>
-                            </Grid>
-                        </DataTemplate>
-                    </ListBox.ItemTemplate>
-                </ListBox>
-
-            </DockPanel>
+                </Expander>
+            </Grid>
         </Border>
 
-        <!-- ==================== RIGHT WORKSPACE ==================== -->
-        <DockPanel Grid.Column="1" LastChildFill="True">
+        <!-- ==================== CONTENT LAYER ==================== -->
+        <Border x:Name="ContentLayer" Grid.Column="1" Background="{DynamicResource LayerFillColorDefaultBrush}"
+                BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}" BorderThickness="1,1,0,0"
+                CornerRadius="8,0,0,0">
+            <DockPanel LastChildFill="True">
 
-            <!-- Top Machine Connection Bar -->
-            <Border x:Name="TopBarBorder" DockPanel.Dock="Top" Background="{StaticResource SurfaceBrush}"
-                    BorderBrush="{StaticResource LineBrush}" BorderThickness="0,0,0,1" Padding="24,16">
-                <DockPanel>
-                    <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
-                        <Border Background="#1A2232" BorderBrush="{StaticResource LineBrush}" BorderThickness="1"
-                                CornerRadius="8" Padding="12,7" Margin="0,0,12,0" VerticalAlignment="Center">
-                            <TextBlock Text="🔒 Mutual TLS (Zero-Prompt PKI)" FontSize="11.5"
-                                       Foreground="{StaticResource MutedBrush}"/>
-                        </Border>
-                        <Button x:Name="ConnectBtn" Content="Connect" Width="136"
-                                Style="{StaticResource PrimaryButton}" Click="OnConnectClick"/>
-                    </StackPanel>
+                <!-- Page title + device card -->
+                <StackPanel x:Name="TopBarBorder" DockPanel.Dock="Top" Margin="36,26,36,0">
+                    <TextBlock x:Name="PageTitleText" Text="Overview" Style="{StaticResource PageTitle}" Margin="0,0,0,18"/>
 
-                    <StackPanel VerticalAlignment="Center">
-                        <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
-                            <TextBlock x:Name="TargetTitleText" Text="Select or connect to a computer"
-                                       FontSize="18" FontWeight="Bold" VerticalAlignment="Center"/>
-                            <Border x:Name="ConnBadgeBorder" Background="#256B7280" CornerRadius="6"
-                                    Padding="9,3" Margin="12,0,0,0" VerticalAlignment="Center">
-                                <TextBlock x:Name="ConnBadgeText" Text="Disconnected" FontSize="11"
-                                           FontWeight="SemiBold" Foreground="{StaticResource MutedBrush}"/>
-                            </Border>
-                        </StackPanel>
-                        <TextBlock x:Name="StatusText"
-                                   Text="Choose an endpoint on the left or enter a host/IP and click Connect."
-                                   FontSize="12.5" Foreground="{StaticResource MutedBrush}"/>
-                    </StackPanel>
-                </DockPanel>
-            </Border>
-
-            <!-- Navigation Tabs Bar -->
-            <Border x:Name="NavBarBorder" DockPanel.Dock="Top" Background="{StaticResource BgBrush}"
-                    BorderBrush="{StaticResource LineBrush}" BorderThickness="0,0,0,1" Padding="24,10">
-                <WrapPanel Orientation="Horizontal">
-                    <RadioButton x:Name="NavInventory" Content="📊  Inventory"
-                                 Style="{StaticResource NavTab}" Padding="12,8" IsChecked="True"
-                                 Checked="OnNavTabChanged"/>
-                    <RadioButton x:Name="NavDesktop" Content="🖥️  Remote Desktop"
-                                 Style="{StaticResource NavTab}" Padding="12,8"
-                                 Checked="OnNavTabChanged"/>
-                    <RadioButton x:Name="NavShell" Content="⌨️  PowerShell"
-                                 Style="{StaticResource NavTab}" Padding="12,8"
-                                 Checked="OnNavTabChanged"/>
-                    <RadioButton x:Name="NavDeploy" Content="📦  Deploy"
-                                 Style="{StaticResource NavTab}" Padding="12,8"
-                                 Checked="OnNavTabChanged"/>
-                    <RadioButton x:Name="NavUpdates" Content="🔄  Windows Update"
-                                 Style="{StaticResource NavTab}" Padding="12,8"
-                                 Checked="OnNavTabChanged"/>
-                    <RadioButton x:Name="NavSystem" Content="⚙️  System &amp; Settings"
-                                 Style="{StaticResource NavTab}" Padding="12,8"
-                                 Checked="OnNavTabChanged"/>
-                </WrapPanel>
-            </Border>
-
-            <!-- Workspace Body -->
-            <Grid x:Name="WorkspaceGrid" Margin="24,18,24,22">
-
-                <!-- ==================== 1. SYSTEM INVENTORY VIEW ==================== -->
-                <DockPanel x:Name="InventoryPanel" Visibility="Visible">
-
-                    <!-- Hardware Summary Stat Cards -->
-                    <UniformGrid DockPanel.Dock="Top" Columns="4" Margin="0,0,0,16">
-                        <Border Style="{StaticResource CardStyle}" Margin="0,0,10,0">
-                            <StackPanel>
-                                <TextBlock Text="PROCESSOR (CPU)" Style="{StaticResource Caption}"/>
-                                <TextBlock x:Name="CpuValueText" Text="—" Style="{StaticResource ValueText}"
-                                           TextTrimming="CharacterEllipsis"/>
-                                <TextBlock x:Name="CpuSubText" Text="Connect to inspect CPU" FontSize="11.5"
-                                           Foreground="{StaticResource MutedBrush}" Margin="0,4,0,0"/>
-                            </StackPanel>
-                        </Border>
-
-                        <Border Style="{StaticResource CardStyle}" Margin="5,0,5,0">
-                            <StackPanel>
-                                <TextBlock Text="SYSTEM MEMORY (RAM)" Style="{StaticResource Caption}"/>
-                                <TextBlock x:Name="RamValueText" Text="—" Style="{StaticResource ValueText}"/>
-                                <TextBlock x:Name="RamSubText" Text="Physical memory &amp; processes" FontSize="11.5"
-                                           Foreground="{StaticResource MutedBrush}" Margin="0,4,0,0"/>
-                            </StackPanel>
-                        </Border>
-
-                        <Border Style="{StaticResource CardStyle}" Margin="5,0,5,0">
-                            <StackPanel>
-                                <TextBlock Text="GRAPHICS &amp; DISPLAY" Style="{StaticResource Caption}"/>
-                                <TextBlock x:Name="GpuValueText" Text="—" Style="{StaticResource ValueText}"
-                                           TextTrimming="CharacterEllipsis"/>
-                                <TextBlock x:Name="GpuSubText" Text="Primary monitor resolution" FontSize="11.5"
-                                           Foreground="{StaticResource MutedBrush}" Margin="0,4,0,0"/>
-                            </StackPanel>
-                        </Border>
-
-                        <Border Style="{StaticResource CardStyle}" Margin="10,0,0,0">
-                            <StackPanel>
-                                <TextBlock Text="STORAGE VOLUMES" Style="{StaticResource Caption}"/>
-                                <TextBlock x:Name="DiskValueText" Text="—" Style="{StaticResource ValueText}"
-                                           TextTrimming="CharacterEllipsis"/>
-                                <TextBlock x:Name="DiskSubText" Text="Free / total capacity" FontSize="11.5"
-                                           Foreground="{StaticResource MutedBrush}" Margin="0,4,0,0"
-                                           TextTrimming="CharacterEllipsis"/>
-                            </StackPanel>
-                        </Border>
-                    </UniformGrid>
-
-                    <!-- Filter & Refresh Toolbar -->
-                    <DockPanel DockPanel.Dock="Top" Margin="0,0,0,14">
-                        <Button x:Name="RefreshInvBtn" DockPanel.Dock="Right" Content="↻  Refresh Inventory"
-                                Style="{StaticResource PrimaryButton}" Click="OnRefreshInventory" Padding="16,8"/>
-                        <TextBlock x:Name="InventoryTimestampText" DockPanel.Dock="Right"
-                                   Text="" Foreground="{StaticResource MutedBrush}" FontSize="12"
-                                   VerticalAlignment="Center" Margin="0,0,16,0"/>
-
-                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                            <TextBlock Text="Filter apps &amp; processes:" Foreground="{StaticResource MutedBrush}"
-                                       VerticalAlignment="Center" Margin="0,0,10,0"/>
-                            <TextBox x:Name="SearchBox" Width="280" TextChanged="OnSearchChanged"/>
-                        </StackPanel>
-                    </DockPanel>
-
-                    <!-- DataGrids Split View -->
-                    <Grid>
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="1.15*"/>
-                            <ColumnDefinition Width="16"/>
-                            <ColumnDefinition Width="0.85*"/>
-                        </Grid.ColumnDefinitions>
-
-                        <!-- Installed Apps Card -->
-                        <Border Grid.Column="0" Style="{StaticResource CardStyle}" Padding="0">
-                            <DockPanel>
-                                <Border DockPanel.Dock="Top" Padding="16,12" BorderBrush="{StaticResource LineBrush}"
-                                        BorderThickness="0,0,0,1">
-                                    <DockPanel>
-                                        <Border DockPanel.Dock="Right" Background="#243B82F6" CornerRadius="6" Padding="8,2">
-                                            <TextBlock x:Name="AppsCountText" Text="0 apps" FontSize="11"
-                                                       FontWeight="SemiBold" Foreground="#93C5FD"/>
-                                        </Border>
-                                        <TextBlock Text="INSTALLED APPLICATIONS (REGISTRY)" Style="{StaticResource Caption}" Margin="0"/>
-                                    </DockPanel>
-                                </Border>
-                                <DataGrid x:Name="AppsGrid">
-                                    <DataGrid.Columns>
-                                        <DataGridTextColumn Header="Application Name" Binding="{Binding Name}" Width="2*"/>
-                                        <DataGridTextColumn Header="Version" Binding="{Binding Version}" Width="110"/>
-                                        <DataGridTextColumn Header="Publisher" Binding="{Binding Publisher}" Width="1.2*"/>
-                                    </DataGrid.Columns>
-                                </DataGrid>
-                            </DockPanel>
-                        </Border>
-
-                        <!-- Running Processes Card -->
-                        <Border Grid.Column="2" Style="{StaticResource CardStyle}" Padding="0">
-                            <DockPanel>
-                                <Border DockPanel.Dock="Top" Padding="16,12" BorderBrush="{StaticResource LineBrush}"
-                                        BorderThickness="0,0,0,1">
-                                    <DockPanel>
-                                        <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
-                                            <Button Content="✕ End Process" Style="{StaticResource SmallPillButton}"
-                                                    Margin="0,0,8,0" Click="OnKillSelectedProcessClick"/>
-                                            <Border Background="#2422C55E" CornerRadius="6" Padding="8,2" VerticalAlignment="Center">
-                                                <TextBlock x:Name="ProcsCountText" Text="0 processes" FontSize="11"
-                                                           FontWeight="SemiBold" Foreground="#86EFAC"/>
-                                            </Border>
-                                        </StackPanel>
-                                        <TextBlock Text="RUNNING PROCESSES" Style="{StaticResource Caption}" Margin="0" VerticalAlignment="Center"/>
-                                    </DockPanel>
-                                </Border>
-                                <DataGrid x:Name="ProcGrid">
-                                    <DataGrid.Columns>
-                                        <DataGridTextColumn Header="PID" Binding="{Binding Pid}" Width="72"/>
-                                        <DataGridTextColumn Header="Process Name" Binding="{Binding Name}" Width="*"/>
-                                        <DataGridTextColumn Header="RAM (MB)" Binding="{Binding MemoryMb}" Width="95"/>
-                                    </DataGrid.Columns>
-                                </DataGrid>
-                            </DockPanel>
-                        </Border>
-                    </Grid>
-                </DockPanel>
-
-                <!-- ==================== 2. REMOTE DESKTOP VIEW ==================== -->
-                <DockPanel x:Name="DesktopPanel" Visibility="Collapsed">
-
-                    <!-- Remote Desktop Toolbar Card -->
-                    <Border x:Name="DesktopToolbarBorder" DockPanel.Dock="Top" Style="{StaticResource CardStyle}" Padding="16,12" Margin="0,0,0,14">
+                    <Border Style="{StaticResource CardStyle}" Padding="16,14">
                         <DockPanel>
                             <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
-                                <Button Content="📋 Paste to Remote" Style="{StaticResource SmallPillButton}"
-                                        ToolTip="Send your local clipboard text to the remote PC (and paste if control is active)"
-                                        Margin="0,0,8,0" Click="OnSendClipboardClick"/>
-                                <Button Content="📥 Copy from Remote" Style="{StaticResource SmallPillButton}"
-                                        ToolTip="Pull the remote PC's clipboard text into your local clipboard"
-                                        Margin="0,0,10,0" Click="OnGetClipboardClick"/>
-                                <Border Background="#141822" BorderBrush="{StaticResource LineBrush}" BorderThickness="1"
-                                        CornerRadius="7" Padding="10,6" Margin="0,0,10,0">
-                                    <TextBlock x:Name="StreamStatus" Text="Idle — not streaming"
-                                               FontSize="12" Foreground="{StaticResource MutedBrush}"/>
+                                <Border Style="{StaticResource CountPill}" Padding="10,4" Margin="0,0,12,0"
+                                        ToolTip="Mutual TLS with a zero-prompt home PKI">
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock Text="&#xE72E;" Style="{StaticResource IconGlyph}" FontSize="12" Margin="0,0,6,0"
+                                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}"/>
+                                        <TextBlock Text="Mutual TLS" FontSize="12" Foreground="{DynamicResource TextFillColorSecondaryBrush}"/>
+                                    </StackPanel>
                                 </Border>
-                                <Button x:Name="FullScreenBtn" Content="⛶  Full Screen (F11)"
-                                        Style="{StaticResource GhostButton}" Padding="12,7" Click="OnToggleFullScreenClick"/>
+                                <Button x:Name="ConnectBtn" Content="Connect" MinWidth="120"
+                                        Style="{StaticResource PrimaryButton}" Click="OnConnectClick"/>
                             </StackPanel>
 
-                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                <Button x:Name="StreamBtn" Content="▶  Start Viewing" Width="142"
-                                        Style="{StaticResource PrimaryButton}" Click="OnToggleStream"/>
+                            <Border DockPanel.Dock="Left" Style="{StaticResource IconTile}" Width="48" Height="48" Margin="0,0,16,0">
+                                <TextBlock Text="&#xE7F4;" Style="{StaticResource IconGlyph}" FontSize="24"
+                                           HorizontalAlignment="Center" Foreground="{DynamicResource AccentTextFillColorPrimaryBrush}"/>
+                            </Border>
 
-                                <CheckBox x:Name="ControlCheck" Content="Control + Auto Copy/Paste"
-                                          Margin="16,0,0,0" Checked="OnControlCheckChanged"
-                                          Unchecked="OnControlCheckChanged"/>
-
-                                <Border Width="1" Height="22" Background="{StaticResource LineBrush}" Margin="16,0"/>
-
-                                <TextBlock Text="FPS:" Foreground="{StaticResource MutedBrush}"
-                                           VerticalAlignment="Center" Margin="0,0,6,0"/>
-                                <TextBox x:Name="FpsBox" Text="20" Width="40" Margin="0,0,10,0"/>
-
-                                <TextBlock Text="Quality:" Foreground="{StaticResource MutedBrush}"
-                                           VerticalAlignment="Center" Margin="0,0,6,0"/>
-                                <TextBox x:Name="QualityBox" Text="65" Width="40" Margin="0,0,10,0"/>
-
-                                <TextBlock Text="Res:" Foreground="{StaticResource MutedBrush}"
-                                           VerticalAlignment="Center" Margin="0,0,6,0"/>
-                                <ComboBox x:Name="ScaleBox" Width="118" SelectedIndex="0"
-                                          Background="#11141C" Foreground="#F3F4F6" BorderBrush="#282F40">
-                                    <ComboBoxItem Content="1080p (Fast)" Tag="1920"/>
-                                    <ComboBoxItem Content="720p (Ultra)" Tag="1280"/>
-                                    <ComboBoxItem Content="Native (Full)" Tag="0"/>
-                                </ComboBox>
-                            </StackPanel>
-                        </DockPanel>
-                    </Border>
-
-                    <!-- Screen Canvas -->
-                    <Border x:Name="ScreenCanvasBorder" Background="#07090D" BorderBrush="{StaticResource LineBrush}" BorderThickness="1"
-                            CornerRadius="12" ClipToBounds="True">
-                        <Grid>
-                            <Image x:Name="ScreenImage" Stretch="Uniform" Focusable="True"
-                                   MouseMove="OnScreenMouseMove" MouseDown="OnScreenMouseDown" MouseUp="OnScreenMouseUp"
-                                   MouseWheel="OnScreenMouseWheel" KeyDown="OnScreenKeyDown" KeyUp="OnScreenKeyUp"/>
-
-                            <!-- Floating HUD in Full Screen Mode -->
-                            <Border x:Name="FullscreenHud" Visibility="Collapsed" HorizontalAlignment="Right" VerticalAlignment="Top"
-                                    Margin="0,14,18,0" Background="#CC151922" BorderBrush="{StaticResource LineBrush}"
-                                    BorderThickness="1" CornerRadius="10" Padding="12,7">
-                                <StackPanel Orientation="Horizontal">
-                                    <TextBlock x:Name="FullscreenHudText" Text="Full Screen Remote Control" Foreground="#E2E8F0"
-                                               FontSize="12" VerticalAlignment="Center" Margin="0,0,12,0"/>
-                                    <Button Content="📋 Paste" Style="{StaticResource SmallPillButton}"
-                                            Margin="0,0,6,0" Click="OnSendClipboardClick"/>
-                                    <Button Content="📥 Copy" Style="{StaticResource SmallPillButton}"
-                                            Margin="0,0,8,0" Click="OnGetClipboardClick"/>
-                                    <Button Content="⛶  Exit Full Screen (Esc)" Style="{StaticResource SmallPillButton}"
-                                            Margin="0,0,8,0" Click="OnToggleFullScreenClick"/>
-                                    <Button Content="⏹  Stop Stream" Style="{StaticResource DangerButton}"
-                                            Padding="10,4" FontSize="11.5" Click="OnToggleStream"/>
+                            <StackPanel VerticalAlignment="Center" Margin="0,0,16,0">
+                                <StackPanel Orientation="Horizontal" Margin="0,0,0,3">
+                                    <TextBlock x:Name="TargetTitleText" Text="Select or connect to a computer"
+                                               Style="{StaticResource SubtitleText}" FontSize="18" VerticalAlignment="Center"
+                                               TextTrimming="CharacterEllipsis"/>
+                                    <Border x:Name="ConnBadgeBorder" Style="{StaticResource StatusPill}" Margin="12,0,0,0">
+                                        <TextBlock x:Name="ConnBadgeText" Text="Disconnected" FontSize="12"
+                                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}"/>
+                                    </Border>
                                 </StackPanel>
+                                <TextBlock x:Name="StatusText"
+                                           Text="Choose a device on the left, or enter a host and select Connect."
+                                           Style="{StaticResource SecondaryText}" FontSize="13" TextTrimming="CharacterEllipsis"/>
+                            </StackPanel>
+                        </DockPanel>
+                    </Border>
+                </StackPanel>
+
+                <!-- Page body -->
+                <Grid x:Name="WorkspaceGrid" Margin="36,20,36,28">
+
+                    <!-- ==================== 1. OVERVIEW ==================== -->
+                    <DockPanel x:Name="InventoryPanel" Visibility="Visible">
+
+                        <UniformGrid DockPanel.Dock="Top" Columns="4" Margin="-4,0,-4,20">
+                            <Border Style="{StaticResource CardStyle}" Margin="4,0">
+                                <DockPanel>
+                                    <Border DockPanel.Dock="Left" Style="{StaticResource IconTile}" Margin="0,0,14,0" VerticalAlignment="Top">
+                                        <TextBlock Text="&#xE950;" Style="{StaticResource IconGlyph}" FontSize="20" HorizontalAlignment="Center"
+                                                   Foreground="{DynamicResource AccentTextFillColorPrimaryBrush}"/>
+                                    </Border>
+                                    <StackPanel>
+                                        <TextBlock Text="Processor" Style="{StaticResource SecondaryText}" Margin="0,0,0,2"/>
+                                        <TextBlock x:Name="CpuValueText" Text="—" Style="{StaticResource ValueText}"/>
+                                        <TextBlock x:Name="CpuSubText" Text="Connect to inspect CPU" Style="{StaticResource SecondaryText}"
+                                                   Margin="0,2,0,0" TextTrimming="CharacterEllipsis"/>
+                                    </StackPanel>
+                                </DockPanel>
                             </Border>
 
-                            <!-- Empty state overlay when not streaming -->
-                            <StackPanel x:Name="DesktopOverlay" HorizontalAlignment="Center" VerticalAlignment="Center">
-                                <Border Width="64" Height="64" CornerRadius="16" Background="#151A24"
-                                        BorderBrush="{StaticResource LineBrush}" BorderThickness="1"
-                                        HorizontalAlignment="Center" Margin="0,0,0,14">
-                                    <TextBlock Text="🖥️" FontSize="26" HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                                </Border>
-                                <TextBlock Text="Remote Desktop Stream Ready" FontSize="16" FontWeight="SemiBold"
-                                           HorizontalAlignment="Center"/>
-                                <TextBlock Text="Click 'Start Viewing' above (or press F11 for Full Screen). The remote computer will show an on-screen Allow/Deny consent prompt."
-                                           Foreground="{StaticResource MutedBrush}" FontSize="12.5"
-                                           HorizontalAlignment="Center" Margin="0,6,0,0"/>
-                            </StackPanel>
+                            <Border Style="{StaticResource CardStyle}" Margin="4,0">
+                                <DockPanel>
+                                    <Border DockPanel.Dock="Left" Style="{StaticResource IconTile}" Margin="0,0,14,0" VerticalAlignment="Top">
+                                        <TextBlock Text="&#xE964;" Style="{StaticResource IconGlyph}" FontSize="20" HorizontalAlignment="Center"
+                                                   Foreground="{DynamicResource AccentTextFillColorPrimaryBrush}"/>
+                                    </Border>
+                                    <StackPanel>
+                                        <TextBlock Text="Memory" Style="{StaticResource SecondaryText}" Margin="0,0,0,2"/>
+                                        <TextBlock x:Name="RamValueText" Text="—" Style="{StaticResource ValueText}"/>
+                                        <TextBlock x:Name="RamSubText" Text="Physical memory &amp; processes" Style="{StaticResource SecondaryText}"
+                                                   Margin="0,2,0,0" TextTrimming="CharacterEllipsis"/>
+                                    </StackPanel>
+                                </DockPanel>
+                            </Border>
+
+                            <Border Style="{StaticResource CardStyle}" Margin="4,0">
+                                <DockPanel>
+                                    <Border DockPanel.Dock="Left" Style="{StaticResource IconTile}" Margin="0,0,14,0" VerticalAlignment="Top">
+                                        <TextBlock Text="&#xE7F4;" Style="{StaticResource IconGlyph}" FontSize="20" HorizontalAlignment="Center"
+                                                   Foreground="{DynamicResource AccentTextFillColorPrimaryBrush}"/>
+                                    </Border>
+                                    <StackPanel>
+                                        <TextBlock Text="Graphics &amp; display" Style="{StaticResource SecondaryText}" Margin="0,0,0,2"/>
+                                        <TextBlock x:Name="GpuValueText" Text="—" Style="{StaticResource ValueText}"/>
+                                        <TextBlock x:Name="GpuSubText" Text="Primary monitor resolution" Style="{StaticResource SecondaryText}"
+                                                   Margin="0,2,0,0" TextTrimming="CharacterEllipsis"/>
+                                    </StackPanel>
+                                </DockPanel>
+                            </Border>
+
+                            <Border Style="{StaticResource CardStyle}" Margin="4,0">
+                                <DockPanel>
+                                    <Border DockPanel.Dock="Left" Style="{StaticResource IconTile}" Margin="0,0,14,0" VerticalAlignment="Top">
+                                        <TextBlock Text="&#xEDA2;" Style="{StaticResource IconGlyph}" FontSize="20" HorizontalAlignment="Center"
+                                                   Foreground="{DynamicResource AccentTextFillColorPrimaryBrush}"/>
+                                    </Border>
+                                    <StackPanel>
+                                        <TextBlock Text="Storage" Style="{StaticResource SecondaryText}" Margin="0,0,0,2"/>
+                                        <TextBlock x:Name="DiskValueText" Text="—" Style="{StaticResource ValueText}"/>
+                                        <TextBlock x:Name="DiskSubText" Text="Free / total capacity" Style="{StaticResource SecondaryText}"
+                                                   Margin="0,2,0,0" TextTrimming="CharacterEllipsis"/>
+                                    </StackPanel>
+                                </DockPanel>
+                            </Border>
+                        </UniformGrid>
+
+                        <!-- Search & refresh -->
+                        <DockPanel DockPanel.Dock="Top" Margin="0,0,0,14">
+                            <Button x:Name="RefreshInvBtn" DockPanel.Dock="Right" Style="{StaticResource StandardButton}"
+                                    Click="OnRefreshInventory">
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="&#xE72C;" Style="{StaticResource IconGlyph}" FontSize="14" Margin="0,0,8,0"/>
+                                    <TextBlock Text="Refresh"/>
+                                </StackPanel>
+                            </Button>
+                            <TextBlock x:Name="InventoryTimestampText" DockPanel.Dock="Right" Text=""
+                                       Style="{StaticResource SecondaryText}" VerticalAlignment="Center" Margin="0,0,14,0"/>
+
+                            <Grid Width="320" HorizontalAlignment="Left">
+                                <TextBox x:Name="SearchBox" Padding="34,6,10,6" TextChanged="OnSearchChanged"/>
+                                <TextBlock Text="&#xE721;" Style="{StaticResource IconGlyph}" FontSize="14" Margin="12,0,0,0"
+                                           IsHitTestVisible="False" HorizontalAlignment="Left"
+                                           Foreground="{DynamicResource TextFillColorSecondaryBrush}"/>
+                                <TextBlock Text="Filter apps and processes" Style="{StaticResource Placeholder}"
+                                           Tag="{Binding ElementName=SearchBox}" Margin="36,0,0,0"/>
+                            </Grid>
+                        </DockPanel>
+
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="1.15*"/>
+                                <ColumnDefinition Width="16"/>
+                                <ColumnDefinition Width="0.85*"/>
+                            </Grid.ColumnDefinitions>
+
+                            <!-- Installed apps -->
+                            <Border Grid.Column="0" Style="{StaticResource CardStyle}" Padding="0">
+                                <DockPanel>
+                                    <DockPanel DockPanel.Dock="Top" Margin="16,10,12,6" MinHeight="32">
+                                        <Border DockPanel.Dock="Right" Style="{StaticResource CountPill}">
+                                            <TextBlock x:Name="AppsCountText" Text="0 apps" FontSize="12"
+                                                       Foreground="{DynamicResource TextFillColorSecondaryBrush}"/>
+                                        </Border>
+                                        <TextBlock Text="Installed apps" Style="{StaticResource BodyStrong}" VerticalAlignment="Center"/>
+                                    </DockPanel>
+                                    <DataGrid x:Name="AppsGrid" AutoGenerateColumns="False" IsReadOnly="True"
+                                              CanUserAddRows="False" CanUserDeleteRows="False" SelectionMode="Single"
+                                              HeadersVisibility="Column" GridLinesVisibility="None"
+                                              Background="Transparent" BorderThickness="0" Margin="4,0,4,4">
+                                        <DataGrid.Columns>
+                                            <DataGridTextColumn Header="Name" Binding="{Binding Name}" Width="2*"/>
+                                            <DataGridTextColumn Header="Version" Binding="{Binding Version}" Width="110"/>
+                                            <DataGridTextColumn Header="Publisher" Binding="{Binding Publisher}" Width="1.2*"/>
+                                        </DataGrid.Columns>
+                                    </DataGrid>
+                                </DockPanel>
+                            </Border>
+
+                            <!-- Running processes -->
+                            <Border Grid.Column="2" Style="{StaticResource CardStyle}" Padding="0">
+                                <DockPanel>
+                                    <DockPanel DockPanel.Dock="Top" Margin="16,10,12,6" MinHeight="32">
+                                        <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
+                                            <Border Style="{StaticResource CountPill}" Margin="0,0,8,0">
+                                                <TextBlock x:Name="ProcsCountText" Text="0 processes" FontSize="12"
+                                                           Foreground="{DynamicResource TextFillColorSecondaryBrush}"/>
+                                            </Border>
+                                            <Button Style="{StaticResource SubtleButton}" Click="OnKillSelectedProcessClick"
+                                                    ToolTip="End the selected process on the remote PC">
+                                                <StackPanel Orientation="Horizontal">
+                                                    <TextBlock Text="&#xE8BB;" Style="{StaticResource IconGlyph}" FontSize="12" Margin="0,0,8,0"
+                                                               Foreground="{DynamicResource SystemFillColorCriticalBrush}"/>
+                                                    <TextBlock Text="End task" FontSize="13"/>
+                                                </StackPanel>
+                                            </Button>
+                                        </StackPanel>
+                                        <TextBlock Text="Running processes" Style="{StaticResource BodyStrong}" VerticalAlignment="Center"/>
+                                    </DockPanel>
+                                    <DataGrid x:Name="ProcGrid" AutoGenerateColumns="False" IsReadOnly="True"
+                                              CanUserAddRows="False" CanUserDeleteRows="False" SelectionMode="Single"
+                                              HeadersVisibility="Column" GridLinesVisibility="None"
+                                              Background="Transparent" BorderThickness="0" Margin="4,0,4,4">
+                                        <DataGrid.Columns>
+                                            <DataGridTextColumn Header="PID" Binding="{Binding Pid}" Width="72"/>
+                                            <DataGridTextColumn Header="Name" Binding="{Binding Name}" Width="*"/>
+                                            <DataGridTextColumn Header="Memory (MB)" Binding="{Binding MemoryMb}" Width="110"/>
+                                        </DataGrid.Columns>
+                                    </DataGrid>
+                                </DockPanel>
+                            </Border>
                         </Grid>
-                    </Border>
-                </DockPanel>
+                    </DockPanel>
 
-                <!-- ==================== 3. REMOTE SHELL VIEW ==================== -->
-                <DockPanel x:Name="ShellPanel" Visibility="Collapsed">
+                    <!-- ==================== 2. REMOTE DESKTOP ==================== -->
+                    <DockPanel x:Name="DesktopPanel" Visibility="Collapsed">
 
-                    <!-- Quick Commands Toolbar -->
-                    <Border DockPanel.Dock="Top" Style="{StaticResource CardStyle}" Padding="14,10" Margin="0,0,0,12">
-                        <DockPanel>
-                            <Button DockPanel.Dock="Right" Content="Clear Console" Style="{StaticResource SmallPillButton}"
-                                    Click="OnClearShellClick"/>
-                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                <TextBlock Text="QUICK COMMANDS:" Style="{StaticResource Caption}"
-                                           VerticalAlignment="Center" Margin="0,0,12,0"/>
-                                <Button Content="whoami &amp; hostname" Tag="whoami; hostname; $PSVersionTable.PSVersion.ToString()"
-                                        Style="{StaticResource SmallPillButton}" Margin="0,0,8,0" Click="OnQuickCommandClick"/>
-                                <Button Content="IP Configuration" Tag="Get-NetIPAddress -AddressFamily IPv4 | Select-Object InterfaceAlias, IPAddress | Format-Table -AutoSize"
-                                        Style="{StaticResource SmallPillButton}" Margin="0,0,8,0" Click="OnQuickCommandClick"/>
-                                <Button Content="Top CPU Processes" Tag="Get-Process | Sort-Object CPU -Descending | Select-Object -First 10 Id, ProcessName, @{N='CPU(s)';E={[math]::Round($_.CPU,1)}}, @{N='RAM(MB)';E={[math]::Round($_.WorkingSet64/1MB,1)}} | Format-Table -AutoSize"
-                                        Style="{StaticResource SmallPillButton}" Margin="0,0,8,0" Click="OnQuickCommandClick"/>
-                                <Button Content="Disk Volumes" Tag="Get-PSDrive -PSProvider FileSystem | Select-Object Name, @{N='Used(GB)';E={[math]::Round($_.Used/1GB,1)}}, @{N='Free(GB)';E={[math]::Round($_.Free/1GB,1)}} | Format-Table -AutoSize"
-                                        Style="{StaticResource SmallPillButton}" Margin="0,0,8,0" Click="OnQuickCommandClick"/>
-                                <Button Content="Uptime" Tag="(Get-Date) - (Get-CimInstance Win32_OperatingSystem).LastBootUpTime | Select-Object Days, Hours, Minutes | Format-List"
-                                        Style="{StaticResource SmallPillButton}" Click="OnQuickCommandClick"/>
+                        <!-- Command bar -->
+                        <Border x:Name="DesktopToolbarBorder" DockPanel.Dock="Top" Style="{StaticResource CardStyle}"
+                                Padding="12,8" Margin="0,0,0,14">
+                            <DockPanel>
+                                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
+                                    <Button Style="{StaticResource SubtleButton}" Click="OnSendClipboardClick" Padding="9,7"
+                                            ToolTip="Paste to remote — send your clipboard text to the remote PC (and paste it if control is on)">
+                                        <TextBlock Text="&#xE77F;" Style="{StaticResource IconGlyph}" FontSize="16"/>
+                                    </Button>
+                                    <Button Style="{StaticResource SubtleButton}" Click="OnGetClipboardClick" Padding="9,7"
+                                            ToolTip="Copy from remote — copy the remote PC's clipboard text to this PC">
+                                        <TextBlock Text="&#xE8C8;" Style="{StaticResource IconGlyph}" FontSize="16"/>
+                                    </Button>
+                                    <Button x:Name="FullScreenBtn" Style="{StaticResource SubtleButton}" Click="OnToggleFullScreenClick"
+                                            Padding="9,7" ToolTip="Full screen (F11)">
+                                        <TextBlock Text="&#xE740;" Style="{StaticResource IconGlyph}" FontSize="16"/>
+                                    </Button>
+                                </StackPanel>
+
+                                <WrapPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                    <Button x:Name="StreamBtn" Content="Start viewing" MinWidth="128"
+                                            Style="{StaticResource PrimaryButton}" Click="OnToggleStream"/>
+
+                                    <Border Style="{StaticResource ToolbarDivider}"/>
+
+                                    <CheckBox x:Name="ControlCheck" Content="Control" Style="{StaticResource ToggleSwitch}"
+                                              ToolTip="Send mouse and keyboard to the remote PC, with automatic copy and paste"
+                                              Checked="OnControlCheckChanged" Unchecked="OnControlCheckChanged"/>
+
+                                    <Border Style="{StaticResource ToolbarDivider}"/>
+
+                                    <TextBlock Text="FPS" Style="{StaticResource SecondaryText}" FontSize="13"
+                                               VerticalAlignment="Center" Margin="0,0,8,0"/>
+                                    <TextBox x:Name="FpsBox" Text="60" Width="52" Margin="0,0,14,0" HorizontalContentAlignment="Center"/>
+
+                                    <TextBlock Text="Quality" Style="{StaticResource SecondaryText}" FontSize="13"
+                                               VerticalAlignment="Center" Margin="0,0,8,0"/>
+                                    <TextBox x:Name="QualityBox" Text="80" Width="52" Margin="0,0,14,0" HorizontalContentAlignment="Center"/>
+
+                                    <ComboBox x:Name="ScaleBox" Width="150" SelectedIndex="0" Margin="0,0,8,0"
+                                              ToolTip="Stream resolution">
+                                        <ComboBoxItem Content="Native res" Tag="0"/>
+                                        <ComboBoxItem Content="1080p (faster)" Tag="1920"/>
+                                        <ComboBoxItem Content="720p (fastest)" Tag="1280"/>
+                                    </ComboBox>
+                                    <ComboBox x:Name="UpscaleBox" Width="170" SelectedIndex="0"
+                                              ToolTip="How the remote picture is scaled to your screen (GPU, applies instantly)"
+                                              SelectionChanged="OnUpscaleModeChanged">
+                                        <ComboBoxItem Content="Upscale: sharp+" Tag="cas"
+                                                      ToolTip="Sharp bicubic upscaling plus adaptive sharpening — crispest text"/>
+                                        <ComboBoxItem Content="Upscale: sharp" Tag="bicubic"
+                                                      ToolTip="Sharp bicubic (Catmull-Rom) upscaling"/>
+                                        <ComboBoxItem Content="Upscale: off" Tag="smooth"
+                                                      ToolTip="Plain smooth scaling (previous behaviour)"/>
+                                    </ComboBox>
+                                </WrapPanel>
+                            </DockPanel>
+                        </Border>
+
+                        <!-- Remote screen -->
+                        <Border x:Name="ScreenCanvasBorder" Background="{StaticResource ScreenBackgroundBrush}"
+                                BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}" BorderThickness="1"
+                                CornerRadius="8" ClipToBounds="True">
+                            <Grid>
+                                <!-- Second GPU pass (sharpening) runs on this host, the first (upscale) on the Image -->
+                                <Border x:Name="SharpenHost">
+                                    <Image x:Name="ScreenImage" Stretch="Uniform" Focusable="True" RenderOptions.BitmapScalingMode="HighQuality"
+                                           MouseMove="OnScreenMouseMove" MouseDown="OnScreenMouseDown" MouseUp="OnScreenMouseUp"
+                                           MouseWheel="OnScreenMouseWheel" KeyDown="OnScreenKeyDown" KeyUp="OnScreenKeyUp"
+                                           SizeChanged="OnScreenImageSizeChanged"/>
+                                </Border>
+
+                                <!-- Remote pointer (view-only mode) -->
+                                <Canvas x:Name="CursorLayer" IsHitTestVisible="False" ClipToBounds="True">
+                                    <Image x:Name="RemoteCursorImage" Visibility="Collapsed" RenderOptions.BitmapScalingMode="HighQuality"/>
+                                </Canvas>
+
+                                <!-- Stream status -->
+                                <Border HorizontalAlignment="Left" VerticalAlignment="Bottom" Margin="12"
+                                        Background="#B3202020" CornerRadius="10" Padding="10,3,10,4">
+                                    <TextBlock x:Name="StreamStatus" Text="Idle — not streaming" FontSize="12" Foreground="#CCFFFFFF"/>
+                                </Border>
+
+                                <!-- Floating bar in full screen -->
+                                <Border x:Name="FullscreenHud" Visibility="Collapsed" HorizontalAlignment="Center" VerticalAlignment="Top"
+                                        Margin="0,12,0,0" Background="#E6202020" BorderBrush="#33FFFFFF"
+                                        BorderThickness="1" CornerRadius="8" Padding="12,6">
+                                    <Border.Effect>
+                                        <DropShadowEffect BlurRadius="24" ShadowDepth="4" Opacity="0.45"/>
+                                    </Border.Effect>
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock x:Name="FullscreenHudText" Text="Full screen remote control" Foreground="#E6FFFFFF"
+                                                   FontSize="12" VerticalAlignment="Center" Margin="4,0,14,0"/>
+                                        <Button Style="{StaticResource SubtleButton}" Foreground="White" Click="OnSendClipboardClick"
+                                                ToolTip="Paste to remote">
+                                            <TextBlock Text="&#xE77F;" Style="{StaticResource IconGlyph}" FontSize="14"/>
+                                        </Button>
+                                        <Button Style="{StaticResource SubtleButton}" Foreground="White" Click="OnGetClipboardClick"
+                                                ToolTip="Copy from remote">
+                                            <TextBlock Text="&#xE8C8;" Style="{StaticResource IconGlyph}" FontSize="14"/>
+                                        </Button>
+                                        <Button x:Name="HudUpscaleBtn" Style="{StaticResource SubtleButton}" Foreground="White"
+                                                Click="OnHudUpscaleClick" ToolTip="Upscaling: sharp+ (click to change)">
+                                            <StackPanel Orientation="Horizontal">
+                                                <TextBlock Text="&#xE9A6;" Style="{StaticResource IconGlyph}" FontSize="14" Margin="0,0,6,0"/>
+                                                <TextBlock x:Name="HudUpscaleText" Text="Sharp+" FontSize="12" VerticalAlignment="Center"/>
+                                            </StackPanel>
+                                        </Button>
+                                        <Button Style="{StaticResource SubtleButton}" Foreground="White" Click="OnToggleFullScreenClick"
+                                                ToolTip="Exit full screen (Esc)" Margin="0,0,8,0">
+                                            <TextBlock Text="&#xE73F;" Style="{StaticResource IconGlyph}" FontSize="14"/>
+                                        </Button>
+                                        <Button Style="{StaticResource DangerButton}" Padding="10,3,12,4" MinHeight="28" FontSize="12"
+                                                Click="OnToggleStream">
+                                            <StackPanel Orientation="Horizontal">
+                                                <TextBlock Text="&#xE71A;" Style="{StaticResource IconGlyph}" FontSize="12" Margin="0,0,6,0"/>
+                                                <TextBlock Text="Stop"/>
+                                            </StackPanel>
+                                        </Button>
+                                    </StackPanel>
+                                </Border>
+
+                                <!-- Empty state -->
+                                <StackPanel x:Name="DesktopOverlay" HorizontalAlignment="Center" VerticalAlignment="Center" MaxWidth="460">
+                                    <TextBlock Text="&#xE7F4;" Style="{StaticResource IconGlyph}" FontSize="48" HorizontalAlignment="Center"
+                                               Foreground="#80FFFFFF" Margin="0,0,0,16"/>
+                                    <TextBlock Text="Ready to view the remote screen" FontSize="18" FontWeight="SemiBold" Foreground="#F2FFFFFF"
+                                               HorizontalAlignment="Center" FontFamily="{StaticResource DisplayFont}"/>
+                                    <TextBlock Text="Select Start viewing, or press F11 for full screen. The remote PC shows an Allow / Deny prompt before anything is shared."
+                                               Foreground="#99FFFFFF" FontSize="13" TextWrapping="Wrap" TextAlignment="Center"
+                                               HorizontalAlignment="Center" Margin="0,8,0,0"/>
+                                </StackPanel>
+                            </Grid>
+                        </Border>
+                    </DockPanel>
+
+                    <!-- ==================== 3. POWERSHELL ==================== -->
+                    <DockPanel x:Name="ShellPanel" Visibility="Collapsed">
+
+                        <DockPanel DockPanel.Dock="Top" Margin="0,0,0,8">
+                            <Button DockPanel.Dock="Right" Style="{StaticResource SubtleButton}" Click="OnClearShellClick"
+                                    VerticalAlignment="Top">
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="&#xE74D;" Style="{StaticResource IconGlyph}" FontSize="14" Margin="0,0,8,0"/>
+                                    <TextBlock Text="Clear"/>
+                                </StackPanel>
+                            </Button>
+                            <StackPanel>
+                                <TextBlock Text="Quick commands" Style="{StaticResource Caption}"/>
+                                <WrapPanel>
+                                    <Button Content="whoami &amp; hostname" Tag="whoami; hostname; $PSVersionTable.PSVersion.ToString()"
+                                            Style="{StaticResource ChipButton}" Click="OnQuickCommandClick"/>
+                                    <Button Content="IP configuration" Tag="Get-NetIPAddress -AddressFamily IPv4 | Select-Object InterfaceAlias, IPAddress | Format-Table -AutoSize"
+                                            Style="{StaticResource ChipButton}" Click="OnQuickCommandClick"/>
+                                    <Button Content="Top CPU processes" Tag="Get-Process | Sort-Object CPU -Descending | Select-Object -First 10 Id, ProcessName, @{N='CPU(s)';E={[math]::Round($_.CPU,1)}}, @{N='RAM(MB)';E={[math]::Round($_.WorkingSet64/1MB,1)}} | Format-Table -AutoSize"
+                                            Style="{StaticResource ChipButton}" Click="OnQuickCommandClick"/>
+                                    <Button Content="Disk volumes" Tag="Get-PSDrive -PSProvider FileSystem | Select-Object Name, @{N='Used(GB)';E={[math]::Round($_.Used/1GB,1)}}, @{N='Free(GB)';E={[math]::Round($_.Free/1GB,1)}} | Format-Table -AutoSize"
+                                            Style="{StaticResource ChipButton}" Click="OnQuickCommandClick"/>
+                                    <Button Content="Uptime" Tag="(Get-Date) - (Get-CimInstance Win32_OperatingSystem).LastBootUpTime | Select-Object Days, Hours, Minutes | Format-List"
+                                            Style="{StaticResource ChipButton}" Click="OnQuickCommandClick"/>
+                                </WrapPanel>
                             </StackPanel>
                         </DockPanel>
-                    </Border>
 
-                    <!-- Command Input Bar (Docked Bottom) -->
-                    <Border DockPanel.Dock="Bottom" Style="{StaticResource CardStyle}" Padding="10" Margin="0,12,0,0">
-                        <DockPanel>
-                            <Button x:Name="ShellSendBtn" DockPanel.Dock="Right" Content="Run Command"
-                                    Width="130" Style="{StaticResource PrimaryButton}" Margin="10,0,0,0"
-                                    Click="OnShellSend"/>
-                            <Border DockPanel.Dock="Left" Background="#1E293B" CornerRadius="6" Padding="10,6" Margin="0,0,10,0">
-                                <TextBlock Text="PS &gt;" FontFamily="Cascadia Mono, Consolas" FontWeight="Bold"
-                                           Foreground="#60A5FA" VerticalAlignment="Center"/>
-                            </Border>
-                            <TextBox x:Name="ShellInputBox" FontFamily="Cascadia Mono, Consolas" FontSize="13"
-                                     KeyDown="OnShellInputKeyDown"/>
-                        </DockPanel>
-                    </Border>
+                        <!-- Terminal -->
+                        <Border Background="{StaticResource ConsoleBackgroundBrush}" BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
+                                BorderThickness="1" CornerRadius="8">
+                            <DockPanel>
+                                <!-- Input line -->
+                                <Border DockPanel.Dock="Bottom" BorderBrush="#26FFFFFF" BorderThickness="0,1,0,0" Padding="16,8,8,8">
+                                    <DockPanel>
+                                        <Button x:Name="ShellSendBtn" DockPanel.Dock="Right" Style="{StaticResource PrimaryButton}"
+                                                Margin="10,0,0,0" Click="OnShellSend" ToolTip="Run (Enter)">
+                                            <StackPanel Orientation="Horizontal">
+                                                <TextBlock Text="&#xE768;" Style="{StaticResource IconGlyph}" FontSize="12" Margin="0,0,8,0"/>
+                                                <TextBlock Text="Run"/>
+                                            </StackPanel>
+                                        </Button>
+                                        <TextBlock DockPanel.Dock="Left" Text="PS&gt;" FontFamily="{StaticResource MonoFont}" FontSize="13"
+                                                   FontWeight="SemiBold" Foreground="{StaticResource ConsolePromptBrush}"
+                                                   VerticalAlignment="Center" Margin="0,0,10,0"/>
+                                        <Grid>
+                                            <TextBox x:Name="ShellInputBox" Style="{StaticResource ConsoleInputBox}"
+                                                     KeyDown="OnShellInputKeyDown"/>
+                                            <TextBlock Text="Type a command and press Enter  ·  ↑ ↓ for history"
+                                                       Style="{StaticResource Placeholder}" Foreground="#66FFFFFF"
+                                                       FontFamily="{StaticResource MonoFont}" FontSize="13"
+                                                       Tag="{Binding ElementName=ShellInputBox}" Margin="2,0,0,0"/>
+                                        </Grid>
+                                    </DockPanel>
+                                </Border>
 
-                    <!-- Terminal Output -->
-                    <Border Background="#090C12" BorderBrush="{StaticResource LineBrush}" BorderThickness="1"
-                            CornerRadius="12" Padding="4">
-                        <TextBox x:Name="ShellOutput" IsReadOnly="True" Background="Transparent"
-                                 Foreground="#E2E8F0" BorderThickness="0" Padding="14,12"
-                                 FontFamily="Cascadia Mono, Consolas" FontSize="12.5"
-                                 VerticalScrollBarVisibility="Auto" TextWrapping="Wrap" AcceptsReturn="True"/>
-                    </Border>
-                </DockPanel>
+                                <TextBox x:Name="ShellOutput" Style="{StaticResource ConsoleTextBox}"/>
+                            </DockPanel>
+                        </Border>
+                    </DockPanel>
 
-                <!-- ==================== 4. SILENT SOFTWARE DEPLOYMENT VIEW ==================== -->
-                <DockPanel x:Name="DeployPanel" Visibility="Collapsed" AllowDrop="True"
-                           PreviewDragOver="OnDeployDragOver" Drop="OnDeployFileDrop">
+                    <!-- ==================== 4. DEPLOY SOFTWARE ==================== -->
+                    <DockPanel x:Name="DeployPanel" Visibility="Collapsed" AllowDrop="True"
+                               PreviewDragOver="OnDeployDragOver" Drop="OnDeployFileDrop">
 
-                    <!-- Upload Installer Card (.exe / .msi / .ps1) -->
-                    <Border DockPanel.Dock="Top" Style="{StaticResource CardStyle}" Padding="18,16" Margin="0,0,0,14">
-                        <StackPanel>
-                            <DockPanel Margin="0,0,0,12">
-                                <Border DockPanel.Dock="Right" Background="#243B82F6" CornerRadius="6" Padding="10,3">
-                                    <TextBlock x:Name="DeployStatusBadge" Text="Ready to Deploy" FontSize="11.5"
-                                               FontWeight="SemiBold" Foreground="#93C5FD"/>
+                        <!-- Package card -->
+                        <Border DockPanel.Dock="Top" Style="{StaticResource CardStyle}" Padding="20,18" Margin="0,0,0,12">
+                            <StackPanel>
+                                <DockPanel Margin="0,0,0,16">
+                                    <Border DockPanel.Dock="Right" Style="{StaticResource CountPill}" Padding="10,3">
+                                        <TextBlock x:Name="DeployStatusBadge" Text="Ready to deploy" FontSize="12"
+                                                   Foreground="{DynamicResource AccentTextFillColorPrimaryBrush}"/>
+                                    </Border>
+                                    <Border DockPanel.Dock="Left" Style="{StaticResource IconTile}" Margin="0,0,14,0">
+                                        <TextBlock Text="&#xE896;" Style="{StaticResource IconGlyph}" FontSize="20" HorizontalAlignment="Center"
+                                                   Foreground="{DynamicResource AccentTextFillColorPrimaryBrush}"/>
+                                    </Border>
+                                    <StackPanel VerticalAlignment="Center">
+                                        <TextBlock Text="Install a package silently" Style="{StaticResource BodyStrong}"/>
+                                        <TextBlock Text="Streams an .exe, .msi, .msp or .ps1 to the remote PC over mutual TLS and runs it hidden. You can also drop a file anywhere on this page."
+                                                   Style="{StaticResource SecondaryText}" TextWrapping="Wrap" Margin="0,2,0,0"/>
+                                    </StackPanel>
+                                </DockPanel>
+
+                                <Grid Margin="0,0,0,14">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="2*"/>
+                                        <ColumnDefinition Width="8"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="16"/>
+                                        <ColumnDefinition Width="1.2*"/>
+                                        <ColumnDefinition Width="16"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+
+                                    <StackPanel Grid.Column="0">
+                                        <TextBlock Text="Installer file" Style="{StaticResource FieldLabel}"/>
+                                        <Grid>
+                                            <TextBox x:Name="DeployFilePathBox" Text=""/>
+                                            <TextBlock Text="Browse or drop an .exe, .msi, .msp or .ps1" Style="{StaticResource Placeholder}"
+                                                       Tag="{Binding ElementName=DeployFilePathBox}" Margin="12,0,0,0"/>
+                                        </Grid>
+                                    </StackPanel>
+
+                                    <Button Grid.Column="2" Style="{StaticResource StandardButton}" VerticalAlignment="Bottom"
+                                            Click="OnBrowseDeployFileClick">
+                                        <StackPanel Orientation="Horizontal">
+                                            <TextBlock Text="&#xE8B7;" Style="{StaticResource IconGlyph}" FontSize="14" Margin="0,0,8,0"/>
+                                            <TextBlock Text="Browse"/>
+                                        </StackPanel>
+                                    </Button>
+
+                                    <StackPanel Grid.Column="4">
+                                        <TextBlock Text="Silent switches (AUTO detects NSIS, Inno, MSI and Burn)" Style="{StaticResource FieldLabel}"
+                                                   TextTrimming="CharacterEllipsis"/>
+                                        <TextBox x:Name="DeployArgsBox" Text="AUTO" FontFamily="{StaticResource MonoFont}" FontSize="13"/>
+                                    </StackPanel>
+
+                                    <Button x:Name="DeployRunBtn" Grid.Column="6" Style="{StaticResource PrimaryButton}"
+                                            VerticalAlignment="Bottom" Click="OnStartDeployClick">
+                                        <StackPanel Orientation="Horizontal">
+                                            <TextBlock Text="&#xE898;" Style="{StaticResource IconGlyph}" FontSize="14" Margin="0,0,8,0"/>
+                                            <TextBlock Text="Upload and install"/>
+                                        </StackPanel>
+                                    </Button>
+                                </Grid>
+
+                                <TextBlock Text="Switch presets" Style="{StaticResource FieldLabel}"/>
+                                <WrapPanel>
+                                    <Button Content="Auto-detect" Tag="AUTO" Style="{StaticResource ChipButton}" Click="OnDeployPresetFlagClick"/>
+                                    <Button Content="NSIS  /S" Tag="/S" Style="{StaticResource ChipButton}" Click="OnDeployPresetFlagClick"/>
+                                    <Button Content="Inno Setup  /VERYSILENT" Tag="/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /SP-" Style="{StaticResource ChipButton}" Click="OnDeployPresetFlagClick"/>
+                                    <Button Content="MSI  /qn /norestart" Tag="/qn /norestart" Style="{StaticResource ChipButton}" Click="OnDeployPresetFlagClick"/>
+                                    <Button Content="Burn / WiX  /quiet" Tag="/quiet /norestart" Style="{StaticResource ChipButton}" Click="OnDeployPresetFlagClick"/>
+                                </WrapPanel>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- winget -->
+                        <Border DockPanel.Dock="Top" Style="{StaticResource CardStyle}" Padding="20,14,20,10" Margin="0,0,0,12">
+                            <DockPanel>
+                                <Border DockPanel.Dock="Left" Style="{StaticResource IconTile}" Margin="0,0,14,4" VerticalAlignment="Top">
+                                    <TextBlock Text="&#xE719;" Style="{StaticResource IconGlyph}" FontSize="20" HorizontalAlignment="Center"
+                                               Foreground="{DynamicResource AccentTextFillColorPrimaryBrush}"/>
                                 </Border>
                                 <StackPanel>
-                                    <TextBlock Text="UPLOAD &amp; SILENTLY INSTALL PACKAGE (.EXE / .MSI / .MSP / .PS1)" Style="{StaticResource Caption}" Margin="0,0,0,3"/>
-                                    <TextBlock Text="Streams your local installer file over Mutual TLS to the remote computer and executes it in hidden/silent mode (or drag &amp; drop a file here)."
-                                               FontSize="12" Foreground="{StaticResource MutedBrush}"/>
+                                    <TextBlock Text="One-click install with winget" Style="{StaticResource BodyStrong}" Margin="0,0,0,8"/>
+                                    <WrapPanel>
+                                        <Button Content="7-Zip" Tag="7zip.7zip" Style="{StaticResource ChipButton}" Click="OnWingetQuickInstallClick"/>
+                                        <Button Content="Google Chrome" Tag="Google.Chrome" Style="{StaticResource ChipButton}" Click="OnWingetQuickInstallClick"/>
+                                        <Button Content="Mozilla Firefox" Tag="Mozilla.Firefox" Style="{StaticResource ChipButton}" Click="OnWingetQuickInstallClick"/>
+                                        <Button Content="VLC" Tag="VideoLAN.VLC" Style="{StaticResource ChipButton}" Click="OnWingetQuickInstallClick"/>
+                                        <Button Content="Notepad++" Tag="Notepad++.Notepad++" Style="{StaticResource ChipButton}" Click="OnWingetQuickInstallClick"/>
+                                        <Button Content="VS Code" Tag="Microsoft.VisualStudioCode" Style="{StaticResource ChipButton}" Click="OnWingetQuickInstallClick"/>
+                                    </WrapPanel>
                                 </StackPanel>
                             </DockPanel>
+                        </Border>
 
-                            <Grid Margin="0,0,0,12">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="2*"/>
-                                    <ColumnDefinition Width="10"/>
-                                    <ColumnDefinition Width="Auto"/>
-                                    <ColumnDefinition Width="16"/>
-                                    <ColumnDefinition Width="1.2*"/>
-                                    <ColumnDefinition Width="14"/>
-                                    <ColumnDefinition Width="Auto"/>
-                                </Grid.ColumnDefinitions>
-
-                                <StackPanel Grid.Column="0">
-                                    <TextBlock Text="Local Installer File (.exe, .msi, .msp, .ps1)" FontSize="11.5" Foreground="{StaticResource MutedBrush}" Margin="0,0,0,4"/>
-                                    <TextBox x:Name="DeployFilePathBox" Text="" ToolTip="Select or drop a local .exe / .msi installer file"/>
-                                </StackPanel>
-
-                                <Button Grid.Column="2" Content="📂  Browse File…" Style="{StaticResource GhostButton}"
-                                        VerticalAlignment="Bottom" Padding="14,8" Click="OnBrowseDeployFileClick"/>
-
-                                <StackPanel Grid.Column="4">
-                                    <TextBlock Text="Silent Flags (AUTO detects NSIS / Inno / MSI / Burn, or enter custom)" FontSize="11.5" Foreground="{StaticResource MutedBrush}" Margin="0,0,0,4"/>
-                                    <TextBox x:Name="DeployArgsBox" Text="AUTO"/>
-                                </StackPanel>
-
-                                <Button x:Name="DeployRunBtn" Grid.Column="6" Content="🚀  Upload &amp; Install Silently"
-                                        Style="{StaticResource PrimaryButton}" VerticalAlignment="Bottom"
-                                        Padding="18,8" Click="OnStartDeployClick"/>
+                        <!-- Log -->
+                        <Border Background="{StaticResource ConsoleBackgroundBrush}" BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
+                                BorderThickness="1" CornerRadius="8">
+                            <Grid>
+                                <TextBox x:Name="DeployOutputBox" Style="{StaticResource ConsoleTextBox}"/>
+                                <Button Style="{StaticResource SubtleButton}" Foreground="#CCFFFFFF" Click="OnClearDeployLogClick"
+                                        HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,8,14,0" ToolTip="Clear log">
+                                    <TextBlock Text="&#xE74D;" Style="{StaticResource IconGlyph}" FontSize="14"/>
+                                </Button>
                             </Grid>
+                        </Border>
+                    </DockPanel>
 
-                            <!-- Preset Flag Pills -->
-                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                <TextBlock Text="FLAG PRESETS:" Style="{StaticResource Caption}" VerticalAlignment="Center" Margin="0,0,10,0"/>
-                                <Button Content="Smart Auto-Detect (AUTO)" Tag="AUTO" Style="{StaticResource SmallPillButton}" Margin="0,0,8,0" Click="OnDeployPresetFlagClick"/>
-                                <Button Content="NSIS / Standard (/S)" Tag="/S" Style="{StaticResource SmallPillButton}" Margin="0,0,8,0" Click="OnDeployPresetFlagClick"/>
-                                <Button Content="Inno Setup (/VERYSILENT /NORESTART)" Tag="/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /SP-" Style="{StaticResource SmallPillButton}" Margin="0,0,8,0" Click="OnDeployPresetFlagClick"/>
-                                <Button Content="MSI Quiet (/qn /norestart)" Tag="/qn /norestart" Style="{StaticResource SmallPillButton}" Margin="0,0,8,0" Click="OnDeployPresetFlagClick"/>
-                                <Button Content="Burn / WiX (/quiet /norestart)" Tag="/quiet /norestart" Style="{StaticResource SmallPillButton}" Click="OnDeployPresetFlagClick"/>
-                            </StackPanel>
-                        </StackPanel>
-                    </Border>
+                    <!-- ==================== 5. SETTINGS & WINDOWS UPDATE ==================== -->
+                    <Grid x:Name="SystemPanel" Visibility="Collapsed">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="240"/>
+                            <ColumnDefinition Width="20"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
 
-                    <!-- Quick One-Click Winget Silent Installer Card -->
-                    <Border DockPanel.Dock="Top" Style="{StaticResource CardStyle}" Padding="14,10" Margin="0,0,0,14">
-                        <DockPanel>
-                            <Button DockPanel.Dock="Right" Content="Clear Log" Style="{StaticResource SmallPillButton}"
-                                    Click="OnClearDeployLogClick"/>
-                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                <TextBlock Text="ONE-CLICK WINGET SILENT INSTALL:" Style="{StaticResource Caption}"
-                                           VerticalAlignment="Center" Margin="0,0,12,0"/>
-                                <Button Content="7-Zip" Tag="7zip.7zip" Style="{StaticResource SmallPillButton}" Margin="0,0,8,0" Click="OnWingetQuickInstallClick"/>
-                                <Button Content="Google Chrome" Tag="Google.Chrome" Style="{StaticResource SmallPillButton}" Margin="0,0,8,0" Click="OnWingetQuickInstallClick"/>
-                                <Button Content="Mozilla Firefox" Tag="Mozilla.Firefox" Style="{StaticResource SmallPillButton}" Margin="0,0,8,0" Click="OnWingetQuickInstallClick"/>
-                                <Button Content="VLC Media Player" Tag="VideoLAN.VLC" Style="{StaticResource SmallPillButton}" Margin="0,0,8,0" Click="OnWingetQuickInstallClick"/>
-                                <Button Content="Notepad++" Tag="Notepad++.Notepad++" Style="{StaticResource SmallPillButton}" Margin="0,0,8,0" Click="OnWingetQuickInstallClick"/>
-                                <Button Content="VS Code" Tag="Microsoft.VisualStudioCode" Style="{StaticResource SmallPillButton}" Click="OnWingetQuickInstallClick"/>
-                            </StackPanel>
-                        </DockPanel>
-                    </Border>
-
-                    <!-- Deployment Progress & Output Console -->
-                    <Border Background="#090C12" BorderBrush="{StaticResource LineBrush}" BorderThickness="1"
-                            CornerRadius="12" Padding="4">
-                        <TextBox x:Name="DeployOutputBox" IsReadOnly="True" Background="Transparent"
-                                 Foreground="#E2E8F0" BorderThickness="0" Padding="14,12"
-                                 FontFamily="Cascadia Mono, Consolas" FontSize="12.5"
-                                 VerticalScrollBarVisibility="Auto" TextWrapping="Wrap" AcceptsReturn="True"/>
-                    </Border>
-                </DockPanel>
-
-                <!-- ==================== 5. WINDOWS 11 STYLE SETTINGS & UPDATES VIEW ==================== -->
-                <Grid x:Name="SystemPanel" Visibility="Collapsed">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="230"/>
-                        <ColumnDefinition Width="16"/>
-                        <ColumnDefinition Width="*"/>
-                    </Grid.ColumnDefinitions>
-
-                    <!-- Windows 11 Left Settings Sidebar -->
-                    <Border Grid.Column="0" Style="{StaticResource CardStyle}" Padding="12">
-                        <DockPanel>
-                            <StackPanel DockPanel.Dock="Top" Margin="0,0,0,12">
-                                <TextBlock Text="WINDOWS SETTINGS" Style="{StaticResource Caption}" Margin="2,0,0,6"/>
-                                <TextBox x:Name="SettingsSearchBox" Text="" ToolTip="Find a setting across all categories"
-                                         TextChanged="OnSettingsSearchChanged"/>
-                            </StackPanel>
-
+                        <!-- Settings categories -->
+                        <DockPanel Grid.Column="0">
+                            <Grid DockPanel.Dock="Top" Margin="0,0,0,10">
+                                <TextBox x:Name="SettingsSearchBox" Text="" Padding="34,6,10,6"
+                                         ToolTip="Find a setting across all categories" TextChanged="OnSettingsSearchChanged"/>
+                                <TextBlock Text="&#xE721;" Style="{StaticResource IconGlyph}" FontSize="14" Margin="12,0,0,0"
+                                           IsHitTestVisible="False" HorizontalAlignment="Left"
+                                           Foreground="{DynamicResource TextFillColorSecondaryBrush}"/>
+                                <TextBlock Text="Find a setting" Style="{StaticResource Placeholder}"
+                                           Tag="{Binding ElementName=SettingsSearchBox}" Margin="36,0,0,0"/>
+                            </Grid>
                             <ScrollViewer VerticalScrollBarVisibility="Auto">
                                 <StackPanel x:Name="Win11SidebarPanel"/>
                             </ScrollViewer>
                         </DockPanel>
-                    </Border>
 
-                    <!-- Windows 11 Right Settings Content + Live Output -->
-                    <DockPanel Grid.Column="2" LastChildFill="True">
+                        <DockPanel Grid.Column="2" LastChildFill="True">
 
-                        <!-- Page Header + Elevation Badge -->
-                        <Border DockPanel.Dock="Top" Style="{StaticResource CardStyle}" Padding="16,12" Margin="0,0,0,12">
-                            <DockPanel>
-                                <Border x:Name="SystemAdminBadge" DockPanel.Dock="Right" Background="#24F59E0B" CornerRadius="6" Padding="10,4" VerticalAlignment="Center">
-                                    <TextBlock x:Name="SystemAdminText" Text="⚠ Agent: Standard User" FontSize="11.5" FontWeight="SemiBold" Foreground="#FBBF24"/>
+                            <!-- Category header -->
+                            <DockPanel DockPanel.Dock="Top" Margin="0,0,0,12">
+                                <Border x:Name="SystemAdminBadge" DockPanel.Dock="Right" Style="{StaticResource StatusPill}"
+                                        Background="{DynamicResource SystemFillColorCautionBackgroundBrush}">
+                                    <TextBlock x:Name="SystemAdminText" Text="Agent: standard user" FontSize="12"
+                                               Foreground="{DynamicResource SystemFillColorCautionBrush}"/>
                                 </Border>
                                 <StackPanel>
-                                    <TextBlock x:Name="Win11PageTitle" Text="Home" FontSize="18" FontWeight="Bold"/>
-                                    <TextBlock x:Name="Win11PageSubtitle" Text="Device overview, quick settings, and remote status" FontSize="12" Foreground="{StaticResource MutedBrush}" Margin="0,2,0,0"/>
+                                    <TextBlock x:Name="Win11PageTitle" Text="Home" Style="{StaticResource SubtitleText}"/>
+                                    <TextBlock x:Name="Win11PageSubtitle" Text="Device overview, quick settings, and remote status"
+                                               Style="{StaticResource SecondaryText}" Margin="0,2,0,0"/>
                                 </StackPanel>
                             </DockPanel>
-                        </Border>
 
-                        <!-- Target / Extra Inputs -->
-                        <Border DockPanel.Dock="Top" Style="{StaticResource CardStyle}" Padding="14,10" Margin="0,0,0,12">
-                            <Grid>
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="1.4*"/>
-                                    <ColumnDefinition Width="12"/>
-                                    <ColumnDefinition Width="1*"/>
-                                </Grid.ColumnDefinitions>
-                                <StackPanel Grid.Column="0">
-                                    <TextBlock x:Name="SystemTargetLabel" Text="Target" FontSize="11" Foreground="{StaticResource MutedBrush}" Margin="0,0,0,4"/>
-                                    <TextBox x:Name="SystemTargetBox"/>
-                                </StackPanel>
-                                <StackPanel Grid.Column="2">
-                                    <TextBlock x:Name="SystemExtraLabel" Text="Extra argument" FontSize="11" Foreground="{StaticResource MutedBrush}" Margin="0,0,0,4"/>
-                                    <TextBox x:Name="SystemExtraBox"/>
-                                </StackPanel>
-                            </Grid>
-                        </Border>
-
-                        <!-- Live Output Table (Bottom) -->
-                        <Border DockPanel.Dock="Bottom" Background="#090C12" BorderBrush="{StaticResource LineBrush}" BorderThickness="1" CornerRadius="12" Padding="4" Height="220" Margin="0,12,0,0">
-                            <DockPanel>
-                                <DockPanel DockPanel.Dock="Top" Margin="12,8,12,6">
-                                    <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
-                                        <TextBlock Text="Filter:" Foreground="{StaticResource MutedBrush}" VerticalAlignment="Center" Margin="0,0,8,0"/>
-                                        <TextBox x:Name="SystemFilterBox" Width="180" TextChanged="OnSystemFilterChanged"/>
+                            <!-- Target / extra inputs -->
+                            <Border DockPanel.Dock="Top" Style="{StaticResource CardStyle}" Padding="16,12" Margin="0,0,0,12">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="1.4*"/>
+                                        <ColumnDefinition Width="12"/>
+                                        <ColumnDefinition Width="1*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Grid.Column="0">
+                                        <TextBlock x:Name="SystemTargetLabel" Text="Target" Style="{StaticResource FieldLabel}"
+                                                   TextTrimming="CharacterEllipsis"/>
+                                        <TextBox x:Name="SystemTargetBox"/>
                                     </StackPanel>
-                                    <TextBlock x:Name="SystemMessageText" Text="Select any setting card above to inspect or change it on the remote PC."
-                                               Foreground="{StaticResource MutedBrush}" FontSize="12" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+                                    <StackPanel Grid.Column="2">
+                                        <TextBlock x:Name="SystemExtraLabel" Text="Extra" Style="{StaticResource FieldLabel}"
+                                                   TextTrimming="CharacterEllipsis"/>
+                                        <TextBox x:Name="SystemExtraBox"/>
+                                    </StackPanel>
+                                </Grid>
+                            </Border>
+
+                            <!-- Result output -->
+                            <Border DockPanel.Dock="Bottom" Background="{StaticResource ConsoleBackgroundBrush}"
+                                    BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}" BorderThickness="1"
+                                    CornerRadius="8" Height="230" Margin="0,12,0,0">
+                                <DockPanel>
+                                    <DockPanel DockPanel.Dock="Top" Margin="14,10,10,6">
+                                        <Grid DockPanel.Dock="Right" Width="200">
+                                            <TextBox x:Name="SystemFilterBox" TextChanged="OnSystemFilterChanged"/>
+                                            <TextBlock Text="Filter rows" Style="{StaticResource Placeholder}"
+                                                       Tag="{Binding ElementName=SystemFilterBox}" Margin="12,0,0,0"/>
+                                        </Grid>
+                                        <TextBlock x:Name="SystemMessageText" Text="Choose a setting above to inspect or change it on the remote PC."
+                                                   Foreground="#B3FFFFFF" FontSize="12" VerticalAlignment="Center"
+                                                   TextTrimming="CharacterEllipsis" Margin="0,0,12,0"/>
+                                    </DockPanel>
+                                    <TextBlock x:Name="SystemHeaderText" DockPanel.Dock="Top" FontFamily="{StaticResource MonoFont}" FontSize="12"
+                                               FontWeight="SemiBold" Foreground="{StaticResource ConsolePromptBrush}" Margin="26,2,14,4"/>
+                                    <ListBox x:Name="SystemRowsList" Background="Transparent" BorderThickness="0" Margin="2,0,2,4"
+                                             FontFamily="{StaticResource MonoFont}" FontSize="12"
+                                             ItemContainerStyle="{StaticResource ConsoleRowItem}"
+                                             SelectionChanged="OnSystemRowSelected"/>
                                 </DockPanel>
-                                <TextBlock x:Name="SystemHeaderText" DockPanel.Dock="Top" FontFamily="Cascadia Mono, Consolas" FontSize="12"
-                                           FontWeight="Bold" Foreground="#93C5FD" Margin="12,0,12,4"/>
-                                <ListBox x:Name="SystemRowsList" Background="Transparent" BorderThickness="0"
-                                         FontFamily="Cascadia Mono, Consolas" FontSize="12" Foreground="#E2E8F0"
-                                         SelectionChanged="OnSystemRowSelected"/>
-                            </DockPanel>
-                        </Border>
+                            </Border>
 
-                        <!-- Windows 11 Setting Cards List -->
-                        <ScrollViewer VerticalScrollBarVisibility="Auto">
-                            <StackPanel x:Name="Win11CardsPanel"/>
-                        </ScrollViewer>
-                    </DockPanel>
+                            <!-- Setting rows -->
+                            <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="0,0,4,0">
+                                <StackPanel x:Name="Win11CardsPanel"/>
+                            </ScrollViewer>
+                        </DockPanel>
+                    </Grid>
+
                 </Grid>
-
-            </Grid>
-        </DockPanel>
+            </DockPanel>
+        </Border>
     </Grid>
 </Window>

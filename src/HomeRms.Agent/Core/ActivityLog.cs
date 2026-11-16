@@ -10,13 +10,22 @@ public sealed class ActivityLog
 {
     private readonly object _gate = new();
     private readonly List<string> _lines = new();
+    private static readonly string? LogFile = Environment.GetEnvironmentVariable("HOMERMS_LOG_FILE");
 
     public event Action<string>? LineAdded;
 
     public void Write(string message)
     {
         var line = $"{DateTime.Now:yyyy-MM-dd HH:mm:ss}  {message}";
-        lock (_gate) _lines.Add(line);
+        lock (_gate)
+        {
+            _lines.Add(line);
+            // Optional mirror to a file for troubleshooting (set HOMERMS_LOG_FILE)
+            if (LogFile is not null)
+            {
+                try { File.AppendAllText(LogFile, line + Environment.NewLine); } catch { }
+            }
+        }
         LineAdded?.Invoke(line);
     }
 

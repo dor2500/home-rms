@@ -8,12 +8,16 @@
     <AssemblyName>HomeRmsController</AssemblyName>
     <AssemblyTitle>Home RMS Controller Console</AssemblyTitle>
     <Description>Home RMS Remote Management Console (mTLS / HTTP2)</Description>
+    <!-- Built-in Fluent theme (ThemeMode) is marked experimental in .NET 9 -->
+    <NoWarn>$(NoWarn);WPF0001</NoWarn>
     <ApplicationIcon>Assets\controller.ico</ApplicationIcon>
   </PropertyGroup>
 
   <ItemGroup>
     <Resource Include="Assets\controller.ico" />
     <Resource Include="Assets\controller.png" />
+    <!-- Precompiled pixel shaders (sources: Shaders\*.fx, rebuild with tools\Build-Shaders.ps1) -->
+    <Resource Include="Shaders\*.ps" />
   </ItemGroup>
 
   <ItemGroup>

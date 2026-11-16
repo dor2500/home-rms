@@ -43,6 +43,7 @@ public partial class MainWindow : Window
     private Channel<InputEvent>? _inputChannel;
     private int _frameWidth = 1920;
     private int _frameHeight = 1080;
+    private bool _controlWanted;
     private bool _isFullScreen;
     private WindowState _prevWindowState = WindowState.Normal;
 
@@ -116,6 +117,9 @@ public partial class MainWindow : Window
         var showSettings = NavUpdates.IsChecked == true || NavSystem.IsChecked == true;
         SystemPanel.Visibility = showSettings ? Visibility.Visible : Visibility.Collapsed;
 
+        if (sender is RadioButton { Content: string pageTitle } && PageTitleText is not null)
+            PageTitleText.Text = pageTitle;
+
         if (showSettings)
         {
             if (_win11Page is null) InitWin11Settings();
@@ -132,23 +136,51 @@ public partial class MainWindow : Window
     private SystemCatalog.Table _sysTable = SystemCatalog.Table.Empty;
     private List<Dictionary<string, string>> _sysVisible = new();
 
+    // Segoe Fluent Icons glyphs for the settings categories and setting rows
+    private static string PageGlyph(string pageId) => pageId switch
+    {
+        "home" => "",
+        "system" => "",
+        "devices" => "",
+        "network" => "",
+        "personalization" => "",
+        "apps" => "",
+        "accounts" => "",
+        "time" => "",
+        "gaming" => "",
+        "privacy" => "",
+        "updates" => "",
+        _ => ""
+    };
+
+    private static string AreaGlyph(string area) => area switch
+    {
+        "updates" => "",
+        "services" => "",
+        "power" => "",
+        "startup" => "",
+        "tasks" => "",
+        "registry" => "",
+        "firewall" => "",
+        "system" => "",
+        _ => ""
+    };
+
     private void InitWin11Settings()
     {
         Win11SidebarPanel.Children.Clear();
         foreach (var page in SystemCatalog.Win11Pages)
         {
-            var btn = new Button
+            var item = new RadioButton
             {
-                Content = $"{page.Icon}  {page.Title}",
-                Tag = page,
-                HorizontalContentAlignment = HorizontalAlignment.Left,
-                Margin = new Thickness(0, 0, 0, 4),
-                Padding = new Thickness(12, 8, 12, 8),
-                Style = (Style)FindResource("GhostButton"),
-                BorderThickness = new Thickness(0)
+                Content = page.Title,
+                Tag = PageGlyph(page.Id),
+                DataContext = page,
+                GroupName = "Win11Settings",
+                Style = (Style)FindResource("NavItem")
             };
-            btn.Click += (_, _) => SelectWin11Page(page);
-            Win11SidebarPanel.Children.Add(btn);
+            item.Checked += (_, _) => { if (!ReferenceEquals(_win11Page, page)) SelectWin11Page(page); };
+            Win11SidebarPanel.Children.Add(item);
         }
         SelectWin11Page(SystemCatalog.Win11Pages[0]);
     }
@@ -156,14 +188,13 @@ public partial class MainWindow : Window
     private void SelectWin11Page(SystemCatalog.Win11SettingsPage page)
     {
         _win11Page = page;
-        foreach (Button b in Win11SidebarPanel.Children)
-        {
-            var active = ReferenceEquals(b.Tag, page);
-            b.Background = new SolidColorBrush(active ? Color.FromArgb(45, 59, 130, 246) : Colors.Transparent);
-            b.Foreground = new SolidColorBrush(active ? Colors.White : Color.FromRgb(209, 213, 219));
-        }
+        foreach (RadioButton item in Win11SidebarPanel.Children)
+            item.IsChecked = ReferenceEquals(item.DataContext, page);
 
-        Win11PageTitle.Text = $"{page.Icon}  {page.Title}";
+        if (!string.IsNullOrEmpty(SettingsSearchBox.Text))
+            SettingsSearchBox.Text = "";
+
+        Win11PageTitle.Text = page.Title;
         Win11PageSubtitle.Text = page.Subtitle;
         SystemTargetLabel.Text = "Target — " + page.TargetHint;
         SystemExtraLabel.Text = "Extra — " + (page.Items.FirstOrDefault(i => i.ExtraHint is not null)?.ExtraHint ?? "(optional)");
@@ -176,7 +207,7 @@ public partial class MainWindow : Window
         var q = SettingsSearchBox.Text.Trim();
         if (string.IsNullOrEmpty(q))
         {
-            Win11PageTitle.Text = $"{_win11Page.Icon}  {_win11Page.Title}";
+            Win11PageTitle.Text = _win11Page.Title;
             Win11PageSubtitle.Text = _win11Page.Subtitle;
             RenderWin11Cards(_win11Page.Items);
             return;
@@ -187,8 +218,8 @@ public partial class MainWindow : Window
             .Where(i => i.Title.Contains(q, StringComparison.OrdinalIgnoreCase) ||
                         i.Subtitle.Contains(q, StringComparison.OrdinalIgnoreCase))
             .ToList();
-        Win11PageTitle.Text = $"🔍  Search: \"{q}\"";
-        Win11PageSubtitle.Text = $"{matches.Count} matching setting(s)";
+        Win11PageTitle.Text = $"Results for \"{q}\"";
+        Win11PageSubtitle.Text = matches.Count == 1 ? "1 matching setting" : $"{matches.Count} matching settings";
         RenderWin11Cards(matches);
     }
 
@@ -197,30 +228,37 @@ public partial class MainWindow : Window
         Win11CardsPanel.Children.Clear();
         foreach (var item in items)
         {
-            var card = new Border
-            {
-                Style = (Style)FindResource("CardStyle"),
-                Padding = new Thickness(16, 12, 16, 12),
-                Margin = new Thickness(0, 0, 0, 8)
-            };
+            var card = new Border { Style = (Style)FindResource("SettingCard") };
 
             var dock = new DockPanel();
             var btn = new Button
             {
                 Content = item.ButtonLabel,
-                Style = (Style)FindResource(item.Dangerous ? "DangerButton" : "PrimaryButton"),
-                Padding = new Thickness(14, 7, 14, 7),
-                FontSize = 12,
+                Style = (Style)FindResource(item.Dangerous ? "DangerSubtleButton" : "StandardButton"),
+                MinWidth = 110,
                 VerticalAlignment = VerticalAlignment.Center
             };
+            if (item.Dangerous) btn.ToolTip = "Changes the remote PC — you will be asked to confirm";
             DockPanel.SetDock(btn, Dock.Right);
             btn.Click += async (_, _) => await RunWin11ItemAsync(item);
 
-            var textStack = new StackPanel { VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 14, 0) };
-            textStack.Children.Add(new TextBlock { Text = item.Title, FontSize = 13.5, FontWeight = FontWeights.SemiBold });
-            textStack.Children.Add(new TextBlock { Text = item.Subtitle, FontSize = 11.5, Foreground = (Brush)FindResource("MutedBrush"), Margin = new Thickness(0, 2, 0, 0), TextWrapping = TextWrapping.Wrap });
+            var glyph = new TextBlock
+            {
+                Text = AreaGlyph(item.Area),
+                Style = (Style)FindResource("IconGlyph"),
+                FontSize = 20,
+                Width = 20,
+                Margin = new Thickness(4, 0, 18, 0)
+            };
+            DockPanel.SetDock(glyph, Dock.Left);
+
+            var textStack = new StackPanel { VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 16, 0) };
+            textStack.Children.Add(new TextBlock { Text = item.Title, FontSize = 14 });
+            var sub = new TextBlock { Text = item.Subtitle, Margin = new Thickness(0, 2, 0, 0), TextWrapping = TextWrapping.Wrap, Style = (Style)FindResource("SecondaryText") };
+            textStack.Children.Add(sub);
 
             dock.Children.Add(btn);
+            dock.Children.Add(glyph);
             dock.Children.Add(textStack);
             card.Child = dock;
             Win11CardsPanel.Children.Add(card);
@@ -241,7 +279,7 @@ public partial class MainWindow : Window
         if (item.NeedsTarget && target.Length == 0)
         {
             SystemMessageText.Text = $"'{item.Title}' needs a Target ({_win11Page?.TargetHint}).";
-            SystemMessageText.Foreground = new SolidColorBrush(Color.FromRgb(251, 191, 36));
+            SystemMessageText.Foreground = ConsoleWarnBrush;
             return;
         }
 
@@ -254,23 +292,22 @@ public partial class MainWindow : Window
         try
         {
             SystemMessageText.Text = $"Running {item.Area}/{item.Action}…";
-            SystemMessageText.Foreground = new SolidColorBrush(Color.FromRgb(156, 163, 175));
+            SystemMessageText.Foreground = ConsoleMutedBrush;
             var res = await _conn!.Client.SystemOpAsync(
                 new SystemOpRequest { Area = item.Area, Action = item.Action, Target = target, Extra = extra },
                 deadline: DateTime.UtcNow.AddMinutes(item.LongRunning ? 50 : 2.2));
 
-            SystemAdminText.Text = res.IsElevated ? "🛡 Agent: Administrator" : "⚠ Agent: Standard User (--elevate)";
-            SystemAdminBadge.Background = new SolidColorBrush(res.IsElevated ? Color.FromArgb(40, 34, 197, 94) : Color.FromArgb(40, 245, 158, 11));
-            SystemAdminText.Foreground = new SolidColorBrush(res.IsElevated ? Color.FromRgb(74, 222, 128) : Color.FromRgb(251, 191, 36));
+            SystemAdminText.Text = res.IsElevated ? "Agent: administrator" : "Agent: standard user (run with --elevate)";
+            SetPill(SystemAdminBadge, SystemAdminText, res.IsElevated ? Tone.Success : Tone.Caution);
 
             SetSystemTable(SystemCatalog.ParseTable(res.JsonData));
             SystemMessageText.Text = (res.Success ? "✔ " : "✖ ") + res.Message;
-            SystemMessageText.Foreground = new SolidColorBrush(res.Success ? Color.FromRgb(74, 222, 128) : Color.FromRgb(248, 113, 113));
+            SystemMessageText.Foreground = res.Success ? ConsoleOkBrush : ConsoleErrorBrush;
         }
         catch (Exception ex)
         {
             SystemMessageText.Text = "✖ " + Short(ex);
-            SystemMessageText.Foreground = new SolidColorBrush(Color.FromRgb(248, 113, 113));
+            SystemMessageText.Foreground = ConsoleErrorBrush;
         }
     }
 
@@ -351,6 +388,8 @@ public partial class MainWindow : Window
             TopBarBorder.Visibility = Visibility.Collapsed;
             NavBarBorder.Visibility = Visibility.Collapsed;
             DesktopToolbarBorder.Visibility = Visibility.Collapsed;
+            ContentLayer.BorderThickness = new Thickness(0);
+            ContentLayer.CornerRadius = new CornerRadius(0);
             WorkspaceGrid.Margin = new Thickness(0);
             ScreenCanvasBorder.CornerRadius = new CornerRadius(0);
             ScreenCanvasBorder.BorderThickness = new Thickness(0);
@@ -368,13 +407,15 @@ public partial class MainWindow : Window
             ResizeMode = ResizeMode.CanResize;
             WindowState = _prevWindowState == WindowState.Minimized ? WindowState.Normal : _prevWindowState;
 
-            SidebarColumn.Width = new GridLength(325);
+            SidebarColumn.Width = new GridLength(300);
             SidebarBorder.Visibility = Visibility.Visible;
             TopBarBorder.Visibility = Visibility.Visible;
             NavBarBorder.Visibility = Visibility.Visible;
             DesktopToolbarBorder.Visibility = Visibility.Visible;
-            WorkspaceGrid.Margin = new Thickness(24, 18, 24, 22);
-            ScreenCanvasBorder.CornerRadius = new CornerRadius(12);
+            ContentLayer.BorderThickness = new Thickness(1, 1, 0, 0);
+            ContentLayer.CornerRadius = new CornerRadius(8, 0, 0, 0);
+            WorkspaceGrid.Margin = new Thickness(36, 20, 36, 28);
+            ScreenCanvasBorder.CornerRadius = new CornerRadius(8);
             ScreenCanvasBorder.BorderThickness = new Thickness(1);
             FullscreenHud.Visibility = Visibility.Collapsed;
         }
@@ -391,7 +432,7 @@ public partial class MainWindow : Window
         if (_conn is null)
         {
             TargetTitleText.Text = m.DisplayTitle;
-            StatusText.Text = $"Endpoint {m.Address} • Click Connect to open an authenticated mTLS session.";
+            StatusText.Text = $"{m.Address}  ·  Select Connect to open a mutual-TLS session.";
         }
     }
 
@@ -562,7 +603,7 @@ public partial class MainWindow : Window
         {
             ConnectBtn.IsEnabled = false;
             StatusText.Text = $"Establishing Mutual-TLS handshake with {host}:{port}…";
-            SetBadge("Connecting…", Color.FromArgb(45, 245, 158, 11), Color.FromRgb(251, 191, 36));
+            SetBadge("Connecting…", Tone.Caution);
 
             var sw = Stopwatch.StartNew();
             var conn = new RmsConnection(host, port);
@@ -584,10 +625,10 @@ public partial class MainWindow : Window
                 profile.UserAndOs = $"{_agentInfo.LoggedInUser} • {_agentInfo.PrimaryScreenWidth}×{_agentInfo.PrimaryScreenHeight}";
             }
 
-            TargetTitleText.Text = $"{_agentInfo.MachineName} ({host}:{port})";
+            TargetTitleText.Text = _agentInfo.MachineName;
             StatusText.Text =
-                $"User: {_agentInfo.LoggedInUser}  •  Display: {_agentInfo.PrimaryScreenWidth}×{_agentInfo.PrimaryScreenHeight}  •  Ping: {sw.ElapsedMilliseconds} ms  •  OS: {_agentInfo.OsVersion}";
-            SetBadge($"Connected ({sw.ElapsedMilliseconds}ms)", Color.FromArgb(45, 34, 197, 94), Color.FromRgb(74, 222, 128));
+                $"{host}:{port}  ·  {_agentInfo.LoggedInUser}  ·  {_agentInfo.PrimaryScreenWidth}×{_agentInfo.PrimaryScreenHeight}  ·  {_agentInfo.OsVersion}";
+            SetBadge($"Connected · {sw.ElapsedMilliseconds} ms", Tone.Success);
 
             ConnectBtn.Content = "Disconnect";
             ConnectBtn.Style = (Style)FindResource("DangerButton");
@@ -598,7 +639,7 @@ public partial class MainWindow : Window
         catch (Exception ex)
         {
             _conn = null;
-            SetBadge("Connection Failed", Color.FromArgb(45, 239, 68, 68), Color.FromRgb(248, 113, 113));
+            SetBadge("Connection failed", Tone.Critical);
             StatusText.Text = "Could not connect: " + Short(ex);
             MessageBox.Show($"Could not connect to {host}:{port}\n\n{ex.Message}",
                 "Home RMS — Connection Failed", MessageBoxButton.OK, MessageBoxImage.Warning);
@@ -628,15 +669,43 @@ public partial class MainWindow : Window
 
         ConnectBtn.Content = "Connect";
         ConnectBtn.Style = (Style)FindResource("PrimaryButton");
-        SetBadge("Disconnected", Color.FromArgb(38, 107, 114, 128), Color.FromRgb(156, 163, 175));
-        StatusText.Text = "Session closed. Click Connect to start a new session.";
+        SetBadge("Disconnected", Tone.Neutral);
+        StatusText.Text = "Session closed. Select Connect to start a new session.";
     }
 
-    private void SetBadge(string text, Color bg, Color fg)
+    private enum Tone { Neutral, Success, Caution, Critical }
+
+    // Fixed colours for status text drawn on the always-dark console surfaces
+    private static readonly Brush ConsoleMutedBrush = Frozen(0xB3, 0xFF, 0xFF, 0xFF);
+    private static readonly Brush ConsoleOkBrush = Frozen(0xFF, 0x6C, 0xCB, 0x5F);
+    private static readonly Brush ConsoleWarnBrush = Frozen(0xFF, 0xF9, 0xF1, 0xA5);
+    private static readonly Brush ConsoleErrorBrush = Frozen(0xFF, 0xFF, 0x99, 0xA4);
+
+    private static Brush Frozen(byte a, byte r, byte g, byte b)
+    {
+        var brush = new SolidColorBrush(Color.FromArgb(a, r, g, b));
+        brush.Freeze();
+        return brush;
+    }
+
+    /// <summary>Colours a status pill with Fluent theme tokens so it follows light/dark mode.</summary>
+    private static void SetPill(Border pill, TextBlock text, Tone tone)
+    {
+        var (bg, fg) = tone switch
+        {
+            Tone.Success => ("SystemFillColorSuccessBackgroundBrush", "SystemFillColorSuccessBrush"),
+            Tone.Caution => ("SystemFillColorCautionBackgroundBrush", "SystemFillColorCautionBrush"),
+            Tone.Critical => ("SystemFillColorCriticalBackgroundBrush", "SystemFillColorCriticalBrush"),
+            _ => ("SystemFillColorSolidNeutralBackgroundBrush", "TextFillColorSecondaryBrush")
+        };
+        pill.SetResourceReference(Border.BackgroundProperty, bg);
+        text.SetResourceReference(TextBlock.ForegroundProperty, fg);
+    }
+
+    private void SetBadge(string text, Tone tone)
     {
         ConnBadgeText.Text = text;
-        ConnBadgeBorder.Background = new SolidColorBrush(bg);
-        ConnBadgeText.Foreground = new SolidColorBrush(fg);
+        SetPill(ConnBadgeBorder, ConnBadgeText, tone);
     }
 
     // ---------------- Inventory ----------------
@@ -875,77 +944,64 @@ public partial class MainWindow : Window
         if (_conn is null || _streamCts is not null) return;
 
         _streamCts = new CancellationTokenSource();
-        StreamBtn.Content = "⏹  Stop Viewing";
+        var token = _streamCts.Token;
+        StreamBtn.Content = "Stop viewing";
         StreamBtn.Style = (Style)FindResource("DangerButton");
         StreamStatus.Text = "Awaiting on-machine consent…";
 
-        var fps = int.TryParse(FpsBox.Text, out var f) ? Math.Clamp(f, 1, 30) : 20;
-        var quality = int.TryParse(QualityBox.Text, out var q) ? Math.Clamp(q, 20, 95) : 65;
-        var maxWidth = ScaleBox.SelectedItem is ComboBoxItem { Tag: string ts } && int.TryParse(ts, out var mw) ? mw : 1920;
+        var fps = int.TryParse(FpsBox.Text, out var f) ? Math.Clamp(f, 1, 60) : 60;
+        var quality = int.TryParse(QualityBox.Text, out var q) ? Math.Clamp(q, 20, 95) : 80;
+        var maxWidth = ScaleBox.SelectedItem is ComboBoxItem { Tag: string ts } && int.TryParse(ts, out var mw) ? mw : 0;
 
-        BitmapImage? latestImg = null;
-        int latestW = 0, latestH = 0, latestKb = 0;
-        int uiPending = 0;
-        var fpsSw = Stopwatch.StartNew();
-        int fpsCount = 0;
-        double currentFps = 0;
+        var stats = new StreamStats();
+        var statsTimer = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
+        statsTimer.Tick += (_, _) => UpdateStreamStatus(stats);
+        statsTimer.Start();
+
+        _controlWanted = ControlCheck.IsChecked == true;
+        var client = _conn.Client;
 
         try
         {
-            using var call = _conn.Client.StreamScreen(
-                new ScreenRequest { Fps = fps, Quality = quality, OperatorName = Environment.UserName, MaxWidth = maxWidth },
-                cancellationToken: _streamCts.Token);
-
-            await foreach (var frame in call.ResponseStream.ReadAllAsync(_streamCts.Token))
+            // Read + decode on a worker thread; only painting happens on the UI thread
+            await Task.Run(async () =>
             {
-                if (_inputCall is null && ControlCheck.IsChecked == true)
-                    StartInputStream();
-
-                _frameWidth = frame.Width;
-                _frameHeight = frame.Height;
-                latestW = frame.Width;
-                latestH = frame.Height;
-
-                var bytes = frame.Jpeg.ToByteArray();
-                latestKb = bytes.Length / 1024;
-                // Decode JPEG on background thread (Freeze makes BitmapImage cross-thread safe)
-                var decoded = Decode(bytes);
-                Interlocked.Exchange(ref latestImg, decoded);
-
-                fpsCount++;
-                if (fpsSw.ElapsedMilliseconds >= 1000)
+            using var call = client.StreamScreen(
+                new ScreenRequest
                 {
-                    currentFps = fpsCount * 1000.0 / fpsSw.ElapsedMilliseconds;
-                    fpsCount = 0;
-                    fpsSw.Restart();
-                }
+                    Fps = fps,
+                    Quality = quality,
+                    OperatorName = Environment.UserName,
+                    MaxWidth = maxWidth,
+                    SupportsTiles = true
+                },
+                cancellationToken: token);
 
-                // Latest-frame-wins UI dispatch at Render priority: keeps UI responsive
-                if (Interlocked.CompareExchange(ref uiPending, 1, 0) == 0)
+            await foreach (var frame in call.ResponseStream.ReadAllAsync(token))
+            {
+                if (_inputCall is null && Volatile.Read(ref _controlWanted))
+                    Dispatcher.Invoke(StartInputStream);
+
+                // Decode off the UI thread (JPEG tiles in parallel)
+                var update = ScreenUpdate.Decode(frame);
+                stats.Add(frame.CalculateSize(), update.Regions.Count > 0, frame.Width, frame.Height);
+
+                // Tiles must be applied in order, so instead of dropping frames we slow the
+                // network read down when the UI falls behind (HTTP/2 back-pressure reaches the agent).
+                while (Volatile.Read(ref _uiQueued) > 2 && !token.IsCancellationRequested)
+                    await Task.Delay(1, token);
+
+                Interlocked.Increment(ref _uiQueued);
+                _ = Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Render, () =>
                 {
-                    _ = Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Render, () =>
-                    {
-                        try
-                        {
-                            var img = Interlocked.Exchange(ref latestImg, null);
-                            if (img is not null)
-                            {
-                                DesktopOverlay.Visibility = Visibility.Collapsed;
-                                var statusLine = $"LIVE  •  {currentFps:0.0} FPS  •  {latestW}×{latestH}  •  {latestKb} KB";
-                                StreamStatus.Text = statusLine;
-                                FullscreenHudText.Text = $"{_agentInfo?.MachineName}  •  {statusLine}";
-                                ScreenImage.Source = img;
-                            }
-                        }
-                        finally
-                        {
-                            Interlocked.Exchange(ref uiPending, 0);
-                        }
-                    });
-                }
+                    try { ApplyScreenUpdate(update); }
+                    finally { Interlocked.Decrement(ref _uiQueued); }
+                });
             }
+            }, token);
         }
         catch (OperationCanceledException) { }
+        catch (RpcException ex) when (ex.StatusCode == StatusCode.Cancelled) { }
         catch (RpcException ex) when (ex.StatusCode == StatusCode.PermissionDenied)
         {
             Dispatcher.Invoke(() => { StreamStatus.Text = "Access declined on the remote computer."; });
@@ -956,12 +1012,17 @@ public partial class MainWindow : Window
         }
         finally
         {
-            Dispatcher.Invoke(StopStream);
+            Dispatcher.Invoke(() =>
+            {
+                statsTimer.Stop();
+                StopStream();
+            });
         }
     }
 
     private void OnControlCheckChanged(object sender, RoutedEventArgs e)
     {
+        _controlWanted = ControlCheck.IsChecked == true;
         if (_streamCts is null) return;
         if (ControlCheck.IsChecked == true) StartInputStream();
         else StopInputStream();
@@ -972,25 +1033,17 @@ public partial class MainWindow : Window
         _streamCts?.Cancel();
         _streamCts = null;
         StopInputStream();
+        ResetRemoteCursor();
         if (StreamBtn is not null)
         {
-            StreamBtn.Content = "▶  Start Viewing";
+            StreamBtn.Content = "Start viewing";
             StreamBtn.Style = (Style)FindResource("PrimaryButton");
         }
-        if (StreamStatus is not null && !StreamStatus.Text.StartsWith("Access declined"))
+        if (StreamStatus is not null && !StreamStatus.Text.StartsWith("Access declined") &&
+            !StreamStatus.Text.StartsWith("Stream ended"))
             StreamStatus.Text = "Idle — not streaming";
     }
 
-    private static BitmapImage Decode(byte[] jpeg)
-    {
-        var img = new BitmapImage();
-        img.BeginInit();
-        img.CacheOption = BitmapCacheOption.OnLoad;
-        img.StreamSource = new MemoryStream(jpeg);
-        img.EndInit();
-        img.Freeze();
-        return img;
-    }
 
     // ---------------- Input Injection ----------------
     private void StartInputStream()
@@ -1000,6 +1053,7 @@ public partial class MainWindow : Window
         _inputChannel = Channel.CreateUnbounded<InputEvent>(new UnboundedChannelOptions { SingleReader = true });
         _ = PumpInputAsync(_inputCall, _inputChannel);
         ScreenImage.Focus();
+        UpdateRemoteCursor();
     }
 
     private static async Task PumpInputAsync(
@@ -1021,6 +1075,7 @@ public partial class MainWindow : Window
         _inputCall = null;
         if (call is not null)
             _ = Task.Run(async () => { try { await call.RequestStream.CompleteAsync(); await call; } catch { } });
+        UpdateRemoteCursor();
     }
 
     private void QueueInput(InputEvent ev) => _inputChannel?.Writer.TryWrite(ev);

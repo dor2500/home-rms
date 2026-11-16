@@ -53,7 +53,7 @@ public sealed class RemoteManagementService(ConsentCoordinator consent, Activity
         if (!consent.RequestGrant(op, "view your screen"))
             throw new RpcException(new Status(StatusCode.PermissionDenied, "Screen sharing was declined on the device."));
 
-        var fps = Math.Clamp(request.Fps <= 0 ? 15 : request.Fps, 1, 30);
+        var fps = Math.Clamp(request.Fps <= 0 ? 15 : request.Fps, 1, 60);
         var intervalMs = 1000.0 / fps;
         var quality = request.Quality <= 0 ? 65 : request.Quality;
         var maxWidth = request.MaxWidth;
@@ -62,6 +62,17 @@ public sealed class RemoteManagementService(ConsentCoordinator consent, Activity
         using var cap = new ScreenCapturer();
         var sw = new Stopwatch();
         long seq = 0;
+
+        // Tile-capable controller at native resolution: GPU capture + dirty tiles
+        if (request.SupportsTiles && (maxWidth <= 0 || maxWidth >= cap.PrimaryBounds.Width))
+        {
+            using var tiles = new TileStreamer(log.Write);
+            if (tiles.Available)
+            {
+                await StreamTilesAsync(op, tiles, cap, quality, intervalMs, responseStream, context);
+                return;
+            }
+        }
 
         while (!context.CancellationToken.IsCancellationRequested)
         {
@@ -72,18 +83,22 @@ public sealed class RemoteManagementService(ConsentCoordinator consent, Activity
             }
 
             sw.Restart();
-            byte[] jpeg;
+            byte[]? jpeg;
             int w, h;
-            try { (jpeg, w, h) = cap.CaptureJpeg(quality, maxWidth); }
+            try { (jpeg, w, h) = cap.CaptureNext(quality, maxWidth); }
             catch (Exception ex) { log.Write($"[screen] capture error: {ex.Message}"); break; }
 
-            await responseStream.WriteAsync(new ScreenFrame
+            // null = screen unchanged since the last frame: send nothing
+            if (jpeg is not null)
             {
-                Jpeg = Google.Protobuf.ByteString.CopyFrom(jpeg),
-                Width = w,
-                Height = h,
-                Sequence = ++seq
-            });
+                await responseStream.WriteAsync(new ScreenFrame
+                {
+                    Jpeg = Google.Protobuf.ByteString.CopyFrom(jpeg),
+                    Width = w,
+                    Height = h,
+                    Sequence = ++seq
+                });
+            }
 
             var remainingMs = intervalMs - sw.Elapsed.TotalMilliseconds;
             if (remainingMs > 1)
@@ -91,6 +106,62 @@ public sealed class RemoteManagementService(ConsentCoordinator consent, Activity
                 try { await Task.Delay(TimeSpan.FromMilliseconds(remainingMs), context.CancellationToken); }
                 catch (OperationCanceledException) { break; }
             }
+        }
+    }
+
+    /// <summary>
+    /// Event-driven loop: waits on the GPU for the next change (instead of polling on a timer),
+    /// so an update leaves the agent within milliseconds of appearing on screen.
+    /// Falls back to full GDI frames while GPU capture is unavailable (UAC prompt, lock screen).
+    /// </summary>
+    private async Task StreamTilesAsync(string op, TileStreamer tiles, ScreenCapturer cap, int quality, double intervalMs,
+        IServerStreamWriter<ScreenFrame> responseStream, ServerCallContext context)
+    {
+        long seq = 0;
+        var sinceLastSend = Stopwatch.StartNew();
+        var fallbackFrames = 0;
+
+        while (!context.CancellationToken.IsCancellationRequested)
+        {
+            if (!consent.HasActiveGrant(op))
+            {
+                log.Write($"[screen] grant for '{op}' expired/revoked — stopping stream");
+                break;
+            }
+
+            // Frame-rate cap: wait *before* capturing so what we send is always the freshest image
+            var waitMs = intervalMs - sinceLastSend.Elapsed.TotalMilliseconds;
+            if (waitMs > 1)
+            {
+                try { await Task.Delay(TimeSpan.FromMilliseconds(waitMs), context.CancellationToken); }
+                catch (OperationCanceledException) { break; }
+            }
+
+            ScreenFrame? frame;
+            try
+            {
+                if (tiles.Available)
+                {
+                    fallbackFrames = 0;
+                    frame = tiles.Next(quality, waitMs: 16);
+                }
+                else
+                {
+                    // GPU capture is down: keep the picture alive with a few GDI frames per second
+                    var (jpeg, w, h) = cap.CaptureJpeg(quality, 0);
+                    frame = new ScreenFrame { Jpeg = Google.Protobuf.ByteString.CopyFrom(jpeg), Width = w, Height = h };
+                    fallbackFrames++;
+                    await Task.Delay(fallbackFrames < 3 ? 100 : 400, context.CancellationToken);
+                }
+            }
+            catch (OperationCanceledException) { break; }
+            catch (Exception ex) { log.Write($"[screen] capture error: {ex.Message}"); break; }
+
+            if (frame is null) continue;
+
+            frame.Sequence = ++seq;
+            await responseStream.WriteAsync(frame);
+            sinceLastSend.Restart();
         }
     }
 

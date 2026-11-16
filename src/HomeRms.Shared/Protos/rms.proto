@@ -120,13 +120,39 @@ message ScreenRequest {
   int32 quality = 2;         // JPEG quality 1-100
   string operator_name = 3;  // shown in the agent's consent prompt + banner
   int32 max_width = 4;       // optional max frame width for faster streaming (0 = native)
+  bool supports_tiles = 5;   // controller can apply partial (dirty-tile) frames
 }
 
+// A changed rectangle of the remote screen, JPEG-encoded at its own size.
+message ScreenTile {
+  int32 x = 1;
+  int32 y = 2;
+  int32 width = 3;
+  int32 height = 4;
+  bytes jpeg = 5;
+}
+
+// Remote mouse pointer (sent with tile frames; the pointer is not drawn into the tiles).
+message ScreenCursor {
+  bool visible = 1;
+  int32 x = 2;              // pointer hotspot position in frame pixels
+  int32 y = 3;
+  bytes shape_png = 4;      // only set when the shape changed (32-bit PNG with alpha)
+  int32 hotspot_x = 5;
+  int32 hotspot_y = 6;
+  int64 shape_id = 7;       // changes whenever the shape changes
+}
+
+// Either a full frame (jpeg set) or, for controllers that sent supports_tiles,
+// a partial update: tiles to draw on top of the previous image (jpeg empty).
 message ScreenFrame {
   bytes jpeg = 1;
   int32 width = 2;
   int32 height = 3;
   int64 sequence = 4;
+  repeated ScreenTile tiles = 5;
+  ScreenCursor cursor = 6;
+  int64 capture_unix_ms = 7;   // agent clock when the frame was captured
 }
 
 // ---------------- Input ----------------

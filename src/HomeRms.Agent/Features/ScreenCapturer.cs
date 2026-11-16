@@ -43,10 +43,71 @@ public sealed class ScreenCapturer : IDisposable
 
     public byte[] CaptureJpeg(int quality) => CaptureJpeg(quality, 0).Jpeg;
 
+    /// <summary>Quality used for the one-off sharp frame sent once the screen stops changing.</summary>
+    public const int RefineQuality = 95;
+
+    /// <summary>How long the screen must stay unchanged before the sharp frame is sent.</summary>
+    private const long RefineAfterMs = 300;
+
+    private WicJpegEncoder? _wic;
+    private bool _wicFailed;
+    private byte[]? _prevPixels;
+    private byte[]? _curPixels;
+    private int _prevW, _prevH;
+    private long _lastChangeTick;
+    private bool _refined;
+
+    /// <summary>Captures and encodes one frame unconditionally.</summary>
     public (byte[] Jpeg, int Width, int Height) CaptureJpeg(int quality, int maxWidth)
     {
+        using var bmp = CaptureBitmap(maxWidth);
+        var (pixels, stride) = CopyPixels(bmp, ref _curPixels);
+        return (Encode(bmp, pixels, stride, quality), bmp.Width, bmp.Height);
+    }
+
+    /// <summary>
+    /// Captures the next stream frame. Returns <c>Jpeg = null</c> when nothing on screen changed
+    /// (so no bandwidth is spent on duplicates). After the screen has been still for a moment,
+    /// one extra near-lossless frame is returned so text becomes pin-sharp.
+    /// </summary>
+    public (byte[]? Jpeg, int Width, int Height) CaptureNext(int quality, int maxWidth)
+    {
+        using var bmp = CaptureBitmap(maxWidth);
+        int w = bmp.Width, h = bmp.Height;
+        var (pixels, stride) = CopyPixels(bmp, ref _curPixels);
+        var length = stride * h;
+
+        var changed = _prevPixels is null || _prevW != w || _prevH != h ||
+                      _prevPixels.Length < length ||
+                      !pixels.AsSpan(0, length).SequenceEqual(_prevPixels.AsSpan(0, length));
+
+        // Keep this frame as the comparison baseline; reuse the old buffer next time
+        (_prevPixels, _curPixels) = (pixels, _prevPixels);
+        _prevW = w;
+        _prevH = h;
+
+        var now = Environment.TickCount64;
+        if (changed)
+        {
+            _lastChangeTick = now;
+            _refined = quality >= RefineQuality;
+            return (Encode(bmp, pixels, stride, quality), w, h);
+        }
+
+        if (!_refined && now - _lastChangeTick >= RefineAfterMs)
+        {
+            _refined = true;
+            return (Encode(bmp, pixels, stride, RefineQuality), w, h);
+        }
+
+        return (null, w, h);
+    }
+
+    /// <summary>Grabs the primary screen (with cursor) and scales it down to maxWidth if needed.</summary>
+    private Bitmap CaptureBitmap(int maxWidth)
+    {
         var (w, h) = PrimaryBounds;
-        using var bmp = new Bitmap(w, h, PixelFormat.Format24bppRgb);
+        var bmp = new Bitmap(w, h, PixelFormat.Format24bppRgb);
         using (var g = Graphics.FromImage(bmp))
         {
             var captured = TryBitBltScreen(g, w, h);
@@ -64,38 +125,72 @@ public sealed class ScreenCapturer : IDisposable
             }
 
             if (captured)
-            {
                 TryDrawCursor(g);
-            }
             else
-            {
                 DrawDesktopDiagnosticFrame(g, w, h);
-            }
         }
 
-        using var ms = new MemoryStream(128 * 1024);
-        using var p = new EncoderParameters(1);
-        p.Param[0] = new EncoderParameter(Encoder.Quality, (long)Math.Clamp(quality, 1, 100));
+        if (maxWidth <= 0 || w <= maxWidth)
+            return bmp;
 
-        if (maxWidth > 0 && w > maxWidth)
+        var outW = maxWidth;
+        var outH = Math.Max(1, (int)Math.Round(h * (maxWidth / (double)w)));
+        var scaled = new Bitmap(outW, outH, PixelFormat.Format24bppRgb);
+        using (var sg = Graphics.FromImage(scaled))
+        using (var attrs = new ImageAttributes())
         {
-            var outW = maxWidth;
-            var outH = Math.Max(1, (int)Math.Round(h * (maxWidth / (double)w)));
-            using var scaled = new Bitmap(outW, outH, PixelFormat.Format24bppRgb);
-            using (var sg = Graphics.FromImage(scaled))
-            {
-                sg.CompositingMode = CompositingMode.SourceCopy;
-                sg.InterpolationMode = InterpolationMode.Bilinear;
-                sg.DrawImage(bmp, 0, 0, outW, outH);
-            }
-            scaled.Save(ms, _jpegCodec, p);
-            return (ms.ToArray(), outW, outH);
+            // Prefiltered scaling keeps small text legible instead of dropping pixels
+            sg.CompositingMode = CompositingMode.SourceCopy;
+            sg.CompositingQuality = CompositingQuality.HighSpeed;
+            sg.InterpolationMode = InterpolationMode.HighQualityBilinear;
+            sg.PixelOffsetMode = PixelOffsetMode.HighQuality;
+            attrs.SetWrapMode(WrapMode.TileFlipXY); // no dark fringe on the edges
+            sg.DrawImage(bmp, new Rectangle(0, 0, outW, outH), 0, 0, w, h, GraphicsUnit.Pixel, attrs);
         }
-
-        bmp.Save(ms, _jpegCodec, p);
-        return (ms.ToArray(), w, h);
+        bmp.Dispose();
+        return scaled;
     }
 
+    private static (byte[] Pixels, int Stride) CopyPixels(Bitmap bmp, ref byte[]? buffer)
+    {
+        var data = bmp.LockBits(new Rectangle(0, 0, bmp.Width, bmp.Height), ImageLockMode.ReadOnly, PixelFormat.Format24bppRgb);
+        try
+        {
+            var stride = Math.Abs(data.Stride);
+            var length = stride * bmp.Height;
+            if (buffer is null || buffer.Length != length)
+                buffer = new byte[length];
+            Marshal.Copy(data.Scan0, buffer, 0, length);
+            return (buffer, stride);
+        }
+        finally
+        {
+            bmp.UnlockBits(data);
+        }
+    }
+
+    /// <summary>JPEG with full 4:4:4 colour via WIC; falls back to GDI+ (4:2:0) if WIC is unavailable.</summary>
+    private byte[] Encode(Bitmap bmp, byte[] pixels, int stride, int quality)
+    {
+        if (!_wicFailed)
+        {
+            try
+            {
+                _wic ??= new WicJpegEncoder();
+                return _wic.Encode(pixels, bmp.Width, bmp.Height, stride, quality, fullChroma: true);
+            }
+            catch
+            {
+                _wicFailed = true;
+            }
+        }
+
+        using var ms = new MemoryStream(256 * 1024);
+        using var p = new EncoderParameters(1);
+        p.Param[0] = new EncoderParameter(Encoder.Quality, (long)Math.Clamp(quality, 1, 100));
+        bmp.Save(ms, _jpegCodec, p);
+        return ms.ToArray();
+    }
     private static bool TryBitBltScreen(Graphics g, int width, int height)
     {
         var screenDc = GetDC(IntPtr.Zero);

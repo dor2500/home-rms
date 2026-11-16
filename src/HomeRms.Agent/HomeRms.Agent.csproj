@@ -10,6 +10,7 @@
     <AssemblyTitle>Home RMS Endpoint Agent</AssemblyTitle>
     <Description>Home RMS Consent-Based Endpoint Agent (mTLS / HTTP2)</Description>
     <ApplicationIcon>Assets\agent.ico</ApplicationIcon>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
 
   <ItemGroup>
@@ -20,6 +21,8 @@
   <ItemGroup>
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
     <PackageReference Include="System.Management" Version="9.0.0" />
+    <PackageReference Include="Vortice.Direct3D11" Version="3.6.2" />
+    <PackageReference Include="Vortice.DXGI" Version="3.6.2" />
   </ItemGroup>
 
   <ItemGroup>
