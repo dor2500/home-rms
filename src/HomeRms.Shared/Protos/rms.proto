@@ -36,6 +36,25 @@ service RemoteManagement {
   // --- Bidirectional clipboard sync (Copy/Paste between Controller and Agent). ---
   rpc GetClipboard (Empty) returns (ClipboardData);
   rpc SetClipboard (ClipboardData) returns (ClipboardAck);
+
+  // --- System control: Windows Update, services, startup, scheduled tasks, power,
+  // registry, firewall and general settings. Allowlisted actions only; every call is
+  // written to the agent's audit log. ---
+  rpc SystemOp (SystemOpRequest) returns (SystemOpResult);
+}
+
+message SystemOpRequest {
+  string area = 1;    // services | updates | startup | tasks | power | registry | firewall | system
+  string action = 2;  // allowlisted action id, e.g. "list", "restart", "install-all"
+  string target = 3;  // service name / KB / registry path / task path ...
+  string extra = 4;   // secondary argument (startup type, days, "name|type|value" ...)
+}
+
+message SystemOpResult {
+  bool success = 1;
+  string message = 2;
+  string json_data = 3;     // JSON array/object for tabular results
+  bool is_elevated = 4;     // whether the agent runs with administrator rights
 }
 
 message Empty {}

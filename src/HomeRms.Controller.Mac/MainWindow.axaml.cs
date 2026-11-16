@@ -74,7 +74,7 @@ public partial class MainWindow : Window
     // ---------------- Navigation ----------------
     private void OnNavTabChanged(object? sender, RoutedEventArgs e)
     {
-        if (InventoryPanel is null || DesktopPanel is null || ShellPanel is null || DeployPanel is null) return;
+        if (InventoryPanel is null || DesktopPanel is null || ShellPanel is null || DeployPanel is null || SystemPanel is null) return;
 
         if (_isFullScreen && NavDesktop.IsChecked != true)
             SetFullScreen(false);
@@ -83,6 +83,137 @@ public partial class MainWindow : Window
         DesktopPanel.IsVisible = NavDesktop.IsChecked == true;
         ShellPanel.IsVisible = NavShell.IsChecked == true;
         DeployPanel.IsVisible = NavDeploy.IsChecked == true;
+        SystemPanel.IsVisible = NavSystem.IsChecked == true;
+        if (NavSystem.IsChecked == true && _sysArea is null) InitSystemPanel();
+    }
+
+    // ---------------- System Control ----------------
+    private SystemArea? _sysArea;
+    private SystemCatalog.Table _sysTable = SystemCatalog.Table.Empty;
+    private List<Dictionary<string, string>> _sysVisible = new();
+
+    private void InitSystemPanel()
+    {
+        SystemAreaPanel.Children.Clear();
+        foreach (var area in SystemCatalog.Areas)
+        {
+            var b = new Button { Content = area.Title, Tag = area, Margin = new Thickness(0, 0, 8, 6) };
+            b.Click += (_, _) => SelectSystemArea(area);
+            SystemAreaPanel.Children.Add(b);
+        }
+        SelectSystemArea(SystemCatalog.Areas[0]);
+    }
+
+    private void SelectSystemArea(SystemArea area)
+    {
+        _sysArea = area;
+        foreach (var child in SystemAreaPanel.Children.OfType<Button>())
+            child.Background = ReferenceEquals(child.Tag, area)
+                ? new SolidColorBrush(Color.FromRgb(59, 130, 246))
+                : null;
+
+        SystemActionPanel.Children.Clear();
+        foreach (var action in area.Actions)
+        {
+            var b = new Button
+            {
+                Content = action.Label,
+                Tag = action,
+                Margin = new Thickness(0, 0, 8, 6),
+                FontSize = 12,
+                Foreground = action.Dangerous ? new SolidColorBrush(Color.FromRgb(248, 113, 113)) : null
+            };
+            b.Click += async (_, _) => await RunSystemActionAsync(action);
+            SystemActionPanel.Children.Add(b);
+        }
+
+        SystemTargetLabel.Text = "Target — " + area.TargetHint;
+        SystemExtraLabel.Text = "Extra — " + (area.Actions.FirstOrDefault(a => a.ExtraHint is not null)?.ExtraHint ?? "(per action)");
+        SystemTargetBox.Text = "";
+        SystemExtraBox.Text = "";
+        SetSystemTable(SystemCatalog.Table.Empty);
+        SystemMessageText.Text = $"{area.Title}: choose an action.";
+    }
+
+    private async Task RunSystemActionAsync(SystemAction action)
+    {
+        if (_sysArea is null) return;
+        if (_conn is null && !await ConnectToCurrentFieldsAsync()) return;
+
+        var target = (SystemTargetBox.Text ?? "").Trim();
+        var extra = (SystemExtraBox.Text ?? "").Trim();
+        if (action.NeedsTarget && target.Length == 0)
+        {
+            SystemMessageText.Text = $"'{action.Label}' needs a target: {_sysArea.TargetHint}";
+            return;
+        }
+
+        // Dangerous actions: the first click arms the button, the second (within 5 s) confirms.
+        if (action.Dangerous && !ConfirmDangerous(action, target))
+            return;
+
+        try
+        {
+            SystemMessageText.Text = $"Running {_sysArea.Id}/{action.Id}…";
+            var res = await _conn!.Client.SystemOpAsync(
+                new SystemOpRequest { Area = _sysArea.Id, Action = action.Id, Target = target, Extra = extra },
+                deadline: DateTime.UtcNow.AddMinutes(action.LongRunning ? 50 : 2.2));
+
+            SetSystemTable(SystemCatalog.ParseTable(res.JsonData));
+            var admin = res.IsElevated ? "" : "  [agent not elevated]";
+            SystemMessageText.Text = (res.Success ? "✔ " : "✖ ") + res.Message + admin;
+            SystemMessageText.Foreground = new SolidColorBrush(res.Success ? Color.FromRgb(74, 222, 128) : Color.FromRgb(248, 113, 113));
+        }
+        catch (Exception ex)
+        {
+            SystemMessageText.Text = "✖ " + Short(ex);
+            SystemMessageText.Foreground = new SolidColorBrush(Color.FromRgb(248, 113, 113));
+        }
+    }
+
+    private string? _armedAction;
+    private DateTime _armedAt;
+
+    private bool ConfirmDangerous(SystemAction action, string target)
+    {
+        var key = $"{_sysArea?.Id}/{action.Id}/{target}";
+        if (_armedAction == key && (DateTime.UtcNow - _armedAt).TotalSeconds < 5)
+        {
+            _armedAction = null;
+            return true;
+        }
+        _armedAction = key;
+        _armedAt = DateTime.UtcNow;
+        SystemMessageText.Foreground = new SolidColorBrush(Color.FromRgb(251, 191, 36));
+        SystemMessageText.Text = $"⚠ '{action.Label}' changes the remote PC. Click it again within 5 seconds to confirm.";
+        return false;
+    }
+
+    private void SetSystemTable(SystemCatalog.Table table)
+    {
+        _sysTable = table;
+        ApplySystemFilter();
+    }
+
+    private void ApplySystemFilter()
+    {
+        if (SystemRowsList is null) return;
+        var q = SystemFilterBox?.Text?.Trim() ?? "";
+        _sysVisible = _sysTable.Rows
+            .Where(r => q.Length == 0 || r.Values.Any(v => v.Contains(q, StringComparison.OrdinalIgnoreCase)))
+            .ToList();
+        SystemHeaderText.Text = _sysTable.Columns.Count == 0 ? "" : _sysTable.FormatHeader();
+        SystemRowsList.ItemsSource = _sysVisible.Select(_sysTable.FormatRow).ToList();
+    }
+
+    private void OnSystemFilterChanged(object? sender, TextChangedEventArgs e) => ApplySystemFilter();
+
+    private void OnSystemRowSelected(object? sender, SelectionChangedEventArgs e)
+    {
+        var i = SystemRowsList.SelectedIndex;
+        if (i < 0 || i >= _sysVisible.Count || _sysArea is null) return;
+        var target = SystemCatalog.TargetFromRow(_sysArea.Id, _sysVisible[i]);
+        if (target.Length > 0) SystemTargetBox.Text = target;
     }
 
     private void OnWindowKeyDown(object? sender, KeyEventArgs e)

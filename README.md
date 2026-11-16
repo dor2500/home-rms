@@ -82,6 +82,12 @@ Unlike covert surveillance tools, **Home RMS** is designed around transparency a
   - Streams any local `.exe`, `.msi`, `.msp`, or `.ps1` installer package in 256 KB chunks over Mutual TLS to the remote computer (supports Drag & Drop or File Picker).
   - **Smart Silent Flag Auto-Detection (`AUTO`):** Inspects `.exe` binaries to automatically apply silent installation flags for **Inno Setup** (`/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /SP-`), **NSIS** (`/S`), **WiX Burn** (`/quiet /norestart`), **InstallShield** (`/s /v"/qn /norestart"`), and **Windows Installer `.msi`** (`msiexec /i ... /qn /norestart`).
   - Includes **One-Click Winget Silent Install** shortcuts for popular packages (`7-Zip`, `Google Chrome`, `Mozilla Firefox`, `VLC`, `Notepad++`, `VS Code`).
+- **System Control (`SystemOps.cs`, `SystemOp` RPC):**
+  - **Windows Update:** status, check pending, install all / install a specific KB, history, pause (1-35 days) / resume, disable / enable automatic updates (policy), restart update service, reset components.
+  - **Services:** list all, start / stop / restart, set startup type (Automatic, Delayed, Manual, Disabled).
+  - **Power:** restart / shut down (with delay), cancel, sign out, lock, sleep, list / set power plan.
+  - **Startup apps, Scheduled tasks, Registry (HKLM / HKCU), Firewall, System settings** (info, hotfixes, local users, Defender status / update / scan, RDP on/off, rename computer, time zone).
+  - **Security model:** every action maps to a *fixed, allowlisted* PowerShell script; user values are strictly validated (regex / ranges) and passed via environment variables, never concatenated into script text. SAM/SECURITY hives are blocked. Every call is written to the agent's audit log. The agent runs **un-elevated by default**; start it with `HomeRmsAgent.exe --elevate` (UAC prompt) to enable system-level changes.
 - **Remote PowerShell (`RemoteManagementService.Shell`):**
   - Spawns an isolated, hidden `powershell.exe` process connected to a gRPC bidirectional stream (`AsyncDuplexStreamingCall`), streaming `stdout` and `stderr` in real time.
 
@@ -243,6 +249,27 @@ Example output:
    - לחץ על **🚀 Upload & Install Silently**: תראה את אחוזי ההעלאה בזמן אמת, ולאחר מכן את פלט ההתקנה וקוד הסיום (`Exit Code 0`). בסיום ההתקנה, רשימת התוכנות של המחשב המרוחק מתרעננת אוטומטית.
 2. **התקנת תוכנות פופולריות בלחיצה אחת (One-Click Winget Silent Install):**
    - לחץ על אחד הכפתורים (**7-Zip**, **Google Chrome**, **Mozilla Firefox**, **VLC Media Player**, **Notepad++**, **VS Code**) כדי להתקין אותם באופן שקט לחלוטין על המחשב המרוחק דרך `winget`.
+
+---
+
+#### לשונית 5: ⚙️ System Control (עדכוני Windows, שירותים והגדרות מחשב)
+**חשוב – הרשאות מנהל:** כברירת מחדל ה-Agent רץ ללא הרשאות מנהל (עיקרון ההרשאה המינימלית) ולכן פעולות קריאה (רשימת שירותים, סטטוס עדכונים) עובדות, אבל שינויים ברמת המערכת דורשים הרשאות מנהל. כדי לאפשר אותם, הפעל את ה-Agent כך:
+`HomeRmsAgent.exe --elevate` (תופיע בקשת UAC פעם אחת במחשב הקצה), או לחיצה ימנית → *Run as administrator*. אם ה-Agent לא מורם, התוצאה תציג `[agent not elevated]`.
+
+בחר **תחום** (כפתורים עליונים), אחר כך **פעולה**. פעולות מסוכנות מסומנות באדום ודורשות אישור (ב-Windows חלון אישור; ב-Mac לחיצה שנייה תוך 5 שניות). בחירת שורה בטבלה ממלאת אוטומטית את שדה ה-**Target**; תיבת **Filter** מסננת את הטבלה.
+
+| תחום | פעולות |
+|---|---|
+| **Windows Update** | Status · Check pending · Install ALL · Install KB (ב-Target: `KB5030211`) · History · Pause (ב-Extra: מספר ימים 1-35) · Resume · Disable/Enable auto-update · Restart update service · Reset components |
+| **Services** | List all · Start · Stop · Restart · Set startup type (ב-Extra: `Automatic` / `AutomaticDelayed` / `Manual` / `Disabled`) |
+| **Power** | Restart / Shut down (ב-Extra: עיכוב בשניות, ברירת מחדל 30) · Cancel pending · Sign out · Lock · Sleep · Power plans / Set power plan |
+| **Startup apps** | List · Remove (מפתחות Run) |
+| **Scheduled tasks** | List · Run now · Enable · Disable (ב-Target: נתיב מלא כמו `\Microsoft\Windows\...\TaskName`) |
+| **Registry** | List sub-keys · Read · Write (ב-Extra: `name\|type\|value`, למשל `Test\|DWord\|1`) · Delete — רק `HKLM:\` ו-`HKCU:\` |
+| **Firewall** | Profiles status · Enable all · Disable all |
+| **System settings** | System info · Hotfixes · Local users · Defender (status / update / quick scan) · Enable/Disable RDP · Rename computer · Set time zone |
+
+**אבטחה:** כל פעולה היא סקריפט קבוע מראש (Allowlist) – ערכים שאתה מזין עוברים אימות קפדני ומועברים כמשתני סביבה ולא משורשרים לקוד, כך שאי אפשר להזריק פקודות. גישה ל-SAM/SECURITY חסומה, וכל פעולה נרשמת ביומן הפעילות הגלוי של ה-Agent.
 
 ---
 

@@ -424,6 +424,20 @@ public sealed class RemoteManagementService(ConsentCoordinator consent, Activity
         return Task.FromResult(new ClipboardAck { Success = ok });
     }
 
+    public override async Task<SystemOpResult> SystemOp(SystemOpRequest request, ServerCallContext context)
+    {
+        var op = OperatorOf(context);
+        var detail = string.IsNullOrWhiteSpace(request.Target) ? "" : $" target='{Trunc(request.Target)}'";
+        var extra = string.IsNullOrWhiteSpace(request.Extra) ? "" : $" extra='{Trunc(request.Extra)}'";
+        log.Write($"[system] '{op}' requested {request.Area}/{request.Action}{detail}{extra}");
+
+        var result = await SystemOps.RunAsync(request, context.CancellationToken);
+        log.Write($"[system] {request.Area}/{request.Action} -> {(result.Success ? "OK" : "FAILED: " + Trunc(result.Message.Split('\n')[0]))}");
+        return result;
+
+        static string Trunc(string s) => s.Length <= 120 ? s : s[..120] + "…";
+    }
+
     private static T? RunSta<T>(Func<T> func)
     {
         T? result = default;

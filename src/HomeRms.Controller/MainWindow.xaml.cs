@@ -102,7 +102,7 @@ public partial class MainWindow : Window
     // ---------------- Navigation ----------------
     private void OnNavTabChanged(object sender, RoutedEventArgs e)
     {
-        if (InventoryPanel is null || DesktopPanel is null || ShellPanel is null || DeployPanel is null) return;
+        if (InventoryPanel is null || DesktopPanel is null || ShellPanel is null || DeployPanel is null || SystemPanel is null) return;
 
         if (_isFullScreen && NavDesktop.IsChecked != true)
             SetFullScreen(false);
@@ -111,6 +111,119 @@ public partial class MainWindow : Window
         DesktopPanel.Visibility = NavDesktop.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
         ShellPanel.Visibility = NavShell.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
         DeployPanel.Visibility = NavDeploy.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
+        SystemPanel.Visibility = NavSystem.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
+        if (NavSystem.IsChecked == true && _sysArea is null) InitSystemPanel();
+    }
+
+    // ---------------- System Control ----------------
+    private SystemArea? _sysArea;
+    private SystemCatalog.Table _sysTable = SystemCatalog.Table.Empty;
+    private List<Dictionary<string, string>> _sysVisible = new();
+
+    private void InitSystemPanel()
+    {
+        SystemAreaPanel.Children.Clear();
+        foreach (var area in SystemCatalog.Areas)
+        {
+            var b = new Button { Content = area.Title, Tag = area, Margin = new Thickness(0, 0, 8, 6), Style = (Style)FindResource("SmallPillButton") };
+            b.Click += (_, _) => SelectSystemArea(area);
+            SystemAreaPanel.Children.Add(b);
+        }
+        SelectSystemArea(SystemCatalog.Areas[0]);
+    }
+
+    private void SelectSystemArea(SystemArea area)
+    {
+        _sysArea = area;
+        foreach (Button b in SystemAreaPanel.Children)
+            b.Style = (Style)FindResource(ReferenceEquals(b.Tag, area) ? "PrimaryButton" : "SmallPillButton");
+
+        SystemActionPanel.Children.Clear();
+        foreach (var action in area.Actions)
+        {
+            var b = new Button
+            {
+                Content = action.Label,
+                Tag = action,
+                Margin = new Thickness(0, 0, 8, 6),
+                Style = (Style)FindResource(action.Dangerous ? "DangerButton" : "GhostButton"),
+                Padding = new Thickness(12, 6, 12, 6),
+                FontSize = 12
+            };
+            b.Click += async (_, _) => await RunSystemActionAsync(action);
+            SystemActionPanel.Children.Add(b);
+        }
+
+        SystemTargetLabel.Text = "Target — " + area.TargetHint;
+        SystemExtraLabel.Text = "Extra — " + (area.Actions.FirstOrDefault(a => a.ExtraHint is not null)?.ExtraHint ?? "(per action)");
+        SystemTargetBox.Clear();
+        SystemExtraBox.Clear();
+        SetSystemTable(SystemCatalog.Table.Empty);
+        SystemMessageText.Text = $"{area.Title}: choose an action.";
+    }
+
+    private async Task RunSystemActionAsync(SystemAction action)
+    {
+        if (_sysArea is null) return;
+        if (_conn is null && !await ConnectToCurrentFieldsAsync()) return;
+
+        var target = SystemTargetBox.Text.Trim();
+        var extra = SystemExtraBox.Text.Trim();
+        if (action.NeedsTarget && target.Length == 0)
+        {
+            SystemMessageText.Text = $"'{action.Label}' needs a target: {_sysArea.TargetHint}";
+            return;
+        }
+
+        if (action.Dangerous && MessageBox.Show(
+                $"{_sysArea.Title} → {action.Label}\nTarget: {(target.Length == 0 ? "(none)" : target)}\n\nRun this on {_agentInfo?.MachineName ?? "the remote PC"}?",
+                "Home RMS — Confirm system change", MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes)
+            return;
+
+        try
+        {
+            SystemMessageText.Text = $"Running {_sysArea.Id}/{action.Id}…";
+            var res = await _conn!.Client.SystemOpAsync(
+                new SystemOpRequest { Area = _sysArea.Id, Action = action.Id, Target = target, Extra = extra },
+                deadline: DateTime.UtcNow.AddMinutes(action.LongRunning ? 50 : 2.2));
+
+            SetSystemTable(SystemCatalog.ParseTable(res.JsonData));
+            var admin = res.IsElevated ? "" : "  [agent not elevated]";
+            SystemMessageText.Text = (res.Success ? "✔ " : "✖ ") + res.Message + admin;
+            SystemMessageText.Foreground = new SolidColorBrush(res.Success ? Color.FromRgb(74, 222, 128) : Color.FromRgb(248, 113, 113));
+        }
+        catch (Exception ex)
+        {
+            SystemMessageText.Text = "✖ " + Short(ex);
+            SystemMessageText.Foreground = new SolidColorBrush(Color.FromRgb(248, 113, 113));
+        }
+    }
+
+    private void SetSystemTable(SystemCatalog.Table table)
+    {
+        _sysTable = table;
+        ApplySystemFilter();
+    }
+
+    private void ApplySystemFilter()
+    {
+        if (SystemRowsList is null) return;
+        var q = SystemFilterBox?.Text?.Trim() ?? "";
+        _sysVisible = _sysTable.Rows
+            .Where(r => q.Length == 0 || r.Values.Any(v => v.Contains(q, StringComparison.OrdinalIgnoreCase)))
+            .ToList();
+        SystemHeaderText.Text = _sysTable.Columns.Count == 0 ? "" : _sysTable.FormatHeader();
+        SystemRowsList.ItemsSource = _sysVisible.Select(_sysTable.FormatRow).ToList();
+    }
+
+    private void OnSystemFilterChanged(object sender, TextChangedEventArgs e) => ApplySystemFilter();
+
+    private void OnSystemRowSelected(object sender, SelectionChangedEventArgs e)
+    {
+        var i = SystemRowsList.SelectedIndex;
+        if (i < 0 || i >= _sysVisible.Count || _sysArea is null) return;
+        var target = SystemCatalog.TargetFromRow(_sysArea.Id, _sysVisible[i]);
+        if (target.Length > 0) SystemTargetBox.Text = target;
     }
 
     private void OnWindowPreviewKeyDown(object sender, KeyEventArgs e)

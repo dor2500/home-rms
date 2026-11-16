@@ -126,6 +126,28 @@ try
     Console.WriteLine($"[test] Security EKU Gate OK -> agent cert rejected for clientAuth={ekuRejected}");
     if (!ekuRejected)
         failures.Add("Security regression: Agent server cert was accepted for clientAuth");
+
+    // 9) system control: read-only ops work, malicious / unknown input is rejected
+    var sysInfo = await client.SystemOpAsync(new SystemOpRequest { Area = "system", Action = "info" }, deadline: DateTime.UtcNow.AddSeconds(60));
+    var sysRows = HomeRms.Shared.SystemCatalog.ParseTable(sysInfo.JsonData).Rows.Count;
+    Console.WriteLine($"[test] SystemOp system/info OK -> success={sysInfo.Success}, rows={sysRows}, elevated={sysInfo.IsElevated}");
+    if (!sysInfo.Success || sysRows < 5) failures.Add("system/info did not return data");
+
+    var svcList = await client.SystemOpAsync(new SystemOpRequest { Area = "services", Action = "list" }, deadline: DateTime.UtcNow.AddSeconds(60));
+    var svcRows = HomeRms.Shared.SystemCatalog.ParseTable(svcList.JsonData).Rows.Count;
+    Console.WriteLine($"[test] SystemOp services/list OK -> {svcRows} services");
+    if (!svcList.Success || svcRows < 10) failures.Add("services/list did not return data");
+
+    var upd = await client.SystemOpAsync(new SystemOpRequest { Area = "updates", Action = "status" }, deadline: DateTime.UtcNow.AddSeconds(60));
+    Console.WriteLine($"[test] SystemOp updates/status -> success={upd.Success}");
+    if (!upd.Success) failures.Add("updates/status failed: " + upd.Message);
+
+    var inject = await client.SystemOpAsync(new SystemOpRequest { Area = "services", Action = "start", Target = "Spooler; calc.exe" }, deadline: DateTime.UtcNow.AddSeconds(10));
+    var badReg = await client.SystemOpAsync(new SystemOpRequest { Area = "registry", Action = "get", Target = @"HKLM:\SAM\SAM" }, deadline: DateTime.UtcNow.AddSeconds(10));
+    var unknown = await client.SystemOpAsync(new SystemOpRequest { Area = "evil", Action = "run" }, deadline: DateTime.UtcNow.AddSeconds(10));
+    Console.WriteLine($"[test] SystemOp input validation OK -> injection blocked={!inject.Success}, SAM blocked={!badReg.Success}, unknown blocked={!unknown.Success}");
+    if (inject.Success || badReg.Success || unknown.Success)
+        failures.Add("SystemOp accepted invalid/malicious input");
 }
 catch (Exception ex)
 {

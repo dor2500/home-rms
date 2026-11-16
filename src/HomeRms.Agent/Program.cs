@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Runtime.Versioning;
 using System.Windows.Forms;
 using HomeRms.Agent.Core;
+using HomeRms.Agent.Features;
 using HomeRms.Agent.Server;
 using HomeRms.Agent.Ui;
 using HomeRms.Shared;
@@ -16,6 +17,25 @@ internal static class Program
     [STAThread]
     private static void Main(string[] args)
     {
+        // Opt-in elevation: "HomeRmsAgent.exe --elevate" relaunches itself via the UAC prompt so
+        // system-level controls (services, Windows Update, registry HKLM...) work. By default the
+        // agent stays un-elevated (least privilege).
+        if (args.Any(a => string.Equals(a, "--elevate", StringComparison.OrdinalIgnoreCase)) && !SystemOps.IsElevated())
+        {
+            try
+            {
+                Process.Start(new ProcessStartInfo
+                {
+                    FileName = Environment.ProcessPath!,
+                    Arguments = string.Join(" ", args.Where(a => !string.Equals(a, "--elevate", StringComparison.OrdinalIgnoreCase))),
+                    UseShellExecute = true,
+                    Verb = "runas"
+                });
+            }
+            catch { /* user cancelled the UAC prompt */ }
+            return;
+        }
+
         // First-run bootstrap: automatically deploy/sync the embedded deployment PKI
         // into %ProgramData%\HomeRMS\certs so the end-user PC trusts and presents the
         // exact same CA chain as the Controller with zero manual setup.

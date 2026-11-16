@@ -165,6 +165,9 @@
                         <RadioButton x:Name="NavDeploy" Content="📦  Silent Software Deploy"
                                      Style="{StaticResource NavTab}"
                                      Checked="OnNavTabChanged"/>
+                        <RadioButton x:Name="NavSystem" Content="⚙️  System Control"
+                                     Style="{StaticResource NavTab}"
+                                     Checked="OnNavTabChanged"/>
                     </StackPanel>
                 </DockPanel>
             </Border>
@@ -514,6 +517,53 @@
                                  Foreground="#E2E8F0" BorderThickness="0" Padding="14,12"
                                  FontFamily="Cascadia Mono, Consolas" FontSize="12.5"
                                  VerticalScrollBarVisibility="Auto" TextWrapping="Wrap" AcceptsReturn="True"/>
+                    </Border>
+                </DockPanel>
+
+                <!-- ==================== 5. SYSTEM CONTROL VIEW ==================== -->
+                <DockPanel x:Name="SystemPanel" Visibility="Collapsed">
+
+                    <Border DockPanel.Dock="Top" Style="{StaticResource CardStyle}" Padding="16,12" Margin="0,0,0,12">
+                        <StackPanel>
+                            <TextBlock Text="SYSTEM CONTROL — WINDOWS UPDATE, SERVICES, POWER, REGISTRY &amp; SETTINGS" Style="{StaticResource Caption}" Margin="0,0,0,8"/>
+                            <WrapPanel x:Name="SystemAreaPanel" Margin="0,0,0,10"/>
+                            <WrapPanel x:Name="SystemActionPanel" Margin="0,0,0,10"/>
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="1.4*"/>
+                                    <ColumnDefinition Width="12"/>
+                                    <ColumnDefinition Width="1*"/>
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0">
+                                    <TextBlock x:Name="SystemTargetLabel" Text="Target" FontSize="11.5" Foreground="{StaticResource MutedBrush}" Margin="0,0,0,4"/>
+                                    <TextBox x:Name="SystemTargetBox"/>
+                                </StackPanel>
+                                <StackPanel Grid.Column="2">
+                                    <TextBlock x:Name="SystemExtraLabel" Text="Extra argument" FontSize="11.5" Foreground="{StaticResource MutedBrush}" Margin="0,0,0,4"/>
+                                    <TextBox x:Name="SystemExtraBox"/>
+                                </StackPanel>
+                            </Grid>
+                        </StackPanel>
+                    </Border>
+
+                    <DockPanel DockPanel.Dock="Top" Margin="0,0,0,8">
+                        <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                            <TextBlock Text="Filter:" Foreground="{StaticResource MutedBrush}" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                            <TextBox x:Name="SystemFilterBox" Width="220" TextChanged="OnSystemFilterChanged"/>
+                        </StackPanel>
+                        <TextBlock x:Name="SystemMessageText" Text="Pick an area and an action. Changes need the agent to run as Administrator (HomeRmsAgent.exe --elevate)."
+                                   Foreground="{StaticResource MutedBrush}" FontSize="12.5" VerticalAlignment="Center"
+                                   TextWrapping="Wrap" Margin="0,0,12,0"/>
+                    </DockPanel>
+
+                    <Border Background="#090C12" BorderBrush="{StaticResource LineBrush}" BorderThickness="1" CornerRadius="12" Padding="4">
+                        <DockPanel>
+                            <TextBlock x:Name="SystemHeaderText" DockPanel.Dock="Top" FontFamily="Cascadia Mono, Consolas" FontSize="12.5"
+                                       FontWeight="Bold" Foreground="#93C5FD" Margin="14,10,14,6"/>
+                            <ListBox x:Name="SystemRowsList" Background="Transparent" BorderThickness="0"
+                                     FontFamily="Cascadia Mono, Consolas" FontSize="12.5" Foreground="#E2E8F0"
+                                     SelectionChanged="OnSystemRowSelected"/>
+                        </DockPanel>
                     </Border>
                 </DockPanel>
 
