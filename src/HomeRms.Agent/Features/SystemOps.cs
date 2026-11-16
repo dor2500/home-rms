@@ -184,6 +184,27 @@ public static class SystemOps
             """, false, Short),
         ["system/rename"] = new("Rename-Computer -NewName $t -Force; \"Computer renamed to '$t'. A restart is required.\"", false, Short),
         ["system/timezone"] = new("Set-TimeZone -Id $t; \"Time zone set to '$t'.\"", false, Short),
+        ["system/timezones"] = new("@(Get-TimeZone -ListAvailable | Select-Object Id,DisplayName) | ConvertTo-Json -Compress", true, Short),
+        ["system/time-sync"] = new("Start-Service w32time -ErrorAction SilentlyContinue; & w32tm.exe /resync /force; 'Windows clock synchronized.'", false, Short),
+        ["system/theme-dark"] = new("""
+            $p='HKCU:\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize'
+            Set-ItemProperty $p AppsUseLightTheme 0 -Type DWord; Set-ItemProperty $p SystemUsesLightTheme 0 -Type DWord
+            'Windows theme set to Dark mode.'
+            """, false, Short),
+        ["system/theme-light"] = new("""
+            $p='HKCU:\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize'
+            Set-ItemProperty $p AppsUseLightTheme 1 -Type DWord; Set-ItemProperty $p SystemUsesLightTheme 1 -Type DWord
+            'Windows theme set to Light mode.'
+            """, false, Short),
+        ["system/taskbar-center"] = new("Set-ItemProperty 'HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced' TaskbarAl 1 -Type DWord; 'Taskbar aligned Center.'", false, Short),
+        ["system/taskbar-left"] = new("Set-ItemProperty 'HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced' TaskbarAl 0 -Type DWord; 'Taskbar aligned Left.'", false, Short),
+        ["system/file-ext-on"] = new("Set-ItemProperty 'HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced' HideFileExt 0 -Type DWord; 'File extensions shown.'", false, Short),
+        ["system/file-ext-off"] = new("Set-ItemProperty 'HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced' HideFileExt 1 -Type DWord; 'File extensions hidden.'", false, Short),
+        ["system/gamemode-on"] = new("New-Item 'HKCU:\\Software\\Microsoft\\GameBar' -Force | Out-Null; Set-ItemProperty 'HKCU:\\Software\\Microsoft\\GameBar' AutoGameModeEnabled 1 -Type DWord; 'Game Mode enabled.'", false, Short),
+        ["system/gamemode-off"] = new("New-Item 'HKCU:\\Software\\Microsoft\\GameBar' -Force | Out-Null; Set-ItemProperty 'HKCU:\\Software\\Microsoft\\GameBar' AutoGameModeEnabled 0 -Type DWord; 'Game Mode disabled.'", false, Short),
+        ["system/network-list"] = new("@(Get-NetAdapter | Select-Object Name,InterfaceDescription,Status,LinkSpeed,MacAddress) | ConvertTo-Json -Compress", true, Short),
+        ["system/dns-flush"] = new("& ipconfig.exe /flushdns; 'DNS resolver cache flushed.'", false, Short),
+        ["system/devices-list"] = new("@(Get-PnpDevice -PresentOnly | Where-Object { $_.FriendlyName } | Select-Object -First 120 Class,FriendlyName,Status) | ConvertTo-Json -Compress", true, Short),
     };
 
     private const string InstallScript = """

@@ -528,74 +528,47 @@
                     </Border>
                 </DockPanel>
 
-                <!-- ==================== 5. DEDICATED WINDOWS UPDATE VIEW ==================== -->
-                <DockPanel x:Name="UpdatesPanel" Visibility="Collapsed">
+                <!-- ==================== 5. WINDOWS 11 STYLE SETTINGS & UPDATES VIEW ==================== -->
+                <Grid x:Name="SystemPanel" Visibility="Collapsed">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="230"/>
+                        <ColumnDefinition Width="16"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
 
-                    <Border DockPanel.Dock="Top" Style="{StaticResource CardStyle}" Padding="16,14" Margin="0,0,0,12">
-                        <StackPanel>
-                            <DockPanel Margin="0,0,0,10">
-                                <Border x:Name="UpdatesAdminBadge" DockPanel.Dock="Right" Background="#24F59E0B" CornerRadius="6" Padding="10,3">
-                                    <TextBlock x:Name="UpdatesAdminText" Text="Checking elevation…" FontSize="11.5" FontWeight="SemiBold" Foreground="#FBBF24"/>
-                                </Border>
-                                <TextBlock Text="WINDOWS UPDATE CONTROL CENTER" Style="{StaticResource Caption}" Margin="0" VerticalAlignment="Center"/>
-                            </DockPanel>
-
-                            <WrapPanel Margin="0,0,0,10">
-                                <Button Content="↻  Status" Style="{StaticResource GhostButton}" Margin="0,0,8,6" Padding="12,6" Click="OnUpdateOpClick" Tag="status"/>
-                                <Button Content="🔍  Check Pending" Style="{StaticResource PrimaryButton}" Margin="0,0,8,6" Padding="12,6" Click="OnUpdateOpClick" Tag="list-pending"/>
-                                <Button Content="⬇  Install ALL Updates" Style="{StaticResource DangerButton}" Margin="0,0,8,6" Padding="12,6" Click="OnUpdateOpClick" Tag="install-all"/>
-                                <Button Content="🎯  Install Specific KB" Style="{StaticResource DangerButton}" Margin="0,0,8,6" Padding="12,6" Click="OnUpdateOpClick" Tag="install-kb"/>
-                                <Button Content="📜  Update History" Style="{StaticResource GhostButton}" Margin="0,0,8,6" Padding="12,6" Click="OnUpdateOpClick" Tag="history"/>
-                                <Button Content="⏸  Pause (Days)" Style="{StaticResource GhostButton}" Margin="0,0,8,6" Padding="12,6" Click="OnUpdateOpClick" Tag="pause"/>
-                                <Button Content="▶  Resume Updates" Style="{StaticResource GhostButton}" Margin="0,0,8,6" Padding="12,6" Click="OnUpdateOpClick" Tag="resume"/>
-                                <Button Content="🚫  Disable Auto-Update" Style="{StaticResource DangerButton}" Margin="0,0,8,6" Padding="12,6" Click="OnUpdateOpClick" Tag="disable-auto"/>
-                                <Button Content="✅  Enable Auto-Update" Style="{StaticResource GhostButton}" Margin="0,0,8,6" Padding="12,6" Click="OnUpdateOpClick" Tag="enable-auto"/>
-                                <Button Content="🔄  Restart Update Service" Style="{StaticResource GhostButton}" Margin="0,0,8,6" Padding="12,6" Click="OnUpdateOpClick" Tag="restart-service"/>
-                                <Button Content="🧹  Reset Components" Style="{StaticResource DangerButton}" Margin="0,0,8,6" Padding="12,6" Click="OnUpdateOpClick" Tag="reset"/>
-                            </WrapPanel>
-
-                            <Grid>
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="1.2*"/>
-                                    <ColumnDefinition Width="12"/>
-                                    <ColumnDefinition Width="1*"/>
-                                </Grid.ColumnDefinitions>
-                                <StackPanel Grid.Column="0">
-                                    <TextBlock Text="KB Number (for 'Install Specific KB', e.g. KB5030211)" FontSize="11.5" Foreground="{StaticResource MutedBrush}" Margin="0,0,0,4"/>
-                                    <TextBox x:Name="UpdateKbBox" Text=""/>
-                                </StackPanel>
-                                <StackPanel Grid.Column="2">
-                                    <TextBlock Text="Pause Duration in Days (1–35, for 'Pause')" FontSize="11.5" Foreground="{StaticResource MutedBrush}" Margin="0,0,0,4"/>
-                                    <TextBox x:Name="UpdateDaysBox" Text="7"/>
-                                </StackPanel>
-                            </Grid>
-                        </StackPanel>
-                    </Border>
-
-                    <DockPanel DockPanel.Dock="Top" Margin="0,0,0,8">
-                        <TextBlock x:Name="UpdatesMessageText" Text="Click 'Status' or 'Check Pending' to inspect Windows Update on the remote PC."
-                                   Foreground="{StaticResource MutedBrush}" FontSize="12.5" VerticalAlignment="Center" TextWrapping="Wrap"/>
-                    </DockPanel>
-
-                    <Border Background="#090C12" BorderBrush="{StaticResource LineBrush}" BorderThickness="1" CornerRadius="12" Padding="4">
+                    <!-- Windows 11 Left Settings Sidebar -->
+                    <Border Grid.Column="0" Style="{StaticResource CardStyle}" Padding="12">
                         <DockPanel>
-                            <TextBlock x:Name="UpdatesHeaderText" DockPanel.Dock="Top" FontFamily="Cascadia Mono, Consolas" FontSize="12.5"
-                                       FontWeight="Bold" Foreground="#93C5FD" Margin="14,10,14,6"/>
-                            <ListBox x:Name="UpdatesRowsList" Background="Transparent" BorderThickness="0"
-                                     FontFamily="Cascadia Mono, Consolas" FontSize="12.5" Foreground="#E2E8F0"
-                                     SelectionChanged="OnUpdatesRowSelected"/>
+                            <StackPanel DockPanel.Dock="Top" Margin="0,0,0,12">
+                                <TextBlock Text="WINDOWS SETTINGS" Style="{StaticResource Caption}" Margin="2,0,0,6"/>
+                                <TextBox x:Name="SettingsSearchBox" Text="" ToolTip="Find a setting across all categories"
+                                         TextChanged="OnSettingsSearchChanged"/>
+                            </StackPanel>
+
+                            <ScrollViewer VerticalScrollBarVisibility="Auto">
+                                <StackPanel x:Name="Win11SidebarPanel"/>
+                            </ScrollViewer>
                         </DockPanel>
                     </Border>
-                </DockPanel>
 
-                <!-- ==================== 6. SYSTEM CONTROL VIEW ==================== -->
-                <DockPanel x:Name="SystemPanel" Visibility="Collapsed">
+                    <!-- Windows 11 Right Settings Content + Live Output -->
+                    <DockPanel Grid.Column="2" LastChildFill="True">
 
-                    <Border DockPanel.Dock="Top" Style="{StaticResource CardStyle}" Padding="16,12" Margin="0,0,0,12">
-                        <StackPanel>
-                            <TextBlock Text="SYSTEM CONTROL — WINDOWS UPDATE, SERVICES, POWER, REGISTRY &amp; SETTINGS" Style="{StaticResource Caption}" Margin="0,0,0,8"/>
-                            <WrapPanel x:Name="SystemAreaPanel" Margin="0,0,0,10"/>
-                            <WrapPanel x:Name="SystemActionPanel" Margin="0,0,0,10"/>
+                        <!-- Page Header + Elevation Badge -->
+                        <Border DockPanel.Dock="Top" Style="{StaticResource CardStyle}" Padding="16,12" Margin="0,0,0,12">
+                            <DockPanel>
+                                <Border x:Name="SystemAdminBadge" DockPanel.Dock="Right" Background="#24F59E0B" CornerRadius="6" Padding="10,4" VerticalAlignment="Center">
+                                    <TextBlock x:Name="SystemAdminText" Text="⚠ Agent: Standard User" FontSize="11.5" FontWeight="SemiBold" Foreground="#FBBF24"/>
+                                </Border>
+                                <StackPanel>
+                                    <TextBlock x:Name="Win11PageTitle" Text="Home" FontSize="18" FontWeight="Bold"/>
+                                    <TextBlock x:Name="Win11PageSubtitle" Text="Device overview, quick settings, and remote status" FontSize="12" Foreground="{StaticResource MutedBrush}" Margin="0,2,0,0"/>
+                                </StackPanel>
+                            </DockPanel>
+                        </Border>
+
+                        <!-- Target / Extra Inputs -->
+                        <Border DockPanel.Dock="Top" Style="{StaticResource CardStyle}" Padding="14,10" Margin="0,0,0,12">
                             <Grid>
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="1.4*"/>
@@ -603,37 +576,41 @@
                                     <ColumnDefinition Width="1*"/>
                                 </Grid.ColumnDefinitions>
                                 <StackPanel Grid.Column="0">
-                                    <TextBlock x:Name="SystemTargetLabel" Text="Target" FontSize="11.5" Foreground="{StaticResource MutedBrush}" Margin="0,0,0,4"/>
+                                    <TextBlock x:Name="SystemTargetLabel" Text="Target" FontSize="11" Foreground="{StaticResource MutedBrush}" Margin="0,0,0,4"/>
                                     <TextBox x:Name="SystemTargetBox"/>
                                 </StackPanel>
                                 <StackPanel Grid.Column="2">
-                                    <TextBlock x:Name="SystemExtraLabel" Text="Extra argument" FontSize="11.5" Foreground="{StaticResource MutedBrush}" Margin="0,0,0,4"/>
+                                    <TextBlock x:Name="SystemExtraLabel" Text="Extra argument" FontSize="11" Foreground="{StaticResource MutedBrush}" Margin="0,0,0,4"/>
                                     <TextBox x:Name="SystemExtraBox"/>
                                 </StackPanel>
                             </Grid>
-                        </StackPanel>
-                    </Border>
+                        </Border>
 
-                    <DockPanel DockPanel.Dock="Top" Margin="0,0,0,8">
-                        <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
-                            <TextBlock Text="Filter:" Foreground="{StaticResource MutedBrush}" VerticalAlignment="Center" Margin="0,0,8,0"/>
-                            <TextBox x:Name="SystemFilterBox" Width="220" TextChanged="OnSystemFilterChanged"/>
-                        </StackPanel>
-                        <TextBlock x:Name="SystemMessageText" Text="Pick an area and an action. Changes need the agent to run as Administrator (HomeRmsAgent.exe --elevate)."
-                                   Foreground="{StaticResource MutedBrush}" FontSize="12.5" VerticalAlignment="Center"
-                                   TextWrapping="Wrap" Margin="0,0,12,0"/>
+                        <!-- Live Output Table (Bottom) -->
+                        <Border DockPanel.Dock="Bottom" Background="#090C12" BorderBrush="{StaticResource LineBrush}" BorderThickness="1" CornerRadius="12" Padding="4" Height="220" Margin="0,12,0,0">
+                            <DockPanel>
+                                <DockPanel DockPanel.Dock="Top" Margin="12,8,12,6">
+                                    <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                                        <TextBlock Text="Filter:" Foreground="{StaticResource MutedBrush}" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                                        <TextBox x:Name="SystemFilterBox" Width="180" TextChanged="OnSystemFilterChanged"/>
+                                    </StackPanel>
+                                    <TextBlock x:Name="SystemMessageText" Text="Select any setting card above to inspect or change it on the remote PC."
+                                               Foreground="{StaticResource MutedBrush}" FontSize="12" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+                                </DockPanel>
+                                <TextBlock x:Name="SystemHeaderText" DockPanel.Dock="Top" FontFamily="Cascadia Mono, Consolas" FontSize="12"
+                                           FontWeight="Bold" Foreground="#93C5FD" Margin="12,0,12,4"/>
+                                <ListBox x:Name="SystemRowsList" Background="Transparent" BorderThickness="0"
+                                         FontFamily="Cascadia Mono, Consolas" FontSize="12" Foreground="#E2E8F0"
+                                         SelectionChanged="OnSystemRowSelected"/>
+                            </DockPanel>
+                        </Border>
+
+                        <!-- Windows 11 Setting Cards List -->
+                        <ScrollViewer VerticalScrollBarVisibility="Auto">
+                            <StackPanel x:Name="Win11CardsPanel"/>
+                        </ScrollViewer>
                     </DockPanel>
-
-                    <Border Background="#090C12" BorderBrush="{StaticResource LineBrush}" BorderThickness="1" CornerRadius="12" Padding="4">
-                        <DockPanel>
-                            <TextBlock x:Name="SystemHeaderText" DockPanel.Dock="Top" FontFamily="Cascadia Mono, Consolas" FontSize="12.5"
-                                       FontWeight="Bold" Foreground="#93C5FD" Margin="14,10,14,6"/>
-                            <ListBox x:Name="SystemRowsList" Background="Transparent" BorderThickness="0"
-                                     FontFamily="Cascadia Mono, Consolas" FontSize="12.5" Foreground="#E2E8F0"
-                                     SelectionChanged="OnSystemRowSelected"/>
-                        </DockPanel>
-                    </Border>
-                </DockPanel>
+                </Grid>
 
             </Grid>
         </DockPanel>

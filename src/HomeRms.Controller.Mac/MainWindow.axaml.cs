@@ -75,7 +75,7 @@ public partial class MainWindow : Window
     // ---------------- Navigation ----------------
     private void OnNavTabChanged(object? sender, RoutedEventArgs e)
     {
-        if (InventoryPanel is null || DesktopPanel is null || ShellPanel is null || DeployPanel is null || UpdatesPanel is null || SystemPanel is null) return;
+        if (InventoryPanel is null || DesktopPanel is null || ShellPanel is null || DeployPanel is null || SystemPanel is null) return;
 
         if (_isFullScreen && NavDesktop.IsChecked != true)
             SetFullScreen(false);
@@ -84,153 +84,159 @@ public partial class MainWindow : Window
         DesktopPanel.IsVisible = NavDesktop.IsChecked == true;
         ShellPanel.IsVisible = NavShell.IsChecked == true;
         DeployPanel.IsVisible = NavDeploy.IsChecked == true;
-        UpdatesPanel.IsVisible = NavUpdates.IsChecked == true;
-        SystemPanel.IsVisible = NavSystem.IsChecked == true;
-        if (NavUpdates.IsChecked == true && UpdatesRowsList.ItemsSource is null && _conn is not null)
-            _ = RunUpdatesActionAsync("status");
-        if (NavSystem.IsChecked == true && _sysArea is null) InitSystemPanel();
-    }
 
-    // ---------------- Dedicated Windows Update Tab ----------------
-    private SystemCatalog.Table _updatesTable = SystemCatalog.Table.Empty;
+        var showSettings = NavUpdates.IsChecked == true || NavSystem.IsChecked == true;
+        SystemPanel.IsVisible = showSettings;
 
-    private async void OnUpdateOpClick(object? sender, RoutedEventArgs e)
-    {
-        if (sender is Button { Tag: string actionId })
-            await RunUpdatesActionAsync(actionId);
-    }
-
-    private async Task RunUpdatesActionAsync(string actionId)
-    {
-        if (_conn is null && !await ConnectToCurrentFieldsAsync()) return;
-
-        var area = SystemCatalog.Find("updates");
-        var action = area?.Actions.FirstOrDefault(a => a.Id == actionId);
-        if (action is null) return;
-
-        var target = (UpdateKbBox.Text ?? "").Trim();
-        var extra = (UpdateDaysBox.Text ?? "").Trim();
-
-        if (action.NeedsTarget && string.IsNullOrWhiteSpace(target))
+        if (showSettings)
         {
-            UpdatesMessageText.Text = "Enter a KB number (e.g. KB5030211) or select a pending update row below first.";
-            UpdatesMessageText.Foreground = new SolidColorBrush(Color.FromRgb(251, 191, 36));
-            return;
-        }
-
-        if (action.Dangerous && !ConfirmDangerous(action, target))
-            return;
-
-        try
-        {
-            UpdatesMessageText.Text = $"Running updates/{actionId}…";
-            UpdatesMessageText.Foreground = new SolidColorBrush(Color.FromRgb(156, 163, 175));
-            var res = await _conn!.Client.SystemOpAsync(
-                new SystemOpRequest { Area = "updates", Action = actionId, Target = target, Extra = extra },
-                deadline: DateTime.UtcNow.AddMinutes(action.LongRunning ? 50 : 2.2));
-
-            UpdatesAdminText.Text = res.IsElevated ? "🛡 Agent: Administrator" : "⚠ Agent: Standard User (--elevate needed)";
-            UpdatesAdminBadge.Background = new SolidColorBrush(res.IsElevated ? Color.FromArgb(40, 34, 197, 94) : Color.FromArgb(40, 245, 158, 11));
-            UpdatesAdminText.Foreground = new SolidColorBrush(res.IsElevated ? Color.FromRgb(74, 222, 128) : Color.FromRgb(251, 191, 36));
-
-            _updatesTable = SystemCatalog.ParseTable(res.JsonData);
-            UpdatesHeaderText.Text = _updatesTable.Columns.Count == 0 ? "" : _updatesTable.FormatHeader();
-            UpdatesRowsList.ItemsSource = _updatesTable.Rows.Select(_updatesTable.FormatRow).ToList();
-
-            UpdatesMessageText.Text = (res.Success ? "✔ " : "✖ ") + res.Message;
-            UpdatesMessageText.Foreground = new SolidColorBrush(res.Success ? Color.FromRgb(74, 222, 128) : Color.FromRgb(248, 113, 113));
-        }
-        catch (Exception ex)
-        {
-            UpdatesMessageText.Text = "✖ " + Short(ex);
-            UpdatesMessageText.Foreground = new SolidColorBrush(Color.FromRgb(248, 113, 113));
+            if (_win11Page is null) InitWin11Settings();
+            if (NavUpdates.IsChecked == true)
+                SelectWin11Page(SystemCatalog.Win11Pages.First(p => p.Id == "updates"));
+            else if (NavSystem.IsChecked == true && _win11Page?.Id == "updates")
+                SelectWin11Page(SystemCatalog.Win11Pages[0]);
         }
     }
 
-    private void OnUpdatesRowSelected(object? sender, SelectionChangedEventArgs e)
-    {
-        var i = UpdatesRowsList.SelectedIndex;
-        if (i < 0 || i >= _updatesTable.Rows.Count) return;
-        var target = SystemCatalog.TargetFromRow("updates", _updatesTable.Rows[i]);
-        if (target.Length > 0) UpdateKbBox.Text = target;
-    }
-
-    // ---------------- System Control ----------------
-    private SystemArea? _sysArea;
+    // ---------------- Windows 11 Style Settings & Updates ----------------
+    private SystemCatalog.Win11SettingsPage? _win11Page;
+    private string _win11LastArea = "system";
     private SystemCatalog.Table _sysTable = SystemCatalog.Table.Empty;
     private List<Dictionary<string, string>> _sysVisible = new();
 
-    private void InitSystemPanel()
+    private void InitWin11Settings()
     {
-        SystemAreaPanel.Children.Clear();
-        var otherAreas = SystemCatalog.Areas.Where(a => a.Id != "updates").ToList();
-        foreach (var area in otherAreas)
+        Win11SidebarPanel.Children.Clear();
+        foreach (var page in SystemCatalog.Win11Pages)
         {
-            var b = new Button { Content = area.Title, Tag = area, Margin = new Thickness(0, 0, 8, 6) };
-            b.Click += (_, _) => SelectSystemArea(area);
-            SystemAreaPanel.Children.Add(b);
-        }
-        SelectSystemArea(otherAreas[0]);
-    }
-
-    private void SelectSystemArea(SystemArea area)
-    {
-        _sysArea = area;
-        foreach (var child in SystemAreaPanel.Children.OfType<Button>())
-            child.Background = ReferenceEquals(child.Tag, area)
-                ? new SolidColorBrush(Color.FromRgb(59, 130, 246))
-                : null;
-
-        SystemActionPanel.Children.Clear();
-        foreach (var action in area.Actions)
-        {
-            var b = new Button
+            var btn = new Button
             {
-                Content = action.Label,
-                Tag = action,
-                Margin = new Thickness(0, 0, 8, 6),
-                FontSize = 12,
-                Foreground = action.Dangerous ? new SolidColorBrush(Color.FromRgb(248, 113, 113)) : null
+                Content = $"{page.Icon}  {page.Title}",
+                Tag = page,
+                HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Stretch,
+                HorizontalContentAlignment = Avalonia.Layout.HorizontalAlignment.Left,
+                Margin = new Thickness(0, 0, 0, 4),
+                Padding = new Thickness(12, 8, 12, 8),
+                BorderThickness = new Thickness(0)
             };
-            b.Click += async (_, _) => await RunSystemActionAsync(action);
-            SystemActionPanel.Children.Add(b);
+            btn.Click += (_, _) => SelectWin11Page(page);
+            Win11SidebarPanel.Children.Add(btn);
         }
-
-        SystemTargetLabel.Text = "Target — " + area.TargetHint;
-        SystemExtraLabel.Text = "Extra — " + (area.Actions.FirstOrDefault(a => a.ExtraHint is not null)?.ExtraHint ?? "(per action)");
-        SystemTargetBox.Text = "";
-        SystemExtraBox.Text = "";
-        SetSystemTable(SystemCatalog.Table.Empty);
-        SystemMessageText.Text = $"{area.Title}: choose an action.";
+        SelectWin11Page(SystemCatalog.Win11Pages[0]);
     }
 
-    private async Task RunSystemActionAsync(SystemAction action)
+    private void SelectWin11Page(SystemCatalog.Win11SettingsPage page)
     {
-        if (_sysArea is null) return;
+        _win11Page = page;
+        foreach (var b in Win11SidebarPanel.Children.OfType<Button>())
+        {
+            var active = ReferenceEquals(b.Tag, page);
+            b.Background = new SolidColorBrush(active ? Color.FromArgb(45, 59, 130, 246) : Colors.Transparent);
+            b.Foreground = new SolidColorBrush(active ? Colors.White : Color.FromRgb(209, 213, 219));
+        }
+
+        Win11PageTitle.Text = $"{page.Icon}  {page.Title}";
+        Win11PageSubtitle.Text = page.Subtitle;
+        SystemTargetLabel.Text = "Target — " + page.TargetHint;
+        SystemExtraLabel.Text = "Extra — " + (page.Items.FirstOrDefault(i => i.ExtraHint is not null)?.ExtraHint ?? "(optional)");
+        RenderWin11Cards(page.Items);
+    }
+
+    private void OnSettingsSearchChanged(object? sender, TextChangedEventArgs e)
+    {
+        if (_win11Page is null) return;
+        var q = (SettingsSearchBox.Text ?? "").Trim();
+        if (string.IsNullOrEmpty(q))
+        {
+            Win11PageTitle.Text = $"{_win11Page.Icon}  {_win11Page.Title}";
+            Win11PageSubtitle.Text = _win11Page.Subtitle;
+            RenderWin11Cards(_win11Page.Items);
+            return;
+        }
+
+        var matches = SystemCatalog.Win11Pages
+            .SelectMany(p => p.Items)
+            .Where(i => i.Title.Contains(q, StringComparison.OrdinalIgnoreCase) ||
+                        i.Subtitle.Contains(q, StringComparison.OrdinalIgnoreCase))
+            .ToList();
+        Win11PageTitle.Text = $"🔍  Search: \"{q}\"";
+        Win11PageSubtitle.Text = $"{matches.Count} matching setting(s)";
+        RenderWin11Cards(matches);
+    }
+
+    private void RenderWin11Cards(IReadOnlyList<SystemCatalog.Win11SettingItem> items)
+    {
+        Win11CardsPanel.Children.Clear();
+        foreach (var item in items)
+        {
+            var card = new Border
+            {
+                Background = new SolidColorBrush(Color.FromRgb(28, 33, 46)),
+                BorderBrush = new SolidColorBrush(Color.FromRgb(40, 47, 64)),
+                BorderThickness = new Thickness(1),
+                CornerRadius = new CornerRadius(10),
+                Padding = new Thickness(16, 12, 16, 12),
+                Margin = new Thickness(0, 0, 0, 8)
+            };
+
+            var dock = new DockPanel();
+            var btn = new Button
+            {
+                Content = item.ButtonLabel,
+                Background = new SolidColorBrush(item.Dangerous ? Color.FromRgb(239, 68, 68) : Color.FromRgb(59, 130, 246)),
+                Foreground = Brushes.White,
+                Padding = new Thickness(14, 7, 14, 7),
+                FontSize = 12,
+                VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center
+            };
+            DockPanel.SetDock(btn, Dock.Right);
+            btn.Click += async (_, _) => await RunWin11ItemAsync(item);
+
+            var textStack = new StackPanel { VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center, Margin = new Thickness(0, 0, 14, 0) };
+            textStack.Children.Add(new TextBlock { Text = item.Title, FontSize = 13.5, FontWeight = FontWeight.SemiBold, Foreground = new SolidColorBrush(Color.FromRgb(243, 244, 246)) });
+            textStack.Children.Add(new TextBlock { Text = item.Subtitle, FontSize = 11.5, Foreground = new SolidColorBrush(Color.FromRgb(156, 163, 175)), Margin = new Thickness(0, 2, 0, 0), TextWrapping = TextWrapping.Wrap });
+
+            dock.Children.Add(btn);
+            dock.Children.Add(textStack);
+            card.Child = dock;
+            Win11CardsPanel.Children.Add(card);
+        }
+    }
+
+    private async Task RunWin11ItemAsync(SystemCatalog.Win11SettingItem item)
+    {
         if (_conn is null && !await ConnectToCurrentFieldsAsync()) return;
 
-        var target = (SystemTargetBox.Text ?? "").Trim();
-        var extra = (SystemExtraBox.Text ?? "").Trim();
-        if (action.NeedsTarget && target.Length == 0)
+        var rawTarget = (SystemTargetBox.Text ?? "").Trim();
+        var rawExtra = (SystemExtraBox.Text ?? "").Trim();
+        var target = rawTarget.Length == 0 && !string.IsNullOrWhiteSpace(item.DefaultTarget) ? item.DefaultTarget! : rawTarget;
+        var extra = rawExtra.Length == 0 && !string.IsNullOrWhiteSpace(item.DefaultExtra) ? item.DefaultExtra! : rawExtra;
+
+        if (item.NeedsTarget && target.Length == 0)
         {
-            SystemMessageText.Text = $"'{action.Label}' needs a target: {_sysArea.TargetHint}";
+            SystemMessageText.Text = $"'{item.Title}' needs a Target ({_win11Page?.TargetHint}).";
+            SystemMessageText.Foreground = new SolidColorBrush(Color.FromRgb(251, 191, 36));
             return;
         }
 
-        // Dangerous actions: the first click arms the button, the second (within 5 s) confirms.
-        if (action.Dangerous && !ConfirmDangerous(action, target))
+        if (item.Dangerous && !ConfirmDangerous(new SystemAction(item.Action, item.Title, item.NeedsTarget, item.ExtraHint, item.Dangerous, item.LongRunning), target))
             return;
 
+        _win11LastArea = item.Area;
         try
         {
-            SystemMessageText.Text = $"Running {_sysArea.Id}/{action.Id}…";
+            SystemMessageText.Text = $"Running {item.Area}/{item.Action}…";
+            SystemMessageText.Foreground = new SolidColorBrush(Color.FromRgb(156, 163, 175));
             var res = await _conn!.Client.SystemOpAsync(
-                new SystemOpRequest { Area = _sysArea.Id, Action = action.Id, Target = target, Extra = extra },
-                deadline: DateTime.UtcNow.AddMinutes(action.LongRunning ? 50 : 2.2));
+                new SystemOpRequest { Area = item.Area, Action = item.Action, Target = target, Extra = extra },
+                deadline: DateTime.UtcNow.AddMinutes(item.LongRunning ? 50 : 2.2));
+
+            SystemAdminText.Text = res.IsElevated ? "🛡 Agent: Administrator" : "⚠ Agent: Standard User (--elevate)";
+            SystemAdminBadge.Background = new SolidColorBrush(res.IsElevated ? Color.FromArgb(40, 34, 197, 94) : Color.FromArgb(40, 245, 158, 11));
+            SystemAdminText.Foreground = new SolidColorBrush(res.IsElevated ? Color.FromRgb(74, 222, 128) : Color.FromRgb(251, 191, 36));
 
             SetSystemTable(SystemCatalog.ParseTable(res.JsonData));
-            var admin = res.IsElevated ? "" : "  [agent not elevated]";
-            SystemMessageText.Text = (res.Success ? "✔ " : "✖ ") + res.Message + admin;
+            SystemMessageText.Text = (res.Success ? "✔ " : "✖ ") + res.Message;
             SystemMessageText.Foreground = new SolidColorBrush(res.Success ? Color.FromRgb(74, 222, 128) : Color.FromRgb(248, 113, 113));
         }
         catch (Exception ex)
@@ -245,7 +251,7 @@ public partial class MainWindow : Window
 
     private bool ConfirmDangerous(SystemAction action, string target)
     {
-        var key = $"{_sysArea?.Id}/{action.Id}/{target}";
+        var key = $"{_win11Page?.Id}/{action.Id}/{target}";
         if (_armedAction == key && (DateTime.UtcNow - _armedAt).TotalSeconds < 5)
         {
             _armedAction = null;
@@ -280,8 +286,8 @@ public partial class MainWindow : Window
     private void OnSystemRowSelected(object? sender, SelectionChangedEventArgs e)
     {
         var i = SystemRowsList.SelectedIndex;
-        if (i < 0 || i >= _sysVisible.Count || _sysArea is null) return;
-        var target = SystemCatalog.TargetFromRow(_sysArea.Id, _sysVisible[i]);
+        if (i < 0 || i >= _sysVisible.Count) return;
+        var target = SystemCatalog.TargetFromRow(_win11LastArea, _sysVisible[i]);
         if (target.Length > 0) SystemTargetBox.Text = target;
     }
 
