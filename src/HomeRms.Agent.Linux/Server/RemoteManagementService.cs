@@ -55,7 +55,7 @@ public sealed class RemoteManagementService(ConsentCoordinator consent, Activity
         if (!consent.RequestGrant(op, "view your screen"))
             throw new RpcException(new Status(StatusCode.PermissionDenied, "Screen sharing was declined on the Linux device."));
 
-        var fps = Math.Clamp(request.Fps <= 0 ? 15 : request.Fps, 1, 30);
+        var fps = Math.Clamp(request.Fps <= 0 ? 15 : request.Fps, 1, 60);
         var intervalMs = 1000.0 / fps;
         var quality = request.Quality <= 0 ? 65 : request.Quality;
         var maxWidth = request.MaxWidth;
@@ -65,21 +65,43 @@ public sealed class RemoteManagementService(ConsentCoordinator consent, Activity
         var sw = new Stopwatch();
         long seq = 0;
 
+        // X11: one continuous ffmpeg capture (much faster than a screenshot tool per frame)
+        var (sw0, sh0) = cap.PrimaryBounds;
+        using var live = FfmpegScreenStream.TryStart(fps, quality, maxWidth, sw0, sh0);
+        if (live is not null)
+        {
+            log.Write($"[screen] continuous X11 capture active ({live.Width}×{live.Height} @ {fps} fps)");
+            await StreamFromFfmpegAsync(op, live, responseStream, context);
+            if (!live.HasExited || context.CancellationToken.IsCancellationRequested || !consent.HasActiveGrant(op))
+            {
+                log.Write($"[screen] '{op}' stopped viewing the screen");
+                return;
+            }
+            log.Write("[screen] ffmpeg capture stopped; falling back to screenshots");
+        }
+
         try
         {
+            byte[]? lastSent = null;
             while (!context.CancellationToken.IsCancellationRequested)
             {
                 if (!consent.HasActiveGrant(op)) break;
 
                 sw.Restart();
                 var (jpeg, w, h) = cap.CaptureJpeg(quality, maxWidth);
-                await responseStream.WriteAsync(new ScreenFrame
+                // Identical screenshot = nothing changed: don't spend bandwidth on it
+                if (lastSent is null || !jpeg.AsSpan().SequenceEqual(lastSent))
                 {
-                    Jpeg = Google.Protobuf.ByteString.CopyFrom(jpeg),
-                    Width = w,
-                    Height = h,
-                    Sequence = ++seq
-                });
+                    lastSent = jpeg;
+                    await responseStream.WriteAsync(new ScreenFrame
+                    {
+                        Jpeg = Google.Protobuf.ByteString.CopyFrom(jpeg),
+                        Width = w,
+                        Height = h,
+                        Sequence = ++seq,
+                        CaptureUnixMs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()
+                    });
+                }
 
                 var remaining = intervalMs - sw.Elapsed.TotalMilliseconds;
                 if (remaining > 1)
@@ -92,6 +114,38 @@ public sealed class RemoteManagementService(ConsentCoordinator consent, Activity
         finally
         {
             log.Write($"[screen] '{op}' stopped viewing the screen");
+        }
+    }
+
+    /// <summary>Sends each new ffmpeg frame as soon as it exists; identical frames (still screen) are skipped.</summary>
+    private async Task StreamFromFfmpegAsync(string op, FfmpegScreenStream live,
+        IServerStreamWriter<ScreenFrame> responseStream, ServerCallContext context)
+    {
+        long sentSeq = 0, seq = 0;
+        byte[]? lastSent = null;
+        while (!context.CancellationToken.IsCancellationRequested && consent.HasActiveGrant(op) && !live.HasExited)
+        {
+            var (jpeg, frameSeq) = live.Latest;
+            if (jpeg is null || frameSeq == sentSeq)
+            {
+                try { await Task.Delay(4, context.CancellationToken); }
+                catch (OperationCanceledException) { break; }
+                continue;
+            }
+
+            sentSeq = frameSeq;
+            if (lastSent is not null && jpeg.AsSpan().SequenceEqual(lastSent))
+                continue;
+            lastSent = jpeg;
+
+            await responseStream.WriteAsync(new ScreenFrame
+            {
+                Jpeg = Google.Protobuf.ByteString.CopyFrom(jpeg),
+                Width = live.Width,
+                Height = live.Height,
+                Sequence = ++seq,
+                CaptureUnixMs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()
+            });
         }
     }
 
@@ -294,20 +348,63 @@ public sealed class RemoteManagementService(ConsentCoordinator consent, Activity
 
     public override Task<ClipboardData> GetClipboard(Empty request, ServerCallContext context)
     {
-        var text = TryReadClipboard("wl-paste", "-n")
-                   ?? TryReadClipboard("xclip", "-o -selection clipboard")
-                   ?? TryReadClipboard("xsel", "-ob")
-                   ?? "";
+        var text = ReadSystemClipboard() ?? "";
+        log.Write($"[clipboard] '{OperatorOf(context)}' copied clipboard text from this computer ({text.Length} chars)");
         return Task.FromResult(new ClipboardData { Text = text });
     }
 
     public override Task<ClipboardAck> SetClipboard(ClipboardData request, ServerCallContext context)
     {
         var text = request.Text ?? "";
+        if (text.Length > 1024 * 1024) text = text[..(1024 * 1024)];
         var ok = TryWriteClipboard("wl-copy", "", text) ||
                  TryWriteClipboard("xclip", "-selection clipboard", text) ||
                  TryWriteClipboard("xsel", "-ib", text);
+        if (ok) Volatile.Write(ref _lastClipboardFromOperator, text);
+        log.Write($"[clipboard] '{OperatorOf(context)}' pasted clipboard text to this computer ({text.Length} chars)");
         return Task.FromResult(new ClipboardAck { Success = ok });
+    }
+
+    // Text the operator last put on the clipboard — not echoed back by WatchClipboard
+    private static string? _lastClipboardFromOperator;
+
+    private static string? ReadSystemClipboard() =>
+        TryReadClipboard("wl-paste", "-n")
+        ?? TryReadClipboard("xclip", "-o -selection clipboard")
+        ?? TryReadClipboard("xsel", "-ob");
+
+    /// <summary>
+    /// Live clipboard: every time text is copied on this computer (Ctrl+C, right-click → Copy, any app)
+    /// it is sent to the operator. Only while the operator holds an active grant; each transfer is logged.
+    /// </summary>
+    public override async Task WatchClipboard(Empty request, IServerStreamWriter<ClipboardData> responseStream, ServerCallContext context)
+    {
+        var op = OperatorOf(context);
+        if (!consent.HasActiveGrant(op))
+            throw new RpcException(new Status(StatusCode.PermissionDenied, "No active grant. Start screen sharing first."));
+
+        log.Write($"[clipboard] live copy/paste sync started for '{op}'");
+        var last = ReadSystemClipboard(); // what is there now is not "new"
+        try
+        {
+            while (!context.CancellationToken.IsCancellationRequested && consent.HasActiveGrant(op))
+            {
+                await Task.Delay(400, context.CancellationToken);
+                var text = ReadSystemClipboard();
+                if (string.IsNullOrEmpty(text) || text == last) continue;
+                last = text;
+                if (text == Volatile.Read(ref _lastClipboardFromOperator)) continue;
+                if (text.Length > 1024 * 1024) text = text[..(1024 * 1024)];
+
+                await responseStream.WriteAsync(new ClipboardData { Text = text });
+                log.Write($"[clipboard] text copied on this computer was sent to '{op}' ({text.Length} chars)");
+            }
+        }
+        catch (OperationCanceledException) { }
+        finally
+        {
+            log.Write($"[clipboard] live copy/paste sync ended for '{op}'");
+        }
     }
 
     public override async Task<SystemOpResult> SystemOp(SystemOpRequest request, ServerCallContext context)

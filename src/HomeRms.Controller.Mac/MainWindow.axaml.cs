@@ -41,6 +41,7 @@ public partial class MainWindow : Window
     private Channel<InputEvent>? _inputChannel;
     private int _frameWidth = 1920;
     private int _frameHeight = 1080;
+    private bool _controlWanted;
     private bool _isFullScreen;
     private WindowState _prevWindowState = WindowState.Normal;
 
@@ -841,76 +842,58 @@ public partial class MainWindow : Window
         if (_conn is null || _streamCts is not null) return;
 
         _streamCts = new CancellationTokenSource();
+        var token = _streamCts.Token;
         StreamBtn.Content = "⏹  Stop Viewing";
         StreamBtn.Background = new SolidColorBrush(Color.FromRgb(239, 68, 68));
         StreamStatus.Text = "Awaiting on-machine consent…";
 
-        var fps = int.TryParse(FpsBox.Text, out var f) ? Math.Clamp(f, 1, 30) : 20;
-        var quality = int.TryParse(QualityBox.Text, out var q) ? Math.Clamp(q, 20, 95) : 65;
-        var maxWidth = ScaleBox.SelectedItem is ComboBoxItem { Tag: string ts } && int.TryParse(ts, out var mw) ? mw : 1920;
+        var fps = int.TryParse(FpsBox.Text, out var f) ? Math.Clamp(f, 1, 60) : 60;
+        var quality = int.TryParse(QualityBox.Text, out var q) ? Math.Clamp(q, 20, 95) : 80;
+        var maxWidth = ScaleBox.SelectedItem is ComboBoxItem { Tag: string ts } && int.TryParse(ts, out var mw) ? mw : 0;
+        _controlWanted = ControlCheck.IsChecked == true;
+        var client = _conn.Client;
 
-        Bitmap? latestImg = null;
-        int latestW = 0, latestH = 0, latestKb = 0;
-        int uiPending = 0;
-        var fpsSw = Stopwatch.StartNew();
-        int fpsCount = 0;
-        double currentFps = 0;
+        var stats = new StreamStats();
+        var statsTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
+        statsTimer.Tick += (_, _) => UpdateStreamStatus(stats);
+        statsTimer.Start();
 
         try
         {
-            using var call = _conn.Client.StreamScreen(
-                new ScreenRequest { Fps = fps, Quality = quality, OperatorName = Environment.UserName, MaxWidth = maxWidth },
-                cancellationToken: _streamCts.Token);
-
-            await foreach (var frame in call.ResponseStream.ReadAllAsync(_streamCts.Token))
+            // Read + decode on a worker thread; only painting happens on the UI thread
+            await Task.Run(async () =>
             {
-                if (_inputCall is null && ControlCheck.IsChecked == true)
-                    StartInputStream();
+                using var call = client.StreamScreen(
+                    new ScreenRequest
+                    {
+                        Fps = fps, Quality = quality, OperatorName = Environment.UserName,
+                        MaxWidth = maxWidth, SupportsTiles = true
+                    },
+                    cancellationToken: token);
 
-                _frameWidth = frame.Width;
-                _frameHeight = frame.Height;
-                latestW = frame.Width;
-                latestH = frame.Height;
-
-                var bytes = frame.Jpeg.ToByteArray();
-                latestKb = bytes.Length / 1024;
-                using var ms = new MemoryStream(bytes);
-                var decoded = new Bitmap(ms);
-                Interlocked.Exchange(ref latestImg, decoded)?.Dispose();
-
-                fpsCount++;
-                if (fpsSw.ElapsedMilliseconds >= 1000)
+                await foreach (var frame in call.ResponseStream.ReadAllAsync(token))
                 {
-                    currentFps = fpsCount * 1000.0 / fpsSw.ElapsedMilliseconds;
-                    fpsCount = 0;
-                    fpsSw.Restart();
-                }
+                    if (_inputCall is null && Volatile.Read(ref _controlWanted))
+                        await Dispatcher.UIThread.InvokeAsync(StartInputStream);
 
-                if (Interlocked.CompareExchange(ref uiPending, 1, 0) == 0)
-                {
+                    var update = ScreenUpdate.Decode(frame);
+                    stats.Add(frame.CalculateSize(), update.Regions.Count > 0, frame.Width, frame.Height);
+
+                    // Tiles must be applied in order: slow the reader down instead of dropping frames
+                    while (Volatile.Read(ref _uiQueued) > 2 && !token.IsCancellationRequested)
+                        await Task.Delay(1, token);
+
+                    Interlocked.Increment(ref _uiQueued);
                     Dispatcher.UIThread.Post(() =>
                     {
-                        try
-                        {
-                            var img = Interlocked.Exchange(ref latestImg, null);
-                            if (img is not null)
-                            {
-                                DesktopOverlay.IsVisible = false;
-                                var statusLine = $"LIVE  •  {currentFps:0.0} FPS  •  {latestW}×{latestH}  •  {latestKb} KB";
-                                StreamStatus.Text = statusLine;
-                                FullscreenHudText.Text = $"{_agentInfo?.MachineName}  •  {statusLine}";
-                                ScreenImage.Source = img;
-                            }
-                        }
-                        finally
-                        {
-                            Interlocked.Exchange(ref uiPending, 0);
-                        }
-                    });
+                        try { ApplyScreenUpdate(update); }
+                        finally { Interlocked.Decrement(ref _uiQueued); }
+                    }, DispatcherPriority.Render);
                 }
-            }
+            }, token);
         }
         catch (OperationCanceledException) { }
+        catch (RpcException ex) when (ex.StatusCode == StatusCode.Cancelled) { }
         catch (RpcException ex) when (ex.StatusCode == StatusCode.PermissionDenied)
         {
             Dispatcher.UIThread.Post(() => { StreamStatus.Text = "Access declined on the remote computer."; });
@@ -921,12 +904,17 @@ public partial class MainWindow : Window
         }
         finally
         {
-            Dispatcher.UIThread.Post(StopStream);
+            Dispatcher.UIThread.Post(() =>
+            {
+                statsTimer.Stop();
+                StopStream();
+            });
         }
     }
 
     private void OnControlCheckChanged(object? sender, RoutedEventArgs e)
     {
+        _controlWanted = ControlCheck.IsChecked == true;
         if (_streamCts is null) return;
         if (ControlCheck.IsChecked == true) StartInputStream();
         else StopInputStream();
@@ -942,7 +930,9 @@ public partial class MainWindow : Window
             StreamBtn.Content = "▶  Start Viewing";
             StreamBtn.Background = new SolidColorBrush(Color.FromRgb(59, 130, 246));
         }
-        if (StreamStatus is not null && !(StreamStatus.Text?.StartsWith("Access declined") ?? false))
+        ResetRemoteCursor();
+        if (StreamStatus is not null && !(StreamStatus.Text?.StartsWith("Access declined") ?? false) &&
+            !(StreamStatus.Text?.StartsWith("Stream ended") ?? false))
             StreamStatus.Text = "Idle — not streaming";
     }
 
@@ -954,6 +944,8 @@ public partial class MainWindow : Window
         _inputChannel = Channel.CreateUnbounded<InputEvent>(new UnboundedChannelOptions { SingleReader = true });
         _ = PumpInputAsync(_inputCall, _inputChannel);
         ScreenImage.Focus();
+        UpdateRemoteCursor();
+        StartClipboardSync();
     }
 
     private static async Task PumpInputAsync(
@@ -975,6 +967,8 @@ public partial class MainWindow : Window
         _inputCall = null;
         if (call is not null)
             _ = Task.Run(async () => { try { await call.RequestStream.CompleteAsync(); await call; } catch { } });
+        StopClipboardSync();
+        UpdateRemoteCursor();
     }
 
     private void QueueInput(InputEvent ev) => _inputChannel?.Writer.TryWrite(ev);
@@ -1071,7 +1065,7 @@ public partial class MainWindow : Window
                     var remoteClip = await _conn.Client.GetClipboardAsync(new Empty(),
                         deadline: DateTime.UtcNow.AddSeconds(3));
                     if (!string.IsNullOrEmpty(remoteClip.Text))
-                        Dispatcher.UIThread.Post(async () => { try { if (Clipboard is not null) await Clipboard.SetTextAsync(remoteClip.Text); } catch { } });
+                        Dispatcher.UIThread.Post(async () => await SetLocalClipboardFromRemoteAsync(remoteClip.Text));
                 }
                 catch { }
             });
@@ -1121,7 +1115,7 @@ public partial class MainWindow : Window
             var res = await _conn!.Client.GetClipboardAsync(new Empty(),
                 deadline: DateTime.UtcNow.AddSeconds(5));
             if (!string.IsNullOrEmpty(res.Text) && Clipboard is not null)
-                await Clipboard.SetTextAsync(res.Text);
+                await SetLocalClipboardFromRemoteAsync(res.Text);
             StatusText.Text = $"Copied clipboard from {_agentInfo?.MachineName} ({res.Text.Length} chars).";
         }
         catch (Exception ex)

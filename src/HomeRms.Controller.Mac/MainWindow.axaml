@@ -264,47 +264,53 @@
                             CornerRadius="12" Padding="16,12" Margin="0,0,0,14">
                         <DockPanel>
                             <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center" Spacing="8">
-                                <Button Content="📋 Paste to Remote" Click="OnSendClipboardClick"/>
-                                <Button Content="📥 Copy from Remote" Click="OnGetClipboardClick"/>
-                                <Border Background="#141822" BorderBrush="#282F40" BorderThickness="1"
-                                        CornerRadius="7" Padding="10,6" VerticalAlignment="Center">
-                                    <TextBlock x:Name="StreamStatus" Text="Idle — not streaming" FontSize="12" Foreground="#9CA3AF"/>
-                                </Border>
-                                <Button Content="⛶  Full Screen (F11)" Click="OnToggleFullScreenClick"/>
+                                <Button Content="📋" ToolTip.Tip="Paste to remote — send your clipboard text to the remote PC" Click="OnSendClipboardClick"/>
+                                <Button Content="📥" ToolTip.Tip="Copy from remote — copy the remote PC's clipboard text here" Click="OnGetClipboardClick"/>
+                                <Button Content="⛶" ToolTip.Tip="Full screen (F11)" Click="OnToggleFullScreenClick"/>
                             </StackPanel>
 
-                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Spacing="10">
+                            <WrapPanel Orientation="Horizontal" VerticalAlignment="Center">
                                 <Button x:Name="StreamBtn" Content="▶  Start Viewing" Width="142" HorizontalContentAlignment="Center"
                                         Background="#3B82F6" Foreground="White" FontWeight="SemiBold" Click="OnToggleStream"/>
 
-                                <CheckBox x:Name="ControlCheck" Content="Control + Auto Copy/Paste"
-                                          Margin="6,0,0,0" IsCheckedChanged="OnControlCheckChanged"/>
+                                <CheckBox x:Name="ControlCheck" Content="Control + Copy/Paste" VerticalAlignment="Center" Margin="16,0,10,0" ToolTip.Tip="Send mouse and keyboard. While on, copy/paste works both ways (Ctrl/Cmd+C/V or right-click Copy/Paste)"
+                                          IsCheckedChanged="OnControlCheckChanged"/>
 
-                                <TextBlock Text="FPS:" Foreground="#9CA3AF" VerticalAlignment="Center" Margin="6,0,0,0"/>
-                                <TextBox x:Name="FpsBox" Text="20" Width="46"/>
+                                <TextBlock Text="FPS:" Foreground="#9CA3AF" VerticalAlignment="Center"/>
+                                <TextBox x:Name="FpsBox" Text="60" Width="52" Margin="6,0,10,0" VerticalAlignment="Center"/>
 
-                                <TextBlock Text="Quality:" Foreground="#9CA3AF" VerticalAlignment="Center" Margin="6,0,0,0"/>
-                                <TextBox x:Name="QualityBox" Text="65" Width="46"/>
+                                <TextBlock Text="Quality:" Foreground="#9CA3AF" VerticalAlignment="Center"/>
+                                <TextBox x:Name="QualityBox" Text="80" Width="52" Margin="6,0,10,0" VerticalAlignment="Center"/>
 
-                                <TextBlock Text="Res:" Foreground="#9CA3AF" VerticalAlignment="Center" Margin="6,0,0,0"/>
-                                <ComboBox x:Name="ScaleBox" Width="118" SelectedIndex="0">
-                                    <ComboBoxItem Content="1080p (Fast)" Tag="1920"/>
-                                    <ComboBoxItem Content="720p (Ultra)" Tag="1280"/>
-                                    <ComboBoxItem Content="Native (Full)" Tag="0"/>
+                                <TextBlock Text="Res:" Foreground="#9CA3AF" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                                <ComboBox x:Name="ScaleBox" Width="160" SelectedIndex="0" VerticalAlignment="Center">
+                                    <ComboBoxItem Content="Native (sharpest)" Tag="0"/>
+                                    <ComboBoxItem Content="1080p (faster)" Tag="1920"/>
+                                    <ComboBoxItem Content="720p (fastest)" Tag="1280"/>
                                 </ComboBox>
-                            </StackPanel>
+                            </WrapPanel>
                         </DockPanel>
                     </Border>
 
                     <Border x:Name="ScreenCanvasBorder" Background="#07090D" BorderBrush="#282F40" BorderThickness="1" CornerRadius="12" ClipToBounds="True">
                         <Grid>
-                            <Image x:Name="ScreenImage" Stretch="Uniform" Focusable="True"
+                            <Image x:Name="ScreenImage" Stretch="Uniform" Focusable="True" RenderOptions.BitmapInterpolationMode="HighQuality"
                                    PointerMoved="OnScreenPointerMoved"
                                    PointerPressed="OnScreenPointerPressed"
                                    PointerReleased="OnScreenPointerReleased"
                                    PointerWheelChanged="OnScreenPointerWheelChanged"
                                    KeyDown="OnScreenKeyDown"
                                    KeyUp="OnScreenKeyUp"/>
+
+                            <!-- Stream status -->
+                            <Border HorizontalAlignment="Left" VerticalAlignment="Bottom" Margin="12" Background="#B3202020" CornerRadius="10" Padding="10,3,10,4" IsHitTestVisible="False">
+                                <TextBlock x:Name="StreamStatus" Text="Idle — not streaming" FontSize="12" Foreground="#CCFFFFFF"/>
+                            </Border>
+
+                            <!-- Remote pointer (view-only mode) -->
+                            <Canvas x:Name="CursorLayer" IsHitTestVisible="False" ClipToBounds="True">
+                                <Image x:Name="RemoteCursorImage" IsVisible="False"/>
+                            </Canvas>
 
                             <!-- Floating HUD in Full Screen Mode -->
                             <Border x:Name="FullscreenHud" IsVisible="False" HorizontalAlignment="Right" VerticalAlignment="Top"
