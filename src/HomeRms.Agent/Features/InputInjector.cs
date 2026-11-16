@@ -64,16 +64,29 @@ public static class InputInjector
 
     private static void SendKey(ushort vk, bool down)
     {
+        var scan = (ushort)MapVirtualKey(vk, 0);
+        uint flags = down ? 0u : KEYEVENTF_KEYUP;
+        if (IsExtendedKey(vk))
+            flags |= KEYEVENTF_EXTENDEDKEY;
+
         var input = new INPUT
         {
             type = INPUT_KEYBOARD,
             U = new InputUnion
             {
-                ki = new KEYBDINPUT { wVk = vk, wScan = 0, dwFlags = down ? 0u : KEYEVENTF_KEYUP, time = 0, dwExtraInfo = IntPtr.Zero }
+                ki = new KEYBDINPUT { wVk = vk, wScan = scan, dwFlags = flags, time = 0, dwExtraInfo = IntPtr.Zero }
             }
         };
         SendInput(1, new[] { input }, Marshal.SizeOf<INPUT>());
     }
+
+    private static bool IsExtendedKey(ushort vk) => vk is
+        0x21 or 0x22 or 0x23 or 0x24 or // PageUp, PageDown, End, Home
+        0x25 or 0x26 or 0x27 or 0x28 or // Arrow keys
+        0x2D or 0x2E or                 // Insert, Delete
+        0x5B or 0x5C or 0x5D or         // LWin, RWin, Apps
+        0xA3 or 0xA5 or                 // RCtrl, RAlt
+        0x6F;                           // Numpad Divide
 
     // --- interop ---
     private const int INPUT_MOUSE = 0;
@@ -88,7 +101,11 @@ public static class InputInjector
     private const uint MOUSEEVENTF_WHEEL = 0x0800;
     private const uint MOUSEEVENTF_ABSOLUTE = 0x8000;
     private const uint MOUSEEVENTF_VIRTUALDESK = 0x4000;
+    private const uint KEYEVENTF_EXTENDEDKEY = 0x0001;
     private const uint KEYEVENTF_KEYUP = 0x0002;
+
+    [DllImport("user32.dll")]
+    private static extern uint MapVirtualKey(uint uCode, uint uMapType);
 
     [StructLayout(LayoutKind.Sequential)]
     private struct MOUSEINPUT { public int dx; public int dy; public int mouseData; public uint dwFlags; public uint time; public IntPtr dwExtraInfo; }

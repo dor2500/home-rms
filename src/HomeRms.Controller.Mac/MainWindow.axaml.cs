@@ -75,7 +75,7 @@ public partial class MainWindow : Window
     // ---------------- Navigation ----------------
     private void OnNavTabChanged(object? sender, RoutedEventArgs e)
     {
-        if (InventoryPanel is null || DesktopPanel is null || ShellPanel is null || DeployPanel is null || SystemPanel is null) return;
+        if (InventoryPanel is null || DesktopPanel is null || ShellPanel is null || DeployPanel is null || UpdatesPanel is null || SystemPanel is null) return;
 
         if (_isFullScreen && NavDesktop.IsChecked != true)
             SetFullScreen(false);
@@ -84,8 +84,75 @@ public partial class MainWindow : Window
         DesktopPanel.IsVisible = NavDesktop.IsChecked == true;
         ShellPanel.IsVisible = NavShell.IsChecked == true;
         DeployPanel.IsVisible = NavDeploy.IsChecked == true;
+        UpdatesPanel.IsVisible = NavUpdates.IsChecked == true;
         SystemPanel.IsVisible = NavSystem.IsChecked == true;
+        if (NavUpdates.IsChecked == true && UpdatesRowsList.ItemsSource is null && _conn is not null)
+            _ = RunUpdatesActionAsync("status");
         if (NavSystem.IsChecked == true && _sysArea is null) InitSystemPanel();
+    }
+
+    // ---------------- Dedicated Windows Update Tab ----------------
+    private SystemCatalog.Table _updatesTable = SystemCatalog.Table.Empty;
+
+    private async void OnUpdateOpClick(object? sender, RoutedEventArgs e)
+    {
+        if (sender is Button { Tag: string actionId })
+            await RunUpdatesActionAsync(actionId);
+    }
+
+    private async Task RunUpdatesActionAsync(string actionId)
+    {
+        if (_conn is null && !await ConnectToCurrentFieldsAsync()) return;
+
+        var area = SystemCatalog.Find("updates");
+        var action = area?.Actions.FirstOrDefault(a => a.Id == actionId);
+        if (action is null) return;
+
+        var target = (UpdateKbBox.Text ?? "").Trim();
+        var extra = (UpdateDaysBox.Text ?? "").Trim();
+
+        if (action.NeedsTarget && string.IsNullOrWhiteSpace(target))
+        {
+            UpdatesMessageText.Text = "Enter a KB number (e.g. KB5030211) or select a pending update row below first.";
+            UpdatesMessageText.Foreground = new SolidColorBrush(Color.FromRgb(251, 191, 36));
+            return;
+        }
+
+        if (action.Dangerous && !ConfirmDangerous(action, target))
+            return;
+
+        try
+        {
+            UpdatesMessageText.Text = $"Running updates/{actionId}…";
+            UpdatesMessageText.Foreground = new SolidColorBrush(Color.FromRgb(156, 163, 175));
+            var res = await _conn!.Client.SystemOpAsync(
+                new SystemOpRequest { Area = "updates", Action = actionId, Target = target, Extra = extra },
+                deadline: DateTime.UtcNow.AddMinutes(action.LongRunning ? 50 : 2.2));
+
+            UpdatesAdminText.Text = res.IsElevated ? "🛡 Agent: Administrator" : "⚠ Agent: Standard User (--elevate needed)";
+            UpdatesAdminBadge.Background = new SolidColorBrush(res.IsElevated ? Color.FromArgb(40, 34, 197, 94) : Color.FromArgb(40, 245, 158, 11));
+            UpdatesAdminText.Foreground = new SolidColorBrush(res.IsElevated ? Color.FromRgb(74, 222, 128) : Color.FromRgb(251, 191, 36));
+
+            _updatesTable = SystemCatalog.ParseTable(res.JsonData);
+            UpdatesHeaderText.Text = _updatesTable.Columns.Count == 0 ? "" : _updatesTable.FormatHeader();
+            UpdatesRowsList.ItemsSource = _updatesTable.Rows.Select(_updatesTable.FormatRow).ToList();
+
+            UpdatesMessageText.Text = (res.Success ? "✔ " : "✖ ") + res.Message;
+            UpdatesMessageText.Foreground = new SolidColorBrush(res.Success ? Color.FromRgb(74, 222, 128) : Color.FromRgb(248, 113, 113));
+        }
+        catch (Exception ex)
+        {
+            UpdatesMessageText.Text = "✖ " + Short(ex);
+            UpdatesMessageText.Foreground = new SolidColorBrush(Color.FromRgb(248, 113, 113));
+        }
+    }
+
+    private void OnUpdatesRowSelected(object? sender, SelectionChangedEventArgs e)
+    {
+        var i = UpdatesRowsList.SelectedIndex;
+        if (i < 0 || i >= _updatesTable.Rows.Count) return;
+        var target = SystemCatalog.TargetFromRow("updates", _updatesTable.Rows[i]);
+        if (target.Length > 0) UpdateKbBox.Text = target;
     }
 
     // ---------------- System Control ----------------
@@ -96,13 +163,14 @@ public partial class MainWindow : Window
     private void InitSystemPanel()
     {
         SystemAreaPanel.Children.Clear();
-        foreach (var area in SystemCatalog.Areas)
+        var otherAreas = SystemCatalog.Areas.Where(a => a.Id != "updates").ToList();
+        foreach (var area in otherAreas)
         {
             var b = new Button { Content = area.Title, Tag = area, Margin = new Thickness(0, 0, 8, 6) };
             b.Click += (_, _) => SelectSystemArea(area);
             SystemAreaPanel.Children.Add(b);
         }
-        SelectSystemArea(SystemCatalog.Areas[0]);
+        SelectSystemArea(otherAreas[0]);
     }
 
     private void SelectSystemArea(SystemArea area)
@@ -225,11 +293,28 @@ public partial class MainWindow : Window
             if (NavDesktop.IsChecked != true)
                 NavDesktop.IsChecked = true;
             SetFullScreen(!_isFullScreen);
+            return;
         }
-        else if (e.Key == Key.Escape && _isFullScreen)
+        if (e.Key == Key.Escape && _isFullScreen)
         {
             e.Handled = true;
             SetFullScreen(false);
+            return;
+        }
+
+        if (NavDesktop.IsChecked == true && _inputCall is not null &&
+            FocusManager?.GetFocusedElement() is not TextBox)
+        {
+            OnScreenKeyDown(sender, e);
+        }
+    }
+
+    private void OnWindowKeyUp(object? sender, KeyEventArgs e)
+    {
+        if (NavDesktop.IsChecked == true && _inputCall is not null &&
+            FocusManager?.GetFocusedElement() is not TextBox)
+        {
+            OnScreenKeyUp(sender, e);
         }
     }
 
@@ -758,8 +843,8 @@ public partial class MainWindow : Window
         var quality = int.TryParse(QualityBox.Text, out var q) ? Math.Clamp(q, 20, 95) : 65;
         var maxWidth = ScaleBox.SelectedItem is ComboBoxItem { Tag: string ts } && int.TryParse(ts, out var mw) ? mw : 1920;
 
-        byte[]? latestFrame = null;
-        int latestW = 0, latestH = 0;
+        Bitmap? latestImg = null;
+        int latestW = 0, latestH = 0, latestKb = 0;
         int uiPending = 0;
         var fpsSw = Stopwatch.StartNew();
         int fpsCount = 0;
@@ -780,7 +865,12 @@ public partial class MainWindow : Window
                 _frameHeight = frame.Height;
                 latestW = frame.Width;
                 latestH = frame.Height;
-                Interlocked.Exchange(ref latestFrame, frame.Jpeg.ToByteArray());
+
+                var bytes = frame.Jpeg.ToByteArray();
+                latestKb = bytes.Length / 1024;
+                using var ms = new MemoryStream(bytes);
+                var decoded = new Bitmap(ms);
+                Interlocked.Exchange(ref latestImg, decoded)?.Dispose();
 
                 fpsCount++;
                 if (fpsSw.ElapsedMilliseconds >= 1000)
@@ -796,15 +886,14 @@ public partial class MainWindow : Window
                     {
                         try
                         {
-                            var bytes = Interlocked.Exchange(ref latestFrame, null);
-                            if (bytes is not null)
+                            var img = Interlocked.Exchange(ref latestImg, null);
+                            if (img is not null)
                             {
                                 DesktopOverlay.IsVisible = false;
-                                var statusLine = $"LIVE  •  {currentFps:0.0} FPS  •  {latestW}×{latestH}  •  {bytes.Length / 1024} KB";
+                                var statusLine = $"LIVE  •  {currentFps:0.0} FPS  •  {latestW}×{latestH}  •  {latestKb} KB";
                                 StreamStatus.Text = statusLine;
                                 FullscreenHudText.Text = $"{_agentInfo?.MachineName}  •  {statusLine}";
-                                using var ms = new MemoryStream(bytes);
-                                ScreenImage.Source = new Bitmap(ms);
+                                ScreenImage.Source = img;
                             }
                         }
                         finally

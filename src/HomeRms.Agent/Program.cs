@@ -71,6 +71,9 @@ internal static class Program
         using var discovery = new DiscoveryResponder(port, log);
         discovery.Start();
 
+        using var updater = new AgentUpdater(log, args);
+        updater.Start();
+
         log.Write("[agent] started (PKI certificates synced)");
         Application.Run(new TrayApplicationContext(consent, log, port, autoConsent, screenshotPath, showWindow));
 
