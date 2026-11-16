@@ -1054,6 +1054,7 @@ public partial class MainWindow : Window
         _ = PumpInputAsync(_inputCall, _inputChannel);
         ScreenImage.Focus();
         UpdateRemoteCursor();
+        StartClipboardSync();
     }
 
     private static async Task PumpInputAsync(
@@ -1075,6 +1076,7 @@ public partial class MainWindow : Window
         _inputCall = null;
         if (call is not null)
             _ = Task.Run(async () => { try { await call.RequestStream.CompleteAsync(); await call; } catch { } });
+        StopClipboardSync();
         UpdateRemoteCursor();
     }
 
@@ -1184,7 +1186,7 @@ public partial class MainWindow : Window
                     var remoteClip = await _conn.Client.GetClipboardAsync(new Empty(),
                         deadline: DateTime.UtcNow.AddSeconds(3));
                     if (!string.IsNullOrEmpty(remoteClip.Text))
-                        Dispatcher.Invoke(() => { try { Clipboard.SetText(remoteClip.Text); } catch { } });
+                        Dispatcher.Invoke(() => SetLocalClipboardFromRemote(remoteClip.Text));
                 }
                 catch { }
             });
@@ -1225,7 +1227,7 @@ public partial class MainWindow : Window
             var res = await _conn!.Client.GetClipboardAsync(new Empty(),
                 deadline: DateTime.UtcNow.AddSeconds(5));
             if (!string.IsNullOrEmpty(res.Text))
-                Clipboard.SetText(res.Text);
+                SetLocalClipboardFromRemote(res.Text);
             StatusText.Text = $"Copied clipboard from {_agentInfo?.MachineName} ({res.Text.Length} chars).";
         }
         catch (Exception ex)

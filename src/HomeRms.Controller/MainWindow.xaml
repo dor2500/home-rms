@@ -395,7 +395,7 @@
                                     <Border Style="{StaticResource ToolbarDivider}"/>
 
                                     <CheckBox x:Name="ControlCheck" Content="Control" Style="{StaticResource ToggleSwitch}"
-                                              ToolTip="Send mouse and keyboard to the remote PC, with automatic copy and paste"
+                                              ToolTip="Send mouse and keyboard to the remote PC. While on, copy/paste works both ways — Ctrl+C/Ctrl+V or right-click → Copy/Paste"
                                               Checked="OnControlCheckChanged" Unchecked="OnControlCheckChanged"/>
 
                                     <Border Style="{StaticResource ToolbarDivider}"/>

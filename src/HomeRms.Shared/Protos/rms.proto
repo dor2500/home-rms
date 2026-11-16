@@ -36,6 +36,8 @@ service RemoteManagement {
   // --- Bidirectional clipboard sync (Copy/Paste between Controller and Agent). ---
   rpc GetClipboard (Empty) returns (ClipboardData);
   rpc SetClipboard (ClipboardData) returns (ClipboardAck);
+  // Live remote->operator clipboard: a message every time text is copied on the remote PC (needs an active grant)
+  rpc WatchClipboard (Empty) returns (stream ClipboardData);
 
   // --- System control: Windows Update, services, startup, scheduled tasks, power,
   // registry, firewall and general settings. Allowlisted actions only; every call is

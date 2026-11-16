@@ -498,9 +498,58 @@ public sealed class RemoteManagementService(ConsentCoordinator consent, Activity
             return true;
         });
 
+        if (ok) Volatile.Write(ref _lastClipboardFromOperator, text);
         log.Write($"[clipboard] '{op}' pasted clipboard text to this computer ({text.Length} chars)");
         return Task.FromResult(new ClipboardAck { Success = ok });
     }
+
+    // Text the operator last put on this PC's clipboard — not echoed back by WatchClipboard
+    private static string? _lastClipboardFromOperator;
+
+    /// <summary>
+    /// Live clipboard: sends text to the operator every time something is copied on this PC
+    /// (Ctrl+C, right-click → Copy, any app). Only while the operator holds an active grant;
+    /// every transfer is written to the visible activity log.
+    /// </summary>
+    public override async Task WatchClipboard(Empty request, IServerStreamWriter<ClipboardData> responseStream, ServerCallContext context)
+    {
+        var op = OperatorOf(context);
+        if (!consent.HasActiveGrant(op))
+            throw new RpcException(new Status(StatusCode.PermissionDenied, "No active grant. Start screen sharing first."));
+
+        log.Write($"[clipboard] live copy/paste sync started for '{op}'");
+        var lastSeq = GetClipboardSequenceNumber();
+        string? lastSent = null;
+        try
+        {
+            while (!context.CancellationToken.IsCancellationRequested && consent.HasActiveGrant(op))
+            {
+                await Task.Delay(250, context.CancellationToken);
+
+                var seq = GetClipboardSequenceNumber();
+                if (seq == lastSeq) continue;
+                lastSeq = seq;
+
+                var text = RunSta(() => Clipboard.ContainsText() ? Clipboard.GetText() : null);
+                if (string.IsNullOrEmpty(text) || text == lastSent || text == Volatile.Read(ref _lastClipboardFromOperator))
+                    continue;
+                if (text.Length > 1024 * 1024)
+                    text = text[..(1024 * 1024)];
+
+                lastSent = text;
+                await responseStream.WriteAsync(new ClipboardData { Text = text });
+                log.Write($"[clipboard] text copied on this computer was sent to '{op}' ({text.Length} chars)");
+            }
+        }
+        catch (OperationCanceledException) { }
+        finally
+        {
+            log.Write($"[clipboard] live copy/paste sync ended for '{op}'");
+        }
+    }
+
+    [System.Runtime.InteropServices.DllImport("user32.dll")]
+    private static extern uint GetClipboardSequenceNumber();
 
     public override async Task<SystemOpResult> SystemOp(SystemOpRequest request, ServerCallContext context)
     {
