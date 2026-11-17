@@ -130,9 +130,10 @@ Requires the **.NET 9 SDK** on Windows 10/11.
 # Compile the entire solution in Release mode
 dotnet build HomeRms.sln -c Release
 
-# Publish standalone single-file Windows Release executables into ./dist
-dotnet publish src/HomeRms.Agent/HomeRms.Agent.csproj -c Release -r win-x64 --self-contained false -p:PublishSingleFile=true -o dist
-dotnet publish src/HomeRms.Controller/HomeRms.Controller.csproj -c Release -r win-x64 --self-contained false -p:PublishSingleFile=true -o dist
+# Publish standalone self-contained single-file Windows Release executables (includes .NET 9 runtime) into ./dist
+dotnet publish src/HomeRms.Agent/HomeRms.Agent.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -o dist
+dotnet publish src/HomeRms.Controller/HomeRms.Controller.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -o dist
+dotnet publish src/HomeRms.Controller.Setup/HomeRms.Controller.Setup.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -o dist
 
 # Package self-contained macOS Controller .app bundles (Apple Silicon arm64 & Intel x64) into ./dist
 ./tools/Package-MacController.ps1
