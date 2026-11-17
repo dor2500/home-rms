@@ -18,6 +18,8 @@
         <Border x:Name="TopBarBorder" Grid.Row="0" Background="#10131D" BorderBrush="#23293B" BorderThickness="0,0,0,1" Padding="18,11">
             <DockPanel>
                 <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center" Spacing="10">
+                    <Button x:Name="UpdateBtn" Content="↻ Updates" FontSize="11.5" Padding="10,5"
+                            Click="OnCheckOrApplyUpdateClick"/>
                     <Border Background="#131824" BorderBrush="#23293B" BorderThickness="1" CornerRadius="8" Padding="11,6" VerticalAlignment="Center">
                         <TextBlock Text="🔒 mTLS PKI" FontSize="11.5" FontWeight="SemiBold" Foreground="#94A3B8"/>
                     </Border>

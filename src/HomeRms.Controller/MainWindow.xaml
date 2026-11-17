@@ -17,38 +17,38 @@
         <!-- ==================== TOP GLOBAL COMMAND BAR ==================== -->
         <Border x:Name="TopBarBorder" Grid.Row="0" Background="{StaticResource SurfaceBrush}"
                 BorderBrush="{StaticResource LineBrush}" BorderThickness="0,0,0,1" Padding="18,11">
-            <DockPanel>
+            <DockPanel LastChildFill="True">
                 <!-- Right Action Cluster -->
-                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
-                    <Button x:Name="UpdateBtn" Content="↻ Check Updates" Style="{StaticResource SmallPillButton}"
-                            Margin="0,0,10,0" ToolTip="Check GitHub Releases (dor2500/home-rms) for updates"
+                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center" Margin="12,0,0,0">
+                    <Button x:Name="UpdateBtn" Content="↻ Updates" Style="{StaticResource SmallPillButton}"
+                            Margin="0,0,8,0" ToolTip="Check GitHub Releases (dor2500/home-rms) for updates"
                             Click="OnCheckOrApplyUpdateClick"/>
                     <Border Background="#131824" BorderBrush="{StaticResource LineBrush}" BorderThickness="1"
-                            CornerRadius="8" Padding="11,6" Margin="0,0,10,0" VerticalAlignment="Center">
-                        <TextBlock Text="🔒 mTLS PKI" FontSize="11.5" FontWeight="SemiBold" Foreground="{StaticResource MutedBrush}"/>
+                            CornerRadius="8" Padding="10,6" Margin="0,0,8,0" VerticalAlignment="Center">
+                        <TextBlock Text="🔒 mTLS" FontSize="11.5" FontWeight="SemiBold" Foreground="{StaticResource MutedBrush}"/>
                     </Border>
                     <Button x:Name="ProbeBtn" Content="↻ Scan LAN" Style="{StaticResource GhostButton}"
-                            Padding="12,7" Margin="0,0,10,0" Click="OnProbeMachinesClick"/>
-                    <Button x:Name="ConnectBtn" Content="Connect" Width="128"
+                            Padding="11,7" Margin="0,0,8,0" Click="OnProbeMachinesClick"/>
+                    <Button x:Name="ConnectBtn" Content="Connect" Width="118"
                             Style="{StaticResource PrimaryButton}" Click="OnConnectClick"/>
                 </StackPanel>
 
                 <!-- Left Brand + Active Machine Switcher -->
-                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                    <Image Source="Assets/controller.png" Width="34" Height="34" Margin="0,0,12,0"
+                <StackPanel DockPanel.Dock="Left" Orientation="Horizontal" VerticalAlignment="Center">
+                    <Image Source="Assets/controller.png" Width="34" Height="34" Margin="0,0,10,0"
                            RenderOptions.BitmapScalingMode="HighQuality"/>
-                    <StackPanel VerticalAlignment="Center" Margin="0,0,22,0">
+                    <StackPanel VerticalAlignment="Center" Margin="0,0,16,0">
                         <TextBlock Text="HOME RMS" FontSize="14.5" FontWeight="Bold"/>
                         <TextBlock Text="Fleet Command" FontSize="10.5" Foreground="{StaticResource MutedBrush}"/>
                     </StackPanel>
 
                     <!-- Machine Selector Pill -->
                     <Border Background="{StaticResource FieldBrush}" BorderBrush="{StaticResource LineBrush}"
-                            BorderThickness="1" CornerRadius="9" Padding="10,4" Margin="0,0,12,0">
+                            BorderThickness="1" CornerRadius="9" Padding="9,4" Margin="0,0,10,0">
                         <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                             <TextBlock Text="Target:" FontSize="11.5" Foreground="{StaticResource MutedBrush}"
-                                       VerticalAlignment="Center" Margin="0,0,8,0"/>
-                            <ComboBox x:Name="MachineSwitcher" Width="230" Background="Transparent"
+                                       VerticalAlignment="Center" Margin="0,0,6,0"/>
+                            <ComboBox x:Name="MachineSwitcher" Width="185" Background="Transparent"
                                       Foreground="{StaticResource TextBrush}" BorderThickness="0"
                                       DisplayMemberPath="DisplayTitle"
                                       SelectionChanged="OnMachineSwitcherChanged"/>
@@ -56,16 +56,17 @@
                     </Border>
 
                     <Border x:Name="ConnBadgeBorder" Background="#256B7280" CornerRadius="7"
-                            Padding="10,4" Margin="0,0,12,0" VerticalAlignment="Center">
+                            Padding="9,4" Margin="0,0,10,0" VerticalAlignment="Center">
                         <TextBlock x:Name="ConnBadgeText" Text="Disconnected" FontSize="11"
                                    FontWeight="SemiBold" Foreground="{StaticResource MutedBrush}"/>
                     </Border>
+                </StackPanel>
 
-                    <StackPanel VerticalAlignment="Center">
-                        <TextBlock x:Name="TargetTitleText" Text="No active session" FontSize="13" FontWeight="SemiBold"/>
-                        <TextBlock x:Name="StatusText" Text="Select a machine in Fleet or Scan LAN to connect."
-                                   FontSize="11" Foreground="{StaticResource MutedBrush}" MaxWidth="360" TextTrimming="CharacterEllipsis"/>
-                    </StackPanel>
+                <!-- Center Status (fills remaining space cleanly without ever overlapping buttons) -->
+                <StackPanel VerticalAlignment="Center">
+                    <TextBlock x:Name="TargetTitleText" Text="No active session" FontSize="13" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"/>
+                    <TextBlock x:Name="StatusText" Text="Select a machine in Fleet or Scan LAN to connect."
+                               FontSize="11" Foreground="{StaticResource MutedBrush}" TextTrimming="CharacterEllipsis"/>
                 </StackPanel>
             </DockPanel>
         </Border>
@@ -227,37 +228,37 @@
 
                 <!-- ==================== 2. REMOTE DESKTOP VIEW ==================== -->
                 <DockPanel x:Name="DesktopPanel" Visibility="Collapsed">
-                    <Border x:Name="DesktopToolbarBorder" DockPanel.Dock="Top" Style="{StaticResource CardStyle}" Padding="14,10" Margin="0,0,0,12">
+                    <Border x:Name="DesktopToolbarBorder" DockPanel.Dock="Top" Style="{StaticResource CardStyle}" Padding="12,10" Margin="0,0,0,12">
                         <DockPanel>
-                            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
+                            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center" Margin="10,0,0,0">
                                 <Button Content="📋 Paste" Style="{StaticResource SmallPillButton}" Margin="0,0,6,0" Click="OnSendClipboardClick"/>
-                                <Button Content="📥 Copy" Style="{StaticResource SmallPillButton}" Margin="0,0,10,0" Click="OnGetClipboardClick"/>
+                                <Button Content="📥 Copy" Style="{StaticResource SmallPillButton}" Margin="0,0,8,0" Click="OnGetClipboardClick"/>
                                 <Border Background="#0B0D14" BorderBrush="{StaticResource LineBrush}" BorderThickness="1"
-                                        CornerRadius="7" Padding="10,5" Margin="0,0,10,0">
+                                        CornerRadius="7" Padding="9,5" Margin="0,0,8,0">
                                     <TextBlock x:Name="StreamStatus" Text="Idle" FontSize="11.5" Foreground="{StaticResource MutedBrush}"/>
                                 </Border>
-                                <Button x:Name="FullScreenBtn" Content="⛶ Full Screen (F11)" Style="{StaticResource GhostButton}" Padding="11,6" Click="OnToggleFullScreenClick"/>
+                                <Button x:Name="FullScreenBtn" Content="⛶ Full Screen (F11)" Style="{StaticResource GhostButton}" Padding="10,6" Click="OnToggleFullScreenClick"/>
                             </StackPanel>
 
-                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                <Button x:Name="StreamBtn" Content="▶ Start Stream" Width="136" Style="{StaticResource PrimaryButton}" Padding="12,7" Click="OnToggleStream"/>
-                                <CheckBox x:Name="ControlCheck" Content="Control + Copy/Paste" Margin="14,0,0,0" Checked="OnControlCheckChanged" Unchecked="OnControlCheckChanged"/>
-                                <Border Width="1" Height="20" Background="{StaticResource LineBrush}" Margin="14,0"/>
-                                <TextBlock Text="FPS:" Foreground="{StaticResource MutedBrush}" VerticalAlignment="Center" Margin="0,0,5,0"/>
-                                <TextBox x:Name="FpsBox" Text="20" Width="40" Margin="0,0,10,0"/>
-                                <TextBlock Text="Quality:" Foreground="{StaticResource MutedBrush}" VerticalAlignment="Center" Margin="0,0,5,0"/>
-                                <TextBox x:Name="QualityBox" Text="65" Width="40" Margin="0,0,10,0"/>
-                                <ComboBox x:Name="ScaleBox" Width="114" SelectedIndex="0" Margin="0,0,8,0" Background="#0C0F17" Foreground="#F8FAFC" BorderBrush="#23293B">
+                            <WrapPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                <Button x:Name="StreamBtn" Content="▶ Start Stream" Width="126" Style="{StaticResource PrimaryButton}" Padding="10,7" Click="OnToggleStream"/>
+                                <CheckBox x:Name="ControlCheck" Content="Control" Margin="12,0,0,0" Checked="OnControlCheckChanged" Unchecked="OnControlCheckChanged"/>
+                                <Border Width="1" Height="20" Background="{StaticResource LineBrush}" Margin="12,0"/>
+                                <TextBlock Text="FPS:" Foreground="{StaticResource MutedBrush}" VerticalAlignment="Center" Margin="0,0,4,0"/>
+                                <TextBox x:Name="FpsBox" Text="20" Width="38" Margin="0,0,8,0"/>
+                                <TextBlock Text="Q:" Foreground="{StaticResource MutedBrush}" VerticalAlignment="Center" Margin="0,0,4,0"/>
+                                <TextBox x:Name="QualityBox" Text="65" Width="38" Margin="0,0,8,0"/>
+                                <ComboBox x:Name="ScaleBox" Width="106" SelectedIndex="0" Margin="0,0,6,0" Background="#0C0F17" Foreground="#F8FAFC" BorderBrush="#23293B">
                                     <ComboBoxItem Content="1080p (Fast)" Tag="1920"/>
                                     <ComboBoxItem Content="720p (Ultra)" Tag="1280"/>
-                                    <ComboBoxItem Content="Native (Full)" Tag="0"/>
+                                    <ComboBoxItem Content="Native" Tag="0"/>
                                 </ComboBox>
-                                <ComboBox x:Name="UpscaleBox" Width="92" SelectedIndex="0" SelectionChanged="OnUpscaleModeChanged" Background="#0C0F17" Foreground="#F8FAFC" BorderBrush="#23293B">
+                                <ComboBox x:Name="UpscaleBox" Width="76" SelectedIndex="0" SelectionChanged="OnUpscaleModeChanged" Background="#0C0F17" Foreground="#F8FAFC" BorderBrush="#23293B">
                                     <ComboBoxItem Content="Sharp+" Tag="cas"/>
                                     <ComboBoxItem Content="Sharp" Tag="bicubic"/>
                                     <ComboBoxItem Content="Off" Tag="none"/>
                                 </ComboBox>
-                            </StackPanel>
+                            </WrapPanel>
                         </DockPanel>
                     </Border>
 

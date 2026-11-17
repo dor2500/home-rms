@@ -73,8 +73,62 @@ public partial class MainWindow : Window
             "Select any .exe, .msi, .msp, or .ps1 file above to stream it over mTLS and install it silently on the remote Windows computer.\r\n" +
             "--------------------------------------------------------------------------------------------------------------------\r\n";
 
-        Opened += async (_, _) => await ProbeAllMachinesAsync();
+        Opened += async (_, _) =>
+        {
+            await ProbeAllMachinesAsync();
+            _ = CheckGitHubUpdateInBackgroundAsync();
+        };
         Closed += (_, _) => Disconnect();
+    }
+
+    private string? _pendingUpdateTag;
+
+    private async Task CheckGitHubUpdateInBackgroundAsync()
+    {
+        try
+        {
+            await Task.Delay(2500);
+            var ver = typeof(MainWindow).Assembly.GetName().Version ?? new Version(1, 0, 0);
+            var cur = new Version(ver.Major, ver.Minor, ver.Build);
+            using var http = new System.Net.Http.HttpClient { Timeout = TimeSpan.FromSeconds(10) };
+            http.DefaultRequestHeaders.UserAgent.ParseAdd("HomeRmsControllerMac-Updater/1.0");
+            var json = await http.GetStringAsync("https://api.github.com/repos/dor2500/home-rms/releases/latest");
+            using var doc = System.Text.Json.JsonDocument.Parse(json);
+            var tag = doc.RootElement.TryGetProperty("tag_name", out var t) ? t.GetString() ?? "" : "";
+            var clean = tag.Trim().TrimStart('v', 'V').Split('-')[0];
+            if (Version.TryParse(clean, out var remote) && remote > cur)
+            {
+                _pendingUpdateTag = tag;
+                UpdateBtn.Content = $"⬇ Update {tag}";
+                UpdateBtn.Background = new SolidColorBrush(Color.FromRgb(16, 185, 129));
+                UpdateBtn.Foreground = Brushes.White;
+            }
+            else
+            {
+                UpdateBtn.Content = $"v{cur} ✓";
+            }
+        }
+        catch { }
+    }
+
+    private void OnCheckOrApplyUpdateClick(object? sender, RoutedEventArgs e)
+    {
+        if (_pendingUpdateTag is not null)
+        {
+            try
+            {
+                Process.Start(new ProcessStartInfo
+                {
+                    FileName = "https://github.com/dor2500/home-rms/releases/latest",
+                    UseShellExecute = true
+                });
+            }
+            catch { }
+        }
+        else
+        {
+            _ = CheckGitHubUpdateInBackgroundAsync();
+        }
     }
 
     // ---------------- Navigation ----------------

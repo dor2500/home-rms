@@ -1502,6 +1502,12 @@ public partial class MainWindow : Window
 
         await ConnectToCurrentFieldsAsync();
         await Task.Delay(500);
+        NavFleet.IsChecked = true;
+        await Task.Delay(350);
+        SaveWindowPng(Path.Combine(outDir, "controller-fleet.png"));
+
+        NavInventory.IsChecked = true;
+        await Task.Delay(350);
         SaveWindowPng(Path.Combine(outDir, "controller-inventory.png"));
 
         // Switch to Shell tab, run a real PowerShell command, capture screenshot
@@ -1518,6 +1524,11 @@ public partial class MainWindow : Window
         await Task.Delay(1200);
         SaveWindowPng(Path.Combine(outDir, "controller-desktop.png"));
         StopStream();
+
+        // Switch to Settings (Windows 11 Settings UI)
+        NavSystem.IsChecked = true;
+        await Task.Delay(400);
+        SaveWindowPng(Path.Combine(outDir, "controller-settings.png"));
 
         Application.Current.Shutdown(0);
     }

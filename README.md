@@ -14,22 +14,27 @@
 
 ## Visual Tour & Screenshots
 
-### 1. Controller Console — System Inventory & Hardware Dashboard
-Displays saved home computers with live online/offline status probing, hardware summary cards (CPU, RAM, GPU & Display, Storage Volumes), real-time search filtering, installed applications (from the Windows Registry), and active processes sorted by memory usage.
+### 1. Fleet Command Center — Multi-PC Dashboard
+Top Global Command Bar with instant target switching, live ping, GitHub Auto-Updater pill, and a slim 76px icon rail giving 93% of the screen to your workspace.
+
+![Controller — Fleet Overview](docs/screenshots/controller-fleet.png)
+
+### 2. Monitor & System Inventory — Hardware, Apps & Processes
+Displays hardware summary cards (CPU, RAM, GPU, Storage), real-time search filtering, installed applications, and active processes with one-click termination.
 
 ![Controller — System Inventory](docs/screenshots/controller-inventory.png)
 
-### 2. Controller Console — Live Remote Desktop & Input Control
-Streams the remote desktop over gRPC/HTTP2 with configurable target FPS and JPEG quality, letterboxing-aware coordinate mapping, and live mouse/keyboard injection via Win32 `SendInput`.
+### 3. Live Remote Desktop & Input Control
+Streams the remote desktop over gRPC/HTTP2 with GPU Sharp+ upscaling, remote cursor overlay, `1080p/720p/Native` scaling, `F11` Full Screen mode, and bidirectional Copy-Paste.
 
 ![Controller — Remote Desktop](docs/screenshots/controller-desktop.png)
 
-### 3. Controller Console — Interactive Remote PowerShell
-Full bidirectional PowerShell session over Mutual TLS with one-click diagnostic quick-commands (`whoami & hostname`, `IP Configuration`, `Top CPU Processes`, `Disk Volumes`, `Uptime`) and command history (`Up`/`Down` arrows).
+### 4. Interactive Remote PowerShell
+Full bidirectional PowerShell session over Mutual TLS with one-click diagnostic quick-commands and command history (`Up`/`Down` arrows).
 
 ![Controller — Remote PowerShell](docs/screenshots/controller-shell.png)
 
-### 4. Client Agent — Endpoint Monitor & Live Activity Audit Log
+### 5. Client Agent — Endpoint Monitor & Live Activity Audit Log
 Runs in the signed-in user's interactive session with a system tray icon, status cards, active session indicator, one-click **Stop Session** revocation button, and a live timestamped audit log of every remote action.
 
 ![Agent — Endpoint Monitor](docs/screenshots/agent-status.png)
@@ -92,6 +97,28 @@ Unlike covert surveillance tools, **Home RMS** is designed around transparency a
   - **Security model:** every action maps to a *fixed, allowlisted* PowerShell script; user values are strictly validated (regex / ranges) and passed via environment variables, never concatenated into script text. SAM/SECURITY hives are blocked. Every call is written to the agent's audit log. The agent runs **un-elevated by default**; start it with `HomeRmsAgent.exe --elevate` (UAC prompt) to enable system-level changes.
 - **Remote PowerShell (`RemoteManagementService.Shell`):**
   - Spawns an isolated, hidden `powershell.exe` process connected to a gRPC bidirectional stream (`AsyncDuplexStreamingCall`), streaming `stdout` and `stderr` in real time.
+
+---
+
+## One-Line Platform Installation (No Portable Exes Needed)
+
+### Windows Controller (Setup Wizard + GitHub Auto-Update)
+```powershell
+irm https://raw.githubusercontent.com/dor2500/home-rms/master/tools/install-controller.ps1 | iex
+```
+*(Installs to `%LocalAppData%\Programs\HomeRMS\Controller`, creates Start Menu + Desktop shortcuts, registers in Apps & Features, and checks GitHub Releases for updates automatically.)*
+
+### Windows Endpoint Agent (Installs + Windows Startup + Auto-Update)
+```powershell
+irm https://raw.githubusercontent.com/dor2500/home-rms/master/tools/install-agent.ps1 | iex
+```
+*(Installs to `%LocalAppData%\Programs\HomeRMS\Agent`, configures Windows Startup, opens Firewall port `7443`, and auto-updates from GitHub Releases.)*
+
+### macOS Controller (Installs to `/Applications`)
+```bash
+curl -fsSL https://raw.githubusercontent.com/dor2500/home-rms/master/tools/install-mac.sh | bash
+```
+*(Automatically detects Apple Silicon `arm64` or Intel `x64`, installs `HomeRmsController.app` into `/Applications`, clears Gatekeeper quarantine, and launches it.)*
 
 ---
 

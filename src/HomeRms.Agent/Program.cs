@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Reflection;
 using System.Runtime.Versioning;
 using System.Windows.Forms;
 using HomeRms.Agent.Core;
@@ -8,6 +9,7 @@ using HomeRms.Agent.Ui;
 using HomeRms.Shared;
 using HomeRms.Shared.Security;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Win32;
 
 namespace HomeRms.Agent;
 
@@ -17,6 +19,17 @@ internal static class Program
     [STAThread]
     private static void Main(string[] args)
     {
+        if (args.Any(a => string.Equals(a, "--install", StringComparison.OrdinalIgnoreCase)))
+        {
+            InstallAgent(args);
+            return;
+        }
+        if (args.Any(a => string.Equals(a, "--uninstall", StringComparison.OrdinalIgnoreCase)))
+        {
+            UninstallAgent();
+            return;
+        }
+
         // Opt-in elevation: "HomeRmsAgent.exe --elevate" relaunches itself via the UAC prompt so
         // system-level controls (services, Windows Update, registry HKLM...) work. By default the
         // agent stays un-elevated (least privilege).
@@ -130,5 +143,66 @@ internal static class Program
             if (string.Equals(args[i], flag, StringComparison.OrdinalIgnoreCase))
                 return args[i + 1];
         return null;
+    }
+
+    private static void InstallAgent(string[] args)
+    {
+        var silent = args.Any(a => a is "--silent" or "/S");
+        var installDir = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+            "Programs", "HomeRMS", "Agent");
+        var targetExe = Path.Combine(installDir, "HomeRmsAgent.exe");
+
+        foreach (var p in Process.GetProcessesByName("HomeRmsAgent"))
+        {
+            if (p.Id != Environment.ProcessId)
+                try { p.Kill(); p.WaitForExit(3000); } catch { }
+        }
+
+        Directory.CreateDirectory(installDir);
+        var srcExe = Environment.ProcessPath!;
+        if (!string.Equals(srcExe, targetExe, StringComparison.OrdinalIgnoreCase))
+            File.Copy(srcExe, targetExe, overwrite: true);
+
+        // Register Windows Startup (Run at sign-in)
+        using (var runKey = Registry.CurrentUser.CreateSubKey(@"Software\Microsoft\Windows\CurrentVersion\Run"))
+            runKey.SetValue("HomeRmsAgent", $"\"{targetExe}\"");
+
+        // Register in Apps & Features
+        var ver = Assembly.GetExecutingAssembly().GetName().Version;
+        var verStr = ver is not null ? $"{ver.Major}.{ver.Minor}.{ver.Build}" : "1.2.0";
+        using (var uninst = Registry.CurrentUser.CreateSubKey(@"Software\Microsoft\Windows\CurrentVersion\Uninstall\HomeRmsAgent"))
+        {
+            uninst.SetValue("DisplayName", "Home RMS Endpoint Agent");
+            uninst.SetValue("DisplayVersion", verStr);
+            uninst.SetValue("Publisher", "Home RMS (dor2500)");
+            uninst.SetValue("DisplayIcon", targetExe);
+            uninst.SetValue("InstallLocation", installDir);
+            uninst.SetValue("UninstallString", $"\"{targetExe}\" --uninstall");
+            uninst.SetValue("NoModify", 1, RegistryValueKind.DWord);
+            uninst.SetValue("NoRepair", 1, RegistryValueKind.DWord);
+        }
+
+        EnsureFirewallRules(RmsPaths.DefaultPort);
+        Process.Start(new ProcessStartInfo { FileName = targetExe, UseShellExecute = true });
+
+        if (!silent)
+            MessageBox.Show($"Home RMS Agent installed to:\n{installDir}\n\nIt will start automatically with Windows and auto-update from GitHub.",
+                "Home RMS Agent — Installed", MessageBoxButtons.OK, MessageBoxIcon.Information);
+    }
+
+    private static void UninstallAgent()
+    {
+        foreach (var p in Process.GetProcessesByName("HomeRmsAgent"))
+        {
+            if (p.Id != Environment.ProcessId)
+                try { p.Kill(); p.WaitForExit(3000); } catch { }
+        }
+        using (var runKey = Registry.CurrentUser.OpenSubKey(@"Software\Microsoft\Windows\CurrentVersion\Run", writable: true))
+            runKey?.DeleteValue("HomeRmsAgent", throwOnMissingValue: false);
+        Registry.CurrentUser.DeleteSubKeyTree(@"Software\Microsoft\Windows\CurrentVersion\Uninstall\HomeRmsAgent", throwOnMissingSubKey: false);
+
+        MessageBox.Show("Home RMS Agent has been unregistered from startup and Apps & Features.",
+            "Home RMS Agent — Uninstalled", MessageBoxButtons.OK, MessageBoxIcon.Information);
     }
 }
