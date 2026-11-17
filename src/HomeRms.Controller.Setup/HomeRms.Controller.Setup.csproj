@@ -2,7 +2,7 @@
 
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
-    <TargetFramework>net9.0-windows</TargetFramework>
+    <TargetFramework>net11.0-windows</TargetFramework>
     <UseWPF>true</UseWPF>
     <RootNamespace>HomeRms.Controller.Setup</RootNamespace>
     <AssemblyName>HomeRmsController-Setup</AssemblyName>
