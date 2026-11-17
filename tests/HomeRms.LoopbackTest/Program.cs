@@ -106,9 +106,27 @@ try
         });
         await deployCall.RequestStream.CompleteAsync();
         var deployRes = await deployCall.ResponseAsync;
-        Console.WriteLine($"[test] DeployPackage OK -> success={deployRes.Success}, exit={deployRes.ExitCode}, out='{deployRes.Output.Trim()}'");
+        Console.WriteLine($"[test] DeployPackage (.ps1) OK -> success={deployRes.Success}, exit={deployRes.ExitCode}, out='{deployRes.Output.Trim()}'");
         if (!deployRes.Success || !deployRes.Output.Contains("SILENT_DEPLOY_OK_991"))
-            failures.Add("DeployPackage failed or did not return expected silent installer output");
+            failures.Add("DeployPackage (.ps1) failed or did not return expected silent installer output");
+    }
+
+    // 6b) silent CMD script deployment (.cmd)
+    using (var cmdCall = client.DeployPackage(deadline: DateTime.UtcNow.AddSeconds(30)))
+    {
+        var cmdPayload = System.Text.Encoding.UTF8.GetBytes("@echo off\r\necho SILENT_CMD_OK_552\r\n");
+        await cmdCall.RequestStream.WriteAsync(new PackageChunk
+        {
+            FileName = "verify-silent-script.cmd",
+            Arguments = "AUTO",
+            TimeoutSeconds = 30,
+            Data = Google.Protobuf.ByteString.CopyFrom(cmdPayload)
+        });
+        await cmdCall.RequestStream.CompleteAsync();
+        var cmdRes = await cmdCall.ResponseAsync;
+        Console.WriteLine($"[test] DeployPackage (.cmd) OK -> success={cmdRes.Success}, exit={cmdRes.ExitCode}, out='{cmdRes.Output.Trim()}'");
+        if (!cmdRes.Success || !cmdRes.Output.Contains("SILENT_CMD_OK_552"))
+            failures.Add("DeployPackage (.cmd) failed or did not return expected silent script output");
     }
 
     // 7) bidirectional clipboard sync (SetClipboard + GetClipboard)

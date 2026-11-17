@@ -84,18 +84,25 @@ public partial class MainWindow : Window
 
     private async void OnWindowLoaded(object sender, RoutedEventArgs e)
     {
-        var args = Environment.GetCommandLineArgs();
-        var shotDir = GetArg(args, "--screenshot-dir");
-        var portArg = GetArg(args, "--port");
-        if (!string.IsNullOrWhiteSpace(shotDir))
+        try
         {
-            var port = int.TryParse(portArg, out var p) ? p : RmsPaths.DefaultPort;
-            await RunAutomatedScreenshotsAsync(shotDir, port);
-            return;
-        }
+            var args = Environment.GetCommandLineArgs();
+            var shotDir = GetArg(args, "--screenshot-dir");
+            var portArg = GetArg(args, "--port");
+            if (!string.IsNullOrWhiteSpace(shotDir))
+            {
+                var port = int.TryParse(portArg, out var p) ? p : RmsPaths.DefaultPort;
+                await RunAutomatedScreenshotsAsync(shotDir, port);
+                return;
+            }
 
-        await ProbeAllMachinesAsync();
-        _ = CheckGitHubUpdateInBackgroundAsync();
+            await ProbeAllMachinesAsync();
+            _ = CheckGitHubUpdateInBackgroundAsync();
+        }
+        catch (Exception ex)
+        {
+            StatusText.Text = Short(ex);
+        }
     }
 
     private AvailableUpdate? _pendingUpdate;
@@ -192,7 +199,7 @@ public partial class MainWindow : Window
         {
             if (_win11Page is null) InitWin11Settings();
             if (NavUpdates.IsChecked == true)
-                SelectWin11Page(SystemCatalog.Win11Pages.First(p => p.Id == "updates"));
+                SelectWin11Page(SystemCatalog.Win11Pages.FirstOrDefault(p => p.Id == "updates") ?? SystemCatalog.Win11Pages[0]);
             else if (NavSystem.IsChecked == true && _win11Page?.Id == "updates")
                 SelectWin11Page(SystemCatalog.Win11Pages[0]);
         }
@@ -1350,12 +1357,32 @@ public partial class MainWindow : Window
     {
         var dlg = new Microsoft.Win32.OpenFileDialog
         {
-            Title = "Select Installer Package (.exe, .msi, .msp, .ps1)",
-            Filter = "Installer Packages (*.exe;*.msi;*.msp;*.ps1)|*.exe;*.msi;*.msp;*.ps1|All Files (*.*)|*.*"
+            Title = "Select Installer or Script (.exe, .msi, .msp, .ps1, .cmd, .bat)",
+            Filter = "Packages & Scripts (*.exe;*.msi;*.msp;*.ps1;*.cmd;*.bat)|*.exe;*.msi;*.msp;*.ps1;*.cmd;*.bat|Scripts (*.ps1;*.cmd;*.bat)|*.ps1;*.cmd;*.bat|Installers (*.exe;*.msi;*.msp)|*.exe;*.msi;*.msp|All Files (*.*)|*.*"
         };
         if (dlg.ShowDialog(this) == true)
         {
             DeployFilePathBox.Text = dlg.FileName;
+        }
+    }
+
+    private async void OnUploadAndRunScriptClick(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var dlg = new Microsoft.Win32.OpenFileDialog
+            {
+                Title = "Upload & Run Silent Script (.cmd, .bat, .ps1)",
+                Filter = "Scripts (*.ps1;*.cmd;*.bat)|*.ps1;*.cmd;*.bat|CMD / Batch (*.cmd;*.bat)|*.cmd;*.bat|PowerShell (*.ps1)|*.ps1|All Files (*.*)|*.*"
+            };
+            if (dlg.ShowDialog(this) != true) return;
+
+            DeployFilePathBox.Text = dlg.FileName;
+            await DeployLocalFileCoreAsync(dlg.FileName, DeployArgsBox.Text.Trim());
+        }
+        catch (Exception ex)
+        {
+            AppendDeployLog($"[{DateTime.Now:HH:mm:ss}] ERROR: {ex.Message}");
         }
     }
 
@@ -1386,7 +1413,7 @@ public partial class MainWindow : Window
         var path = DeployFilePathBox.Text.Trim().Trim('"');
         if (string.IsNullOrWhiteSpace(path) || !File.Exists(path))
         {
-            MessageBox.Show("Please select a valid local installer file (.exe, .msi, .msp, or .ps1) to upload.",
+            MessageBox.Show("Please select a valid local installer or script (.exe, .msi, .msp, .ps1, .cmd, or .bat) to upload.",
                 "Home RMS — Software Deploy", MessageBoxButton.OK, MessageBoxImage.Information);
             return;
         }
@@ -1438,12 +1465,19 @@ public partial class MainWindow : Window
                 }
             }
 
+            var ext = fileInfo.Extension;
+            var isScript = ext.Equals(".ps1", StringComparison.OrdinalIgnoreCase)
+                        || ext.Equals(".cmd", StringComparison.OrdinalIgnoreCase)
+                        || ext.Equals(".bat", StringComparison.OrdinalIgnoreCase);
+
             await call.RequestStream.CompleteAsync();
-            DeployStatusBadge.Text = "Installing Silently…";
-            AppendDeployLog($"[{DateTime.Now:HH:mm:ss}] Upload complete (100%). Running silent installer on {_agentInfo?.MachineName}…");
+            DeployStatusBadge.Text = isScript ? "Running Script Silently…" : "Installing Silently…";
+            AppendDeployLog($"[{DateTime.Now:HH:mm:ss}] Upload complete (100%). {(isScript ? "Running silent script" : "Running silent installer")} on {_agentInfo?.MachineName}…");
 
             var result = await call.ResponseAsync;
-            DeployStatusBadge.Text = result.Success ? $"Installed (Exit {result.ExitCode})" : $"Failed (Exit {result.ExitCode})";
+            DeployStatusBadge.Text = result.Success
+                ? (isScript ? $"Script Done (Exit {result.ExitCode})" : $"Installed (Exit {result.ExitCode})")
+                : $"Failed (Exit {result.ExitCode})";
             AppendDeployLog($"[{DateTime.Now:HH:mm:ss}] Command: {result.CommandLine}");
             AppendDeployLog($"[{DateTime.Now:HH:mm:ss}] Result : {(result.Success ? "SUCCESS" : "FAILED")} (Exit Code {result.ExitCode})");
             if (!string.IsNullOrWhiteSpace(result.Output))
@@ -1467,15 +1501,20 @@ public partial class MainWindow : Window
     {
         if (sender is not Button { Tag: string packageId }) return;
         if (!System.Text.RegularExpressions.Regex.IsMatch(packageId, @"^[a-zA-Z0-9._\-]+$")) return;
-        if (_conn is null && !await ConnectToCurrentFieldsAsync()) return;
 
         // Create a tiny temporary .ps1 script that runs winget silently and deploy it via DeployPackage
         var tempScript = Path.Combine(Path.GetTempPath(), $"winget_{packageId}_{Guid.NewGuid():N}.ps1");
         try
         {
+            if (_conn is null && !await ConnectToCurrentFieldsAsync()) return;
+
             var scriptBody = $"winget install --id '{packageId}' -e --silent --accept-package-agreements --accept-source-agreements --disable-interactivity";
             await File.WriteAllTextAsync(tempScript, scriptBody);
             await DeployLocalFileCoreAsync(tempScript, "AUTO");
+        }
+        catch (Exception ex)
+        {
+            AppendDeployLog($"[{DateTime.Now:HH:mm:ss}] ERROR: {ex.Message}");
         }
         finally
         {

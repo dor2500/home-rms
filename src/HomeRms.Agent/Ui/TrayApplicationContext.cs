@@ -1,6 +1,7 @@
 using System.Threading;
 using System.Windows.Forms;
 using HomeRms.Agent.Core;
+using Microsoft.Win32;
 
 namespace HomeRms.Agent.Ui;
 
@@ -46,6 +47,14 @@ internal sealed class TrayApplicationContext : ApplicationContext, IConsentUi
         var menu = new ContextMenuStrip();
         menu.Items.Add("Open Home RMS", null, (_, _) => ShowMain());
         menu.Items.Add("Stop any active session", null, (_, _) => _consent.RevokeAll());
+        menu.Items.Add(new ToolStripSeparator());
+        var startupItem = new ToolStripMenuItem("Start with Windows")
+        {
+            Checked = IsStartupEnabled(),
+            CheckOnClick = true
+        };
+        startupItem.CheckedChanged += (_, _) => SetStartupEnabled(startupItem.Checked);
+        menu.Items.Add(startupItem);
         menu.Items.Add(new ToolStripSeparator());
         menu.Items.Add("Exit agent", null, (_, _) => ExitThread());
 
@@ -97,6 +106,36 @@ internal sealed class TrayApplicationContext : ApplicationContext, IConsentUi
                 try { _form.SaveScreenshot(_screenshotPath); } catch { }
             }
         }, null);
+    }
+
+    private static bool IsStartupEnabled()
+    {
+        try
+        {
+            using var key = Registry.CurrentUser.OpenSubKey(@"Software\Microsoft\Windows\CurrentVersion\Run", writable: false);
+            return key?.GetValue("HomeRmsAgent") is string s && !string.IsNullOrWhiteSpace(s);
+        }
+        catch { return false; }
+    }
+
+    private static void SetStartupEnabled(bool enable)
+    {
+        try
+        {
+            if (enable)
+            {
+                var exe = Environment.ProcessPath;
+                if (string.IsNullOrWhiteSpace(exe)) return;
+                using var key = Registry.CurrentUser.CreateSubKey(@"Software\Microsoft\Windows\CurrentVersion\Run");
+                key.SetValue("HomeRmsAgent", $"\"{exe}\"");
+            }
+            else
+            {
+                using var key = Registry.CurrentUser.OpenSubKey(@"Software\Microsoft\Windows\CurrentVersion\Run", writable: true);
+                key?.DeleteValue("HomeRmsAgent", throwOnMissingValue: false);
+            }
+        }
+        catch { }
     }
 
     protected override void Dispose(bool disposing)

@@ -245,7 +245,7 @@ public sealed class RemoteManagementService(ConsentCoordinator consent, Activity
     private const long MaxDeployBytes = 512L * 1024 * 1024; // 512 MB limit against disk exhaustion
     private static readonly HashSet<string> AllowedExtensions = new(StringComparer.OrdinalIgnoreCase)
     {
-        ".exe", ".msi", ".msp", ".ps1"
+        ".exe", ".msi", ".msp", ".ps1", ".cmd", ".bat"
     };
 
     public override async Task<DeployResult> DeployPackage(
@@ -300,7 +300,7 @@ public sealed class RemoteManagementService(ConsentCoordinator consent, Activity
                     Success = false,
                     ExitCode = -1,
                     CommandLine = fileName,
-                    Output = $"Blocked unsupported file extension '{ext}'. Allowed: .exe, .msi, .msp, .ps1."
+                    Output = $"Blocked unsupported file extension '{ext}'. Allowed: .exe, .msi, .msp, .ps1, .cmd, .bat."
                 };
             }
 
@@ -329,6 +329,7 @@ public sealed class RemoteManagementService(ConsentCoordinator consent, Activity
                     Arguments = finalArgs,
                     UseShellExecute = false,
                     CreateNoWindow = true,
+                    WindowStyle = ProcessWindowStyle.Hidden,
                     RedirectStandardOutput = true,
                     RedirectStandardError = true,
                     WorkingDirectory = deployDir
@@ -415,8 +416,16 @@ public sealed class RemoteManagementService(ConsentCoordinator consent, Activity
 
         if (ext == ".ps1")
         {
-            var psArgs = $"-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File \"{fullPath}\" {(auto ? "" : customArgs)}".Trim();
-            return ("powershell.exe", psArgs, $"powershell.exe -ExecutionPolicy Bypass -File \"{fileName}\"");
+            var extra = auto ? "" : $" {customArgs}";
+            var psArgs = $"-NoLogo -NoProfile -NonInteractive -WindowStyle Hidden -ExecutionPolicy Bypass -File \"{fullPath}\"{extra}";
+            return ("powershell.exe", psArgs, $"powershell.exe -WindowStyle Hidden -ExecutionPolicy Bypass -File \"{fileName}\"{extra}");
+        }
+
+        if (ext is ".cmd" or ".bat")
+        {
+            var extra = auto ? "" : $" {customArgs}";
+            var cmdArgs = $"/d /s /c \"\"{fullPath}\"{extra}\"";
+            return ("cmd.exe", cmdArgs, $"cmd.exe /d /c \"{fileName}\"{extra}");
         }
 
         var flags = auto ? DetectExeSilentFlags(fullPath) : customArgs;
