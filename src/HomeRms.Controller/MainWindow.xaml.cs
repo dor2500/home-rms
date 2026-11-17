@@ -239,15 +239,17 @@ public partial class MainWindow : Window
         Win11SidebarPanel.Children.Clear();
         foreach (var page in SystemCatalog.Win11Pages)
         {
-            var item = new RadioButton
+            var item = new Button
             {
-                Content = page.Title,
-                Tag = PageGlyph(page.Id),
-                DataContext = page,
-                GroupName = "Win11Settings",
-                Style = (Style)FindResource("NavItem")
+                Content = $"{page.Icon}  {page.Title}",
+                Tag = page,
+                HorizontalContentAlignment = HorizontalAlignment.Left,
+                Margin = new Thickness(0, 0, 0, 4),
+                Padding = new Thickness(12, 8, 12, 8),
+                Style = (Style)FindResource("GhostButton"),
+                BorderThickness = new Thickness(0)
             };
-            item.Checked += (_, _) => { if (!ReferenceEquals(_win11Page, page)) SelectWin11Page(page); };
+            item.Click += (_, _) => { if (!ReferenceEquals(_win11Page, page)) SelectWin11Page(page); };
             Win11SidebarPanel.Children.Add(item);
         }
         SelectWin11Page(SystemCatalog.Win11Pages[0]);
@@ -256,13 +258,17 @@ public partial class MainWindow : Window
     private void SelectWin11Page(SystemCatalog.Win11SettingsPage page)
     {
         _win11Page = page;
-        foreach (RadioButton item in Win11SidebarPanel.Children)
-            item.IsChecked = ReferenceEquals(item.DataContext, page);
+        foreach (Button item in Win11SidebarPanel.Children)
+        {
+            var active = ReferenceEquals(item.Tag, page);
+            item.Background = new SolidColorBrush(active ? Color.FromArgb(45, 56, 189, 248) : Colors.Transparent);
+            item.Foreground = new SolidColorBrush(active ? Colors.White : Color.FromRgb(203, 213, 225));
+        }
 
         if (!string.IsNullOrEmpty(SettingsSearchBox.Text))
             SettingsSearchBox.Text = "";
 
-        Win11PageTitle.Text = page.Title;
+        Win11PageTitle.Text = $"{page.Icon}  {page.Title}";
         Win11PageSubtitle.Text = page.Subtitle;
         SystemTargetLabel.Text = "Target — " + page.TargetHint;
         SystemExtraLabel.Text = "Extra — " + (page.Items.FirstOrDefault(i => i.ExtraHint is not null)?.ExtraHint ?? "(optional)");
@@ -296,14 +302,21 @@ public partial class MainWindow : Window
         Win11CardsPanel.Children.Clear();
         foreach (var item in items)
         {
-            var card = new Border { Style = (Style)FindResource("SettingCard") };
+            var card = new Border
+            {
+                Style = (Style)FindResource("CardStyle"),
+                Padding = new Thickness(16, 12, 16, 12),
+                Margin = new Thickness(0, 0, 0, 8)
+            };
 
             var dock = new DockPanel();
             var btn = new Button
             {
                 Content = item.ButtonLabel,
-                Style = (Style)FindResource(item.Dangerous ? "DangerSubtleButton" : "StandardButton"),
+                Style = (Style)FindResource(item.Dangerous ? "DangerButton" : "PrimaryButton"),
                 MinWidth = 110,
+                Padding = new Thickness(14, 7, 14, 7),
+                FontSize = 12,
                 VerticalAlignment = VerticalAlignment.Center
             };
             if (item.Dangerous) btn.ToolTip = "Changes the remote PC — you will be asked to confirm";
@@ -313,16 +326,25 @@ public partial class MainWindow : Window
             var glyph = new TextBlock
             {
                 Text = AreaGlyph(item.Area),
-                Style = (Style)FindResource("IconGlyph"),
-                FontSize = 20,
-                Width = 20,
-                Margin = new Thickness(4, 0, 18, 0)
+                FontFamily = new FontFamily("Segoe Fluent Icons, Segoe MDL2 Assets"),
+                Foreground = (Brush)FindResource("AccentBrush"),
+                VerticalAlignment = VerticalAlignment.Center,
+                FontSize = 18,
+                Width = 22,
+                Margin = new Thickness(2, 0, 14, 0)
             };
             DockPanel.SetDock(glyph, Dock.Left);
 
             var textStack = new StackPanel { VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 16, 0) };
-            textStack.Children.Add(new TextBlock { Text = item.Title, FontSize = 14 });
-            var sub = new TextBlock { Text = item.Subtitle, Margin = new Thickness(0, 2, 0, 0), TextWrapping = TextWrapping.Wrap, Style = (Style)FindResource("SecondaryText") };
+            textStack.Children.Add(new TextBlock { Text = item.Title, FontSize = 13.5, FontWeight = FontWeights.SemiBold });
+            var sub = new TextBlock
+            {
+                Text = item.Subtitle,
+                FontSize = 11.5,
+                Foreground = (Brush)FindResource("MutedBrush"),
+                Margin = new Thickness(0, 2, 0, 0),
+                TextWrapping = TextWrapping.Wrap
+            };
             textStack.Children.Add(sub);
 
             dock.Children.Add(btn);
