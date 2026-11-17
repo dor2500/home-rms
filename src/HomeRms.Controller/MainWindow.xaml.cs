@@ -62,8 +62,12 @@ public partial class MainWindow : Window
             _machines.Add(m);
 
         MachinesList.ItemsSource = _machines;
+        MachineSwitcher.ItemsSource = _machines;
         if (_machines.Count > 0)
+        {
             MachinesList.SelectedIndex = 0;
+            MachineSwitcher.SelectedIndex = 0;
+        }
 
         ShellOutput.Text =
             "Home RMS Interactive PowerShell Console\r\n" +
@@ -104,11 +108,12 @@ public partial class MainWindow : Window
     // ---------------- Navigation ----------------
     private void OnNavTabChanged(object sender, RoutedEventArgs e)
     {
-        if (InventoryPanel is null || DesktopPanel is null || ShellPanel is null || DeployPanel is null || SystemPanel is null) return;
+        if (FleetPanel is null || InventoryPanel is null || DesktopPanel is null || ShellPanel is null || DeployPanel is null || SystemPanel is null) return;
 
         if (_isFullScreen && NavDesktop.IsChecked != true)
             SetFullScreen(false);
 
+        FleetPanel.Visibility = NavFleet.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
         InventoryPanel.Visibility = NavInventory.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
         DesktopPanel.Visibility = NavDesktop.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
         ShellPanel.Visibility = NavShell.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
@@ -116,9 +121,6 @@ public partial class MainWindow : Window
 
         var showSettings = NavUpdates.IsChecked == true || NavSystem.IsChecked == true;
         SystemPanel.Visibility = showSettings ? Visibility.Visible : Visibility.Collapsed;
-
-        if (sender is RadioButton { Content: string pageTitle } && PageTitleText is not null)
-            PageTitleText.Text = pageTitle;
 
         if (showSettings)
         {
@@ -383,13 +385,10 @@ public partial class MainWindow : Window
         if (fullScreen)
         {
             _prevWindowState = WindowState;
-            SidebarColumn.Width = new GridLength(0);
-            SidebarBorder.Visibility = Visibility.Collapsed;
+            RailColumn.Width = new GridLength(0);
+            RailBorder.Visibility = Visibility.Collapsed;
             TopBarBorder.Visibility = Visibility.Collapsed;
-            NavBarBorder.Visibility = Visibility.Collapsed;
             DesktopToolbarBorder.Visibility = Visibility.Collapsed;
-            ContentLayer.BorderThickness = new Thickness(0);
-            ContentLayer.CornerRadius = new CornerRadius(0);
             WorkspaceGrid.Margin = new Thickness(0);
             ScreenCanvasBorder.CornerRadius = new CornerRadius(0);
             ScreenCanvasBorder.BorderThickness = new Thickness(0);
@@ -407,24 +406,30 @@ public partial class MainWindow : Window
             ResizeMode = ResizeMode.CanResize;
             WindowState = _prevWindowState == WindowState.Minimized ? WindowState.Normal : _prevWindowState;
 
-            SidebarColumn.Width = new GridLength(300);
-            SidebarBorder.Visibility = Visibility.Visible;
+            RailColumn.Width = new GridLength(76);
+            RailBorder.Visibility = Visibility.Visible;
             TopBarBorder.Visibility = Visibility.Visible;
-            NavBarBorder.Visibility = Visibility.Visible;
             DesktopToolbarBorder.Visibility = Visibility.Visible;
-            ContentLayer.BorderThickness = new Thickness(1, 1, 0, 0);
-            ContentLayer.CornerRadius = new CornerRadius(8, 0, 0, 0);
-            WorkspaceGrid.Margin = new Thickness(36, 20, 36, 28);
-            ScreenCanvasBorder.CornerRadius = new CornerRadius(8);
+            WorkspaceGrid.Margin = new Thickness(20, 16, 20, 18);
+            ScreenCanvasBorder.CornerRadius = new CornerRadius(14);
             ScreenCanvasBorder.BorderThickness = new Thickness(1);
             FullscreenHud.Visibility = Visibility.Collapsed;
         }
     }
 
     // ---------------- Machine List & Probing ----------------
+    private void OnMachineSwitcherChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (MachineSwitcher.SelectedItem is not MachineProfile m) return;
+        if (!ReferenceEquals(MachinesList.SelectedItem, m))
+            MachinesList.SelectedItem = m;
+    }
+
     private void OnMachineSelectionChanged(object sender, SelectionChangedEventArgs e)
     {
         if (MachinesList.SelectedItem is not MachineProfile m) return;
+        if (!ReferenceEquals(MachineSwitcher.SelectedItem, m))
+            MachineSwitcher.SelectedItem = m;
         NameBox.Text = m.Name;
         HostBox.Text = m.Host;
         PortBox.Text = m.Port.ToString();
@@ -432,7 +437,7 @@ public partial class MainWindow : Window
         if (_conn is null)
         {
             TargetTitleText.Text = m.DisplayTitle;
-            StatusText.Text = $"{m.Address}  ·  Select Connect to open a mutual-TLS session.";
+            StatusText.Text = $"{m.Address}  ·  Click Connect to open a mutual-TLS session.";
         }
     }
 

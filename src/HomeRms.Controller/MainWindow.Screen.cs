@@ -238,6 +238,31 @@ public partial class MainWindow
         if (ScreenImage is not null) ScreenImage.Cursor = null;
     }
 
+    /// <summary>Paints the Windows 11 title bar in the app's own colours instead of the system accent.</summary>
+    protected override void OnSourceInitialized(EventArgs e)
+    {
+        base.OnSourceInitialized(e);
+        try
+        {
+            var hwnd = new System.Windows.Interop.WindowInteropHelper(this).Handle;
+            int dark = 1;
+            DwmSetWindowAttribute(hwnd, 20 /* DWMWA_USE_IMMERSIVE_DARK_MODE */, ref dark, sizeof(int));
+            int caption = 0x000D0807;   // COLORREF 0x00BBGGRR = #07080D
+            int text = 0x00FAF5F4;      // #F4F5FA
+            int border = 0x00F65C8B;    // #8B5CF6
+            DwmSetWindowAttribute(hwnd, 35 /* DWMWA_CAPTION_COLOR */, ref caption, sizeof(int));
+            DwmSetWindowAttribute(hwnd, 36 /* DWMWA_TEXT_COLOR */, ref text, sizeof(int));
+            DwmSetWindowAttribute(hwnd, 34 /* DWMWA_BORDER_COLOR */, ref border, sizeof(int));
+        }
+        catch
+        {
+            // Older Windows: keep the default title bar
+        }
+    }
+
+    [System.Runtime.InteropServices.DllImport("dwmapi.dll")]
+    private static extern int DwmSetWindowAttribute(IntPtr hwnd, int attribute, ref int value, int size);
+
     private void OnScreenImageSizeChanged(object sender, SizeChangedEventArgs e)
     {
         UpdateRemoteCursor();

@@ -2,224 +2,292 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:models="using:HomeRms.Controller.Mac.Models"
         x:Class="HomeRms.Controller.Mac.MainWindow"
-        Title="Home RMS — Remote Management Console"
-        Width="1320" Height="820"
-        MinWidth="1040" MinHeight="680"
+        Title="Home RMS — Fleet Command Center"
+        Width="1360" Height="840"
+        MinWidth="1020" MinHeight="680"
         Icon="avares://HomeRmsController/Assets/controller.ico"
-        Background="#0F1117"
-        Foreground="#F3F4F6"
+        Background="#07080C"
+        Foreground="#F8FAFC"
         KeyDown="OnWindowKeyDown"
         KeyUp="OnWindowKeyUp"
         WindowStartupLocation="CenterScreen">
 
-    <Grid ColumnDefinitions="Auto,*">
+    <Grid RowDefinitions="Auto,*">
 
-        <!-- ==================== LEFT SIDEBAR: COMPUTERS ==================== -->
-        <Border x:Name="SidebarBorder" Grid.Column="0" Width="325" Background="#151922" BorderBrush="#282F40" BorderThickness="0,0,1,0" Padding="18">
-            <DockPanel LastChildFill="True">
-
-                <!-- Brand Header -->
-                <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,2,0,20" Spacing="12">
-                    <Image Source="avares://HomeRmsController/Assets/controller.png" Width="44" Height="44"/>
-                    <StackPanel VerticalAlignment="Center">
-                        <TextBlock Text="Home RMS" FontSize="18" FontWeight="Bold" Foreground="#F3F4F6"/>
-                        <TextBlock Text="Consent-Based LAN Console" FontSize="11.5" Foreground="#9CA3AF"/>
-                    </StackPanel>
+        <!-- ==================== TOP GLOBAL COMMAND BAR ==================== -->
+        <Border x:Name="TopBarBorder" Grid.Row="0" Background="#10131D" BorderBrush="#23293B" BorderThickness="0,0,0,1" Padding="18,11">
+            <DockPanel>
+                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center" Spacing="10">
+                    <Border Background="#131824" BorderBrush="#23293B" BorderThickness="1" CornerRadius="8" Padding="11,6" VerticalAlignment="Center">
+                        <TextBlock Text="🔒 mTLS PKI" FontSize="11.5" FontWeight="SemiBold" Foreground="#94A3B8"/>
+                    </Border>
+                    <Button x:Name="ProbeBtn" Content="↻ Scan LAN" Click="OnProbeMachinesClick"/>
+                    <Button x:Name="ConnectBtn" Content="Connect" Width="128" HorizontalContentAlignment="Center"
+                            Background="#0284C7" BorderBrush="#38BDF8" Foreground="White" Click="OnConnectClick"/>
                 </StackPanel>
 
-                <!-- Add / Edit Endpoint Card (Docked Bottom) -->
-                <Border DockPanel.Dock="Bottom" Background="#1C212E" BorderBrush="#282F40" BorderThickness="1"
-                        CornerRadius="12" Padding="14" Margin="0,12,0,0">
-                    <StackPanel>
-                        <TextBlock Text="ADD / EDIT ENDPOINT" FontSize="11" FontWeight="Bold" Foreground="#9CA3AF" Margin="0,0,0,10"/>
-
-                        <TextBlock Text="Display Name" FontSize="11.5" Foreground="#9CA3AF" Margin="0,0,0,4"/>
-                        <TextBox x:Name="NameBox" Text="Home Windows PC" Margin="0,0,0,8"/>
-
-                        <Grid ColumnDefinitions="*,8,82" Margin="0,0,0,12">
-                            <StackPanel Grid.Column="0">
-                                <TextBlock Text="Host / LAN IP" FontSize="11.5" Foreground="#9CA3AF" Margin="0,0,0,4"/>
-                                <TextBox x:Name="HostBox" Text="192.168.1.122"/>
-                            </StackPanel>
-                            <StackPanel Grid.Column="2">
-                                <TextBlock Text="Port" FontSize="11.5" Foreground="#9CA3AF" Margin="0,0,0,4"/>
-                                <TextBox x:Name="PortBox" Text="7443"/>
-                            </StackPanel>
-                        </Grid>
-
-                        <Grid ColumnDefinitions="*,8,Auto">
-                            <Button Grid.Column="0" Content="Save Endpoint" HorizontalAlignment="Stretch"
-                                    HorizontalContentAlignment="Center" Click="OnSaveMachineClick"/>
-                            <Button Grid.Column="2" Content="Remove" Click="OnRemoveMachineClick"/>
-                        </Grid>
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Spacing="12">
+                    <Image Source="avares://HomeRmsController/Assets/controller.png" Width="34" Height="34"/>
+                    <StackPanel VerticalAlignment="Center" Margin="0,0,10,0">
+                        <TextBlock Text="HOME RMS" FontSize="14.5" FontWeight="Bold"/>
+                        <TextBlock Text="Fleet Command" FontSize="10.5" Foreground="#94A3B8"/>
                     </StackPanel>
-                </Border>
 
-                <!-- Computers Section Header -->
-                <DockPanel DockPanel.Dock="Top" Margin="0,0,0,10">
-                    <Button x:Name="ProbeBtn" DockPanel.Dock="Right" Content="↻ Check Status"
-                            FontSize="11.5" Padding="10,5" Click="OnProbeMachinesClick"/>
-                    <TextBlock Text="HOME COMPUTERS" FontSize="11" FontWeight="Bold" Foreground="#9CA3AF"
-                               VerticalAlignment="Center"/>
-                </DockPanel>
+                    <Border Background="#0C0F17" BorderBrush="#23293B" BorderThickness="1" CornerRadius="9" Padding="10,3">
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Spacing="8">
+                            <TextBlock Text="Target:" FontSize="11.5" Foreground="#94A3B8" VerticalAlignment="Center"/>
+                            <ComboBox x:Name="MachineSwitcher" Width="230" Background="Transparent" BorderThickness="0"
+                                      SelectionChanged="OnMachineSwitcherChanged">
+                                <ComboBox.ItemTemplate>
+                                    <DataTemplate x:DataType="models:MachineProfile">
+                                        <TextBlock Text="{Binding DisplayTitle}"/>
+                                    </DataTemplate>
+                                </ComboBox.ItemTemplate>
+                            </ComboBox>
+                        </StackPanel>
+                    </Border>
 
-                <!-- Computers List -->
-                <ListBox x:Name="MachinesList" Background="Transparent" BorderThickness="0"
-                         SelectionChanged="OnMachineSelectionChanged"
-                         DoubleTapped="OnMachineDoubleTapped">
-                    <ListBox.ItemTemplate>
-                        <DataTemplate x:DataType="models:MachineProfile">
-                            <Grid ColumnDefinitions="Auto,*,Auto" Margin="2,4">
-                                <Ellipse Grid.Column="0" Width="10" Height="10" Fill="{Binding DotBrush}"
-                                         VerticalAlignment="Center" Margin="2,0,12,0"/>
+                    <Border x:Name="ConnBadgeBorder" Background="#256B7280" CornerRadius="7" Padding="10,4" VerticalAlignment="Center">
+                        <TextBlock x:Name="ConnBadgeText" Text="Disconnected" FontSize="11" FontWeight="SemiBold" Foreground="#94A3B8"/>
+                    </Border>
 
-                                <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                                    <TextBlock Text="{Binding DisplayTitle}" FontWeight="SemiBold" FontSize="13.5"
-                                               Foreground="#F3F4F6" TextTrimming="CharacterEllipsis"/>
-                                    <TextBlock Text="{Binding Subtitle}" FontSize="11.5" Foreground="#9CA3AF"
-                                               TextTrimming="CharacterEllipsis" Margin="0,2,0,0"/>
-                                </StackPanel>
-
-                                <Border Grid.Column="2" Background="{Binding BadgeBackground}" CornerRadius="6"
-                                        Padding="8,3" VerticalAlignment="Center" Margin="6,0,0,0">
-                                    <TextBlock Text="{Binding StatusLabel}" FontSize="10.5" FontWeight="SemiBold"
-                                               Foreground="#F3F4F6"/>
-                                </Border>
-                            </Grid>
-                        </DataTemplate>
-                    </ListBox.ItemTemplate>
-                </ListBox>
-
+                    <StackPanel VerticalAlignment="Center">
+                        <TextBlock x:Name="TargetTitleText" Text="No active session" FontSize="13" FontWeight="SemiBold"/>
+                        <TextBlock x:Name="StatusText" Text="Select a machine in Fleet or Scan LAN to connect."
+                                   FontSize="11" Foreground="#94A3B8" MaxWidth="360" TextTrimming="CharacterEllipsis"/>
+                    </StackPanel>
+                </StackPanel>
             </DockPanel>
         </Border>
 
-        <!-- ==================== RIGHT WORKSPACE ==================== -->
-        <DockPanel Grid.Column="1" LastChildFill="True">
+        <!-- ==================== MAIN BODY: SLIM ICON RAIL + WORKSPACE ==================== -->
+        <Grid Grid.Row="1" ColumnDefinitions="Auto,*">
 
-            <!-- Top Machine Connection Bar -->
-            <Border x:Name="TopBarBorder" DockPanel.Dock="Top" Background="#151922" BorderBrush="#282F40" BorderThickness="0,0,0,1" Padding="24,16">
-                <DockPanel>
-                    <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center" Spacing="12">
-                        <Border Background="#1A2232" BorderBrush="#282F40" BorderThickness="1"
-                                CornerRadius="8" Padding="12,7" VerticalAlignment="Center">
-                            <TextBlock Text="🔒 Mutual TLS (Zero-Prompt PKI)" FontSize="11.5" Foreground="#9CA3AF"/>
-                        </Border>
-                        <Button x:Name="ConnectBtn" Content="Connect" Width="136" HorizontalContentAlignment="Center"
-                                Background="#3B82F6" Foreground="White" FontWeight="SemiBold" Padding="14,8"
-                                Click="OnConnectClick"/>
-                    </StackPanel>
-
-                    <StackPanel VerticalAlignment="Center">
-                        <StackPanel Orientation="Horizontal" Margin="0,0,0,4" Spacing="12">
-                            <TextBlock x:Name="TargetTitleText" Text="Select or connect to a computer"
-                                       FontSize="18" FontWeight="Bold" VerticalAlignment="Center"/>
-                            <Border x:Name="ConnBadgeBorder" Background="#256B7280" CornerRadius="6"
-                                    Padding="9,3" VerticalAlignment="Center">
-                                <TextBlock x:Name="ConnBadgeText" Text="Disconnected" FontSize="11"
-                                           FontWeight="SemiBold" Foreground="#9CA3AF"/>
-                            </Border>
+            <Border x:Name="RailBorder" Grid.Column="0" Width="76" Background="#10131D" BorderBrush="#23293B" BorderThickness="0,0,1,0" Padding="0,12">
+                <StackPanel>
+                    <RadioButton x:Name="NavFleet" Classes="rail" GroupName="Nav" IsChecked="True" IsCheckedChanged="OnNavTabChanged">
+                        <StackPanel HorizontalAlignment="Center">
+                            <TextBlock Text="🌐" FontSize="19" HorizontalAlignment="Center"/>
+                            <TextBlock Text="Fleet" FontSize="10.5" Margin="0,3,0,0" HorizontalAlignment="Center"/>
                         </StackPanel>
-                        <TextBlock x:Name="StatusText"
-                                   Text="Choose an endpoint on the left or enter a host/IP and click Connect."
-                                   FontSize="12.5" Foreground="#9CA3AF"/>
-                    </StackPanel>
+                    </RadioButton>
+                    <RadioButton x:Name="NavDesktop" Classes="rail" GroupName="Nav" IsCheckedChanged="OnNavTabChanged">
+                        <StackPanel HorizontalAlignment="Center">
+                            <TextBlock Text="🖥️" FontSize="19" HorizontalAlignment="Center"/>
+                            <TextBlock Text="Desktop" FontSize="10.5" Margin="0,3,0,0" HorizontalAlignment="Center"/>
+                        </StackPanel>
+                    </RadioButton>
+                    <RadioButton x:Name="NavInventory" Classes="rail" GroupName="Nav" IsCheckedChanged="OnNavTabChanged">
+                        <StackPanel HorizontalAlignment="Center">
+                            <TextBlock Text="📊" FontSize="19" HorizontalAlignment="Center"/>
+                            <TextBlock Text="Monitor" FontSize="10.5" Margin="0,3,0,0" HorizontalAlignment="Center"/>
+                        </StackPanel>
+                    </RadioButton>
+                    <RadioButton x:Name="NavShell" Classes="rail" GroupName="Nav" IsCheckedChanged="OnNavTabChanged">
+                        <StackPanel HorizontalAlignment="Center">
+                            <TextBlock Text="⌨️" FontSize="19" HorizontalAlignment="Center"/>
+                            <TextBlock Text="Shell" FontSize="10.5" Margin="0,3,0,0" HorizontalAlignment="Center"/>
+                        </StackPanel>
+                    </RadioButton>
+                    <RadioButton x:Name="NavDeploy" Classes="rail" GroupName="Nav" IsCheckedChanged="OnNavTabChanged">
+                        <StackPanel HorizontalAlignment="Center">
+                            <TextBlock Text="📦" FontSize="19" HorizontalAlignment="Center"/>
+                            <TextBlock Text="Deploy" FontSize="10.5" Margin="0,3,0,0" HorizontalAlignment="Center"/>
+                        </StackPanel>
+                    </RadioButton>
+                    <RadioButton x:Name="NavUpdates" Classes="rail" GroupName="Nav" IsCheckedChanged="OnNavTabChanged">
+                        <StackPanel HorizontalAlignment="Center">
+                            <TextBlock Text="🔄" FontSize="19" HorizontalAlignment="Center"/>
+                            <TextBlock Text="Updates" FontSize="10.5" Margin="0,3,0,0" HorizontalAlignment="Center"/>
+                        </StackPanel>
+                    </RadioButton>
+                    <RadioButton x:Name="NavSystem" Classes="rail" GroupName="Nav" IsCheckedChanged="OnNavTabChanged">
+                        <StackPanel HorizontalAlignment="Center">
+                            <TextBlock Text="⚙️" FontSize="19" HorizontalAlignment="Center"/>
+                            <TextBlock Text="Settings" FontSize="10.5" Margin="0,3,0,0" HorizontalAlignment="Center"/>
+                        </StackPanel>
+                    </RadioButton>
+                </StackPanel>
+            </Border>
+
+            <Grid x:Name="WorkspaceGrid" Grid.Column="1" Background="#0B0D14" Margin="20,16,20,18">
+
+                <!-- ==================== 1. FLEET OVERVIEW ==================== -->
+                <DockPanel x:Name="FleetPanel" IsVisible="True">
+                    <Border DockPanel.Dock="Top" Background="#151926" BorderBrush="#23293B" BorderThickness="1" CornerRadius="14" Padding="16,14" Margin="0,0,0,16">
+                        <Grid ColumnDefinitions="1.2*,10,1.2*,10,90,14,Auto">
+                            <StackPanel Grid.Column="0">
+                                <TextBlock Text="DISPLAY NAME" FontSize="10.5" FontWeight="Bold" Foreground="#94A3B8" Margin="0,0,0,4"/>
+                                <TextBox x:Name="NameBox" Text="Home Windows PC"/>
+                            </StackPanel>
+                            <StackPanel Grid.Column="2">
+                                <TextBlock Text="HOST / LAN IP" FontSize="10.5" FontWeight="Bold" Foreground="#94A3B8" Margin="0,0,0,4"/>
+                                <TextBox x:Name="HostBox" Text="192.168.1.122"/>
+                            </StackPanel>
+                            <StackPanel Grid.Column="4">
+                                <TextBlock Text="PORT" FontSize="10.5" FontWeight="Bold" Foreground="#94A3B8" Margin="0,0,0,4"/>
+                                <TextBox x:Name="PortBox" Text="7443"/>
+                            </StackPanel>
+                            <StackPanel Grid.Column="6" Orientation="Horizontal" VerticalAlignment="Bottom" Spacing="8">
+                                <Button Content="+ Save Endpoint" Background="#0284C7" BorderBrush="#38BDF8" Foreground="White" Click="OnSaveMachineClick"/>
+                                <Button Content="Remove" Click="OnRemoveMachineClick"/>
+                            </StackPanel>
+                        </Grid>
+                    </Border>
+
+                    <TextBlock DockPanel.Dock="Top" Text="MANAGED LAN FLEET  (DOUBLE-CLICK ANY CARD TO CONNECT)"
+                               FontSize="10.5" FontWeight="Bold" Foreground="#94A3B8" Margin="0,0,0,12"/>
+
+                    <ListBox x:Name="MachinesList" Background="Transparent" BorderThickness="0"
+                             SelectionChanged="OnMachineSelectionChanged"
+                             DoubleTapped="OnMachineDoubleTapped">
+                        <ListBox.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <WrapPanel/>
+                            </ItemsPanelTemplate>
+                        </ListBox.ItemsPanel>
+                        <ListBox.ItemTemplate>
+                            <DataTemplate x:DataType="models:MachineProfile">
+                                <Border Width="290" Background="#151926" BorderBrush="#23293B" BorderThickness="1" CornerRadius="14" Padding="16">
+                                    <StackPanel>
+                                        <DockPanel Margin="0,0,0,10">
+                                            <Border DockPanel.Dock="Right" Background="{Binding BadgeBackground}" CornerRadius="6" Padding="9,3">
+                                                <TextBlock Text="{Binding StatusLabel}" FontSize="10.5" FontWeight="SemiBold"/>
+                                            </Border>
+                                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Spacing="10">
+                                                <Ellipse Width="10" Height="10" Fill="{Binding DotBrush}"/>
+                                                <TextBlock Text="{Binding DisplayTitle}" FontSize="15" FontWeight="Bold" TextTrimming="CharacterEllipsis" MaxWidth="160"/>
+                                            </StackPanel>
+                                        </DockPanel>
+                                        <TextBlock Text="{Binding Address}" FontSize="12" Foreground="#38BDF8" Margin="0,0,0,4"/>
+                                        <TextBlock Text="{Binding UserAndOs}" FontSize="11.5" Foreground="#94A3B8" TextTrimming="CharacterEllipsis"/>
+                                    </StackPanel>
+                                </Border>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
                 </DockPanel>
-            </Border>
 
-            <!-- Navigation Tabs Bar -->
-            <Border x:Name="NavBarBorder" DockPanel.Dock="Top" Background="#0F1117" BorderBrush="#282F40" BorderThickness="0,0,0,1" Padding="24,10">
-                <WrapPanel Orientation="Horizontal">
-                    <RadioButton x:Name="NavInventory" Classes="nav" Content="📊  Inventory" GroupName="Nav"
-                                 Margin="0,0,6,4" IsChecked="True" IsCheckedChanged="OnNavTabChanged"/>
-                    <RadioButton x:Name="NavDesktop" Classes="nav" Content="🖥️  Remote Desktop" GroupName="Nav"
-                                 Margin="0,0,6,4" IsCheckedChanged="OnNavTabChanged"/>
-                    <RadioButton x:Name="NavShell" Classes="nav" Content="⌨️  Remote Shell" GroupName="Nav"
-                                 Margin="0,0,6,4" IsCheckedChanged="OnNavTabChanged"/>
-                    <RadioButton x:Name="NavDeploy" Classes="nav" Content="📦  Deploy" GroupName="Nav"
-                                 Margin="0,0,6,4" IsCheckedChanged="OnNavTabChanged"/>
-                    <RadioButton x:Name="NavUpdates" Classes="nav" Content="🔄  Windows Update" GroupName="Nav"
-                                 Margin="0,0,6,4" IsCheckedChanged="OnNavTabChanged"/>
-                    <RadioButton x:Name="NavSystem" Classes="nav" Content="⚙️  System &amp; Settings" GroupName="Nav"
-                                 Margin="0,0,6,4" IsCheckedChanged="OnNavTabChanged"/>
-                </WrapPanel>
-            </Border>
+                <!-- ==================== 2. REMOTE DESKTOP VIEW ==================== -->
+                <DockPanel x:Name="DesktopPanel" IsVisible="False">
+                    <Border x:Name="DesktopToolbarBorder" DockPanel.Dock="Top" Background="#151926" BorderBrush="#23293B" BorderThickness="1" CornerRadius="14" Padding="14,10" Margin="0,0,0,12">
+                        <DockPanel>
+                            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center" Spacing="8">
+                                <Button Content="📋 Paste" Click="OnSendClipboardClick"/>
+                                <Button Content="📥 Copy" Click="OnGetClipboardClick"/>
+                                <Border Background="#0B0D14" BorderBrush="#23293B" BorderThickness="1" CornerRadius="7" Padding="10,5" VerticalAlignment="Center">
+                                    <TextBlock x:Name="StreamStatus" Text="Idle" FontSize="11.5" Foreground="#94A3B8"/>
+                                </Border>
+                                <Button Content="⛶ Full Screen (F11)" Click="OnToggleFullScreenClick"/>
+                            </StackPanel>
 
-            <!-- Workspace Body -->
-            <Grid x:Name="WorkspaceGrid" Margin="24,18,24,22">
+                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Spacing="10">
+                                <Button x:Name="StreamBtn" Content="▶ Start Stream" Width="136" HorizontalContentAlignment="Center"
+                                        Background="#0284C7" BorderBrush="#38BDF8" Foreground="White" Click="OnToggleStream"/>
+                                <CheckBox x:Name="ControlCheck" Content="Control + Copy/Paste" IsCheckedChanged="OnControlCheckChanged"/>
+                                <TextBlock Text="FPS:" Foreground="#94A3B8" VerticalAlignment="Center"/>
+                                <TextBox x:Name="FpsBox" Text="20" Width="46"/>
+                                <TextBlock Text="Quality:" Foreground="#94A3B8" VerticalAlignment="Center"/>
+                                <TextBox x:Name="QualityBox" Text="65" Width="46"/>
+                                <ComboBox x:Name="ScaleBox" Width="114" SelectedIndex="0">
+                                    <ComboBoxItem Content="1080p (Fast)" Tag="1920"/>
+                                    <ComboBoxItem Content="720p (Ultra)" Tag="1280"/>
+                                    <ComboBoxItem Content="Native (Full)" Tag="0"/>
+                                </ComboBox>
+                            </StackPanel>
+                        </DockPanel>
+                    </Border>
 
-                <!-- ==================== 1. SYSTEM INVENTORY VIEW ==================== -->
-                <DockPanel x:Name="InventoryPanel" IsVisible="True">
+                    <Border x:Name="ScreenCanvasBorder" Background="#050609" BorderBrush="#23293B" BorderThickness="1" CornerRadius="14" ClipToBounds="True">
+                        <Grid>
+                            <Image x:Name="ScreenImage" Stretch="Uniform" Focusable="True"
+                                   PointerMoved="OnScreenPointerMoved" PointerPressed="OnScreenPointerPressed"
+                                   PointerReleased="OnScreenPointerReleased" PointerWheelChanged="OnScreenPointerWheelChanged"
+                                   KeyDown="OnScreenKeyDown" KeyUp="OnScreenKeyUp"/>
+                            <Canvas x:Name="CursorLayer" IsHitTestVisible="False">
+                                <Image x:Name="RemoteCursorImage" Stretch="None" IsVisible="False"/>
+                            </Canvas>
 
-                    <!-- Hardware Summary Stat Cards -->
-                    <UniformGrid DockPanel.Dock="Top" Columns="4" Margin="0,0,0,16">
-                        <Border Background="#1C212E" BorderBrush="#282F40" BorderThickness="1" CornerRadius="12" Padding="16" Margin="0,0,8,0">
+                            <Border x:Name="FullscreenHud" IsVisible="False" HorizontalAlignment="Right" VerticalAlignment="Top"
+                                    Margin="0,14,18,0" Background="#D90E1118" BorderBrush="#23293B" BorderThickness="1" CornerRadius="10" Padding="12,7">
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                    <TextBlock x:Name="FullscreenHudText" Text="Full Screen" Foreground="#F8FAFC" FontSize="12" VerticalAlignment="Center"/>
+                                    <Button Content="📋 Paste" Click="OnSendClipboardClick"/>
+                                    <Button Content="📥 Copy" Click="OnGetClipboardClick"/>
+                                    <Button Content="⛶ Exit (Esc)" Click="OnToggleFullScreenClick"/>
+                                    <Button Content="⏹ Stop" Background="#E11D48" Foreground="White" Click="OnToggleStream"/>
+                                </StackPanel>
+                            </Border>
+
+                            <StackPanel x:Name="DesktopOverlay" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                <TextBlock Text="🖥️  Remote Desktop Canvas" FontSize="18" FontWeight="Bold" HorizontalAlignment="Center"/>
+                                <TextBlock Text="Click 'Start Stream' above or press F11 for Full Screen. Consent prompt appears on the target PC."
+                                           Foreground="#94A3B8" FontSize="12.5" HorizontalAlignment="Center" Margin="0,6,0,0"/>
+                            </StackPanel>
+                        </Grid>
+                    </Border>
+                </DockPanel>
+
+                <!-- ==================== 3. MONITOR & INVENTORY VIEW ==================== -->
+                <DockPanel x:Name="InventoryPanel" IsVisible="False">
+                    <UniformGrid DockPanel.Dock="Top" Columns="4" Margin="0,0,0,14">
+                        <Border Background="#151926" BorderBrush="#23293B" BorderThickness="1" CornerRadius="14" Padding="16" Margin="0,0,8,0">
                             <StackPanel>
-                                <TextBlock Text="PROCESSOR (CPU)" FontSize="11" FontWeight="Bold" Foreground="#9CA3AF"/>
-                                <TextBlock x:Name="CpuValueText" Text="—" FontSize="15" FontWeight="SemiBold" Margin="0,6,0,0" TextTrimming="CharacterEllipsis"/>
-                                <TextBlock x:Name="CpuSubText" Text="Connect to inspect CPU" FontSize="11.5" Foreground="#9CA3AF" Margin="0,4,0,0"/>
+                                <TextBlock Text="PROCESSOR" FontSize="10.5" FontWeight="Bold" Foreground="#94A3B8"/>
+                                <TextBlock x:Name="CpuValueText" Text="—" FontSize="16" FontWeight="SemiBold" Margin="0,6,0,0" TextTrimming="CharacterEllipsis"/>
+                                <TextBlock x:Name="CpuSubText" Text="Connect to inspect" FontSize="11.5" Foreground="#94A3B8" Margin="0,4,0,0"/>
                             </StackPanel>
                         </Border>
-
-                        <Border Background="#1C212E" BorderBrush="#282F40" BorderThickness="1" CornerRadius="12" Padding="16" Margin="4,0,4,0">
+                        <Border Background="#151926" BorderBrush="#23293B" BorderThickness="1" CornerRadius="14" Padding="16" Margin="4,0,4,0">
                             <StackPanel>
-                                <TextBlock Text="SYSTEM MEMORY (RAM)" FontSize="11" FontWeight="Bold" Foreground="#9CA3AF"/>
-                                <TextBlock x:Name="RamValueText" Text="—" FontSize="15" FontWeight="SemiBold" Margin="0,6,0,0"/>
-                                <TextBlock x:Name="RamSubText" Text="Physical memory &amp; processes" FontSize="11.5" Foreground="#9CA3AF" Margin="0,4,0,0"/>
+                                <TextBlock Text="MEMORY" FontSize="10.5" FontWeight="Bold" Foreground="#94A3B8"/>
+                                <TextBlock x:Name="RamValueText" Text="—" FontSize="16" FontWeight="SemiBold" Margin="0,6,0,0"/>
+                                <TextBlock x:Name="RamSubText" Text="RAM &amp; processes" FontSize="11.5" Foreground="#94A3B8" Margin="0,4,0,0"/>
                             </StackPanel>
                         </Border>
-
-                        <Border Background="#1C212E" BorderBrush="#282F40" BorderThickness="1" CornerRadius="12" Padding="16" Margin="4,0,4,0">
+                        <Border Background="#151926" BorderBrush="#23293B" BorderThickness="1" CornerRadius="14" Padding="16" Margin="4,0,4,0">
                             <StackPanel>
-                                <TextBlock Text="GRAPHICS &amp; DISPLAY" FontSize="11" FontWeight="Bold" Foreground="#9CA3AF"/>
-                                <TextBlock x:Name="GpuValueText" Text="—" FontSize="15" FontWeight="SemiBold" Margin="0,6,0,0" TextTrimming="CharacterEllipsis"/>
-                                <TextBlock x:Name="GpuSubText" Text="Primary monitor resolution" FontSize="11.5" Foreground="#9CA3AF" Margin="0,4,0,0"/>
+                                <TextBlock Text="GRAPHICS" FontSize="10.5" FontWeight="Bold" Foreground="#94A3B8"/>
+                                <TextBlock x:Name="GpuValueText" Text="—" FontSize="16" FontWeight="SemiBold" Margin="0,6,0,0" TextTrimming="CharacterEllipsis"/>
+                                <TextBlock x:Name="GpuSubText" Text="Display adapter" FontSize="11.5" Foreground="#94A3B8" Margin="0,4,0,0"/>
                             </StackPanel>
                         </Border>
-
-                        <Border Background="#1C212E" BorderBrush="#282F40" BorderThickness="1" CornerRadius="12" Padding="16" Margin="8,0,0,0">
+                        <Border Background="#151926" BorderBrush="#23293B" BorderThickness="1" CornerRadius="14" Padding="16" Margin="8,0,0,0">
                             <StackPanel>
-                                <TextBlock Text="STORAGE VOLUMES" FontSize="11" FontWeight="Bold" Foreground="#9CA3AF"/>
-                                <TextBlock x:Name="DiskValueText" Text="—" FontSize="15" FontWeight="SemiBold" Margin="0,6,0,0" TextTrimming="CharacterEllipsis"/>
-                                <TextBlock x:Name="DiskSubText" Text="Free / total capacity" FontSize="11.5" Foreground="#9CA3AF" Margin="0,4,0,0" TextTrimming="CharacterEllipsis"/>
+                                <TextBlock Text="STORAGE" FontSize="10.5" FontWeight="Bold" Foreground="#94A3B8"/>
+                                <TextBlock x:Name="DiskValueText" Text="—" FontSize="16" FontWeight="SemiBold" Margin="0,6,0,0" TextTrimming="CharacterEllipsis"/>
+                                <TextBlock x:Name="DiskSubText" Text="Fixed drives" FontSize="11.5" Foreground="#94A3B8" Margin="0,4,0,0" TextTrimming="CharacterEllipsis"/>
                             </StackPanel>
                         </Border>
                     </UniformGrid>
 
-                    <!-- Filter & Refresh Toolbar -->
-                    <DockPanel DockPanel.Dock="Top" Margin="0,0,0,14">
-                        <Button x:Name="RefreshInvBtn" DockPanel.Dock="Right" Content="↻  Refresh Inventory"
-                                Background="#3B82F6" Foreground="White" FontWeight="SemiBold" Padding="16,8"
-                                Click="OnRefreshInventory"/>
-                        <TextBlock x:Name="InventoryTimestampText" DockPanel.Dock="Right"
-                                   Text="" Foreground="#9CA3AF" FontSize="12"
-                                   VerticalAlignment="Center" Margin="0,0,16,0"/>
-
+                    <DockPanel DockPanel.Dock="Top" Margin="0,0,0,12">
+                        <Button x:Name="RefreshInvBtn" DockPanel.Dock="Right" Content="↻ Refresh" Background="#0284C7" BorderBrush="#38BDF8" Foreground="White" Click="OnRefreshInventory"/>
+                        <TextBlock x:Name="InventoryTimestampText" DockPanel.Dock="Right" Text="" Foreground="#94A3B8" FontSize="11.5" VerticalAlignment="Center" Margin="0,0,14,0"/>
                         <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Spacing="10">
-                            <TextBlock Text="Filter apps &amp; processes:" Foreground="#9CA3AF" VerticalAlignment="Center"/>
-                            <TextBox x:Name="SearchBox" Width="280" TextChanged="OnSearchChanged"/>
+                            <TextBlock Text="Filter:" Foreground="#94A3B8" VerticalAlignment="Center"/>
+                            <TextBox x:Name="SearchBox" Width="300" TextChanged="OnSearchChanged"/>
                         </StackPanel>
                     </DockPanel>
 
-                    <!-- Split Lists View -->
-                    <Grid ColumnDefinitions="1.15*,16,0.85*">
-                        <!-- Installed Apps Card -->
-                        <Border Grid.Column="0" Background="#1C212E" BorderBrush="#282F40" BorderThickness="1" CornerRadius="12">
+                    <Grid ColumnDefinitions="1.15*,14,0.85*">
+                        <Border Grid.Column="0" Background="#151926" BorderBrush="#23293B" BorderThickness="1" CornerRadius="14">
                             <DockPanel>
-                                <Border DockPanel.Dock="Top" Padding="16,12" BorderBrush="#282F40" BorderThickness="0,0,0,1">
+                                <Border DockPanel.Dock="Top" Padding="14,10" BorderBrush="#23293B" BorderThickness="0,0,0,1">
                                     <DockPanel>
-                                        <Border DockPanel.Dock="Right" Background="#243B82F6" CornerRadius="6" Padding="8,2">
-                                            <TextBlock x:Name="AppsCountText" Text="0 apps" FontSize="11" FontWeight="SemiBold" Foreground="#93C5FD"/>
+                                        <Border DockPanel.Dock="Right" Background="#1F38BDF8" CornerRadius="6" Padding="8,2">
+                                            <TextBlock x:Name="AppsCountText" Text="0 apps" FontSize="11" FontWeight="SemiBold" Foreground="#38BDF8"/>
                                         </Border>
-                                        <TextBlock Text="INSTALLED APPLICATIONS (REGISTRY)" FontSize="11" FontWeight="Bold" Foreground="#9CA3AF"/>
+                                        <TextBlock Text="INSTALLED APPLICATIONS" FontSize="10.5" FontWeight="Bold" Foreground="#94A3B8"/>
                                     </DockPanel>
                                 </Border>
                                 <ListBox x:Name="AppsList" Background="Transparent" BorderThickness="0">
                                     <ListBox.ItemTemplate>
                                         <DataTemplate x:DataType="models:AppItem">
                                             <Grid ColumnDefinitions="2*,110,1.2*" Margin="6,2">
-                                                <TextBlock Grid.Column="0" Text="{Binding Name}" Foreground="#F3F4F6" TextTrimming="CharacterEllipsis"/>
-                                                <TextBlock Grid.Column="1" Text="{Binding Version}" Foreground="#9CA3AF" Margin="8,0"/>
-                                                <TextBlock Grid.Column="2" Text="{Binding Publisher}" Foreground="#9CA3AF" TextTrimming="CharacterEllipsis"/>
+                                                <TextBlock Grid.Column="0" Text="{Binding Name}" TextTrimming="CharacterEllipsis"/>
+                                                <TextBlock Grid.Column="1" Text="{Binding Version}" Foreground="#94A3B8" Margin="8,0"/>
+                                                <TextBlock Grid.Column="2" Text="{Binding Publisher}" Foreground="#94A3B8" TextTrimming="CharacterEllipsis"/>
                                             </Grid>
                                         </DataTemplate>
                                     </ListBox.ItemTemplate>
@@ -227,27 +295,26 @@
                             </DockPanel>
                         </Border>
 
-                        <!-- Running Processes Card -->
-                        <Border Grid.Column="2" Background="#1C212E" BorderBrush="#282F40" BorderThickness="1" CornerRadius="12">
+                        <Border Grid.Column="2" Background="#151926" BorderBrush="#23293B" BorderThickness="1" CornerRadius="14">
                             <DockPanel>
-                                <Border DockPanel.Dock="Top" Padding="16,12" BorderBrush="#282F40" BorderThickness="0,0,0,1">
+                                <Border DockPanel.Dock="Top" Padding="14,10" BorderBrush="#23293B" BorderThickness="0,0,0,1">
                                     <DockPanel>
-                                        <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center" Spacing="8">
+                                        <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="8">
                                             <Button Content="✕ End Process" FontSize="11" Padding="8,3" Click="OnKillSelectedProcessClick"/>
-                                            <Border Background="#2422C55E" CornerRadius="6" Padding="8,2" VerticalAlignment="Center">
-                                                <TextBlock x:Name="ProcsCountText" Text="0 processes" FontSize="11" FontWeight="SemiBold" Foreground="#86EFAC"/>
+                                            <Border Background="#1F10B981" CornerRadius="6" Padding="8,2" VerticalAlignment="Center">
+                                                <TextBlock x:Name="ProcsCountText" Text="0 procs" FontSize="11" FontWeight="SemiBold" Foreground="#34D399"/>
                                             </Border>
                                         </StackPanel>
-                                        <TextBlock Text="RUNNING PROCESSES" FontSize="11" FontWeight="Bold" Foreground="#9CA3AF" VerticalAlignment="Center"/>
+                                        <TextBlock Text="RUNNING PROCESSES" FontSize="10.5" FontWeight="Bold" Foreground="#94A3B8" VerticalAlignment="Center"/>
                                     </DockPanel>
                                 </Border>
                                 <ListBox x:Name="ProcList" Background="Transparent" BorderThickness="0">
                                     <ListBox.ItemTemplate>
                                         <DataTemplate x:DataType="models:ProcItem">
-                                            <Grid ColumnDefinitions="72,*,95" Margin="6,2">
-                                                <TextBlock Grid.Column="0" Text="{Binding Pid}" Foreground="#9CA3AF"/>
-                                                <TextBlock Grid.Column="1" Text="{Binding Name}" Foreground="#F3F4F6" TextTrimming="CharacterEllipsis"/>
-                                                <TextBlock Grid.Column="2" Text="{Binding MemoryLabel}" Foreground="#86EFAC" HorizontalAlignment="Right"/>
+                                            <Grid ColumnDefinitions="68,*,88" Margin="6,2">
+                                                <TextBlock Grid.Column="0" Text="{Binding Pid}" Foreground="#94A3B8"/>
+                                                <TextBlock Grid.Column="1" Text="{Binding Name}" TextTrimming="CharacterEllipsis"/>
+                                                <TextBlock Grid.Column="2" Text="{Binding MemoryLabel}" Foreground="#34D399" HorizontalAlignment="Right"/>
                                             </Grid>
                                         </DataTemplate>
                                     </ListBox.ItemTemplate>
@@ -257,259 +324,149 @@
                     </Grid>
                 </DockPanel>
 
-                <!-- ==================== 2. REMOTE DESKTOP VIEW ==================== -->
-                <DockPanel x:Name="DesktopPanel" IsVisible="False">
-
-                    <Border x:Name="DesktopToolbarBorder" DockPanel.Dock="Top" Background="#1C212E" BorderBrush="#282F40" BorderThickness="1"
-                            CornerRadius="12" Padding="16,12" Margin="0,0,0,14">
+                <!-- ==================== 4. REMOTE SHELL VIEW ==================== -->
+                <DockPanel x:Name="ShellPanel" IsVisible="False">
+                    <Border DockPanel.Dock="Top" Background="#151926" BorderBrush="#23293B" BorderThickness="1" CornerRadius="14" Padding="14,10" Margin="0,0,0,12">
                         <DockPanel>
-                            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center" Spacing="8">
-                                <Button Content="📋" ToolTip.Tip="Paste to remote — send your clipboard text to the remote PC" Click="OnSendClipboardClick"/>
-                                <Button Content="📥" ToolTip.Tip="Copy from remote — copy the remote PC's clipboard text here" Click="OnGetClipboardClick"/>
-                                <Button Content="⛶" ToolTip.Tip="Full screen (F11)" Click="OnToggleFullScreenClick"/>
-                            </StackPanel>
-
+                            <Button DockPanel.Dock="Right" Content="Clear" Click="OnClearShellClick"/>
                             <WrapPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                <Button x:Name="StreamBtn" Content="▶  Start Viewing" Width="142" HorizontalContentAlignment="Center"
-                                        Background="#3B82F6" Foreground="White" FontWeight="SemiBold" Click="OnToggleStream"/>
-
-                                <CheckBox x:Name="ControlCheck" Content="Control + Copy/Paste" VerticalAlignment="Center" Margin="16,0,10,0" ToolTip.Tip="Send mouse and keyboard. While on, copy/paste works both ways (Ctrl/Cmd+C/V or right-click Copy/Paste)"
-                                          IsCheckedChanged="OnControlCheckChanged"/>
-
-                                <TextBlock Text="FPS:" Foreground="#9CA3AF" VerticalAlignment="Center"/>
-                                <TextBox x:Name="FpsBox" Text="60" Width="52" Margin="6,0,10,0" VerticalAlignment="Center"/>
-
-                                <TextBlock Text="Quality:" Foreground="#9CA3AF" VerticalAlignment="Center"/>
-                                <TextBox x:Name="QualityBox" Text="80" Width="52" Margin="6,0,10,0" VerticalAlignment="Center"/>
-
-                                <TextBlock Text="Res:" Foreground="#9CA3AF" VerticalAlignment="Center" Margin="0,0,6,0"/>
-                                <ComboBox x:Name="ScaleBox" Width="160" SelectedIndex="0" VerticalAlignment="Center">
-                                    <ComboBoxItem Content="Native (sharpest)" Tag="0"/>
-                                    <ComboBoxItem Content="1080p (faster)" Tag="1920"/>
-                                    <ComboBoxItem Content="720p (fastest)" Tag="1280"/>
-                                </ComboBox>
+                                <TextBlock Text="QUICK:" FontSize="10.5" FontWeight="Bold" Foreground="#94A3B8" VerticalAlignment="Center" Margin="0,0,10,0"/>
+                                <Button Content="whoami" Tag="whoami; hostname; $PSVersionTable.PSVersion.ToString()" Margin="0,0,6,0" Click="OnQuickCommandClick"/>
+                                <Button Content="IP Config" Tag="Get-NetIPAddress -AddressFamily IPv4 | Select-Object InterfaceAlias, IPAddress | Format-Table -AutoSize" Margin="0,0,6,0" Click="OnQuickCommandClick"/>
+                                <Button Content="Top CPU" Tag="Get-Process | Sort-Object CPU -Descending | Select-Object -First 10 Id, ProcessName, @{N='CPU(s)';E={[math]::Round($_.CPU,1)}}, @{N='RAM(MB)';E={[math]::Round($_.WorkingSet64/1MB,1)}} | Format-Table -AutoSize" Margin="0,0,6,0" Click="OnQuickCommandClick"/>
+                                <Button Content="Disks" Tag="Get-PSDrive -PSProvider FileSystem | Select-Object Name, @{N='Used(GB)';E={[math]::Round($_.Used/1GB,1)}}, @{N='Free(GB)';E={[math]::Round($_.Free/1GB,1)}} | Format-Table -AutoSize" Margin="0,0,6,0" Click="OnQuickCommandClick"/>
+                                <Button Content="Uptime" Tag="(Get-Date) - (Get-CimInstance Win32_OperatingSystem).LastBootUpTime | Select-Object Days, Hours, Minutes | Format-List" Click="OnQuickCommandClick"/>
                             </WrapPanel>
                         </DockPanel>
                     </Border>
 
-                    <Border x:Name="ScreenCanvasBorder" Background="#07090D" BorderBrush="#282F40" BorderThickness="1" CornerRadius="12" ClipToBounds="True">
-                        <Grid>
-                            <Image x:Name="ScreenImage" Stretch="Uniform" Focusable="True" RenderOptions.BitmapInterpolationMode="HighQuality"
-                                   PointerMoved="OnScreenPointerMoved"
-                                   PointerPressed="OnScreenPointerPressed"
-                                   PointerReleased="OnScreenPointerReleased"
-                                   PointerWheelChanged="OnScreenPointerWheelChanged"
-                                   KeyDown="OnScreenKeyDown"
-                                   KeyUp="OnScreenKeyUp"/>
-
-                            <!-- Stream status -->
-                            <Border HorizontalAlignment="Left" VerticalAlignment="Bottom" Margin="12" Background="#B3202020" CornerRadius="10" Padding="10,3,10,4" IsHitTestVisible="False">
-                                <TextBlock x:Name="StreamStatus" Text="Idle — not streaming" FontSize="12" Foreground="#CCFFFFFF"/>
-                            </Border>
-
-                            <!-- Remote pointer (view-only mode) -->
-                            <Canvas x:Name="CursorLayer" IsHitTestVisible="False" ClipToBounds="True">
-                                <Image x:Name="RemoteCursorImage" IsVisible="False"/>
-                            </Canvas>
-
-                            <!-- Floating HUD in Full Screen Mode -->
-                            <Border x:Name="FullscreenHud" IsVisible="False" HorizontalAlignment="Right" VerticalAlignment="Top"
-                                    Margin="0,14,18,0" Background="#CC151922" BorderBrush="#282F40"
-                                    BorderThickness="1" CornerRadius="10" Padding="12,7">
-                                <StackPanel Orientation="Horizontal" Spacing="8">
-                                    <TextBlock x:Name="FullscreenHudText" Text="Full Screen Remote Control" Foreground="#E2E8F0"
-                                               FontSize="12" VerticalAlignment="Center"/>
-                                    <Button Content="📋 Paste" Click="OnSendClipboardClick"/>
-                                    <Button Content="📥 Copy" Click="OnGetClipboardClick"/>
-                                    <Button Content="⛶  Exit Full Screen (Esc)" Click="OnToggleFullScreenClick"/>
-                                    <Button Content="⏹  Stop Stream" Background="#EF4444" Foreground="White" Click="OnToggleStream"/>
-                                </StackPanel>
-                            </Border>
-
-                            <StackPanel x:Name="DesktopOverlay" HorizontalAlignment="Center" VerticalAlignment="Center">
-                                <TextBlock Text="🖥️  Remote Desktop Stream Ready" FontSize="16" FontWeight="SemiBold"
-                                           HorizontalAlignment="Center"/>
-                                <TextBlock Text="Click 'Start Viewing' above (or press F11 for Full Screen). The remote Windows computer will show an on-screen Allow/Deny consent prompt."
-                                           Foreground="#9CA3AF" FontSize="12.5" HorizontalAlignment="Center" Margin="0,6,0,0"/>
-                            </StackPanel>
-                        </Grid>
-                    </Border>
-                </DockPanel>
-
-                <!-- ==================== 3. REMOTE SHELL VIEW ==================== -->
-                <DockPanel x:Name="ShellPanel" IsVisible="False">
-
-                    <Border DockPanel.Dock="Top" Background="#1C212E" BorderBrush="#282F40" BorderThickness="1"
-                            CornerRadius="12" Padding="14,10" Margin="0,0,0,12">
+                    <Border DockPanel.Dock="Bottom" Background="#151926" BorderBrush="#23293B" BorderThickness="1" CornerRadius="14" Padding="10" Margin="0,12,0,0">
                         <DockPanel>
-                            <Button DockPanel.Dock="Right" Content="Clear Console" Click="OnClearShellClick"/>
-                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Spacing="8">
-                                <TextBlock Text="QUICK COMMANDS:" FontSize="11" FontWeight="Bold" Foreground="#9CA3AF"
-                                           VerticalAlignment="Center" Margin="0,0,4,0"/>
-                                <Button Content="whoami &amp; hostname" Tag="whoami; hostname; $PSVersionTable.PSVersion.ToString()" Click="OnQuickCommandClick"/>
-                                <Button Content="IP Configuration" Tag="Get-NetIPAddress -AddressFamily IPv4 | Select-Object InterfaceAlias, IPAddress | Format-Table -AutoSize" Click="OnQuickCommandClick"/>
-                                <Button Content="Top CPU Processes" Tag="Get-Process | Sort-Object CPU -Descending | Select-Object -First 10 Id, ProcessName, @{N='CPU(s)';E={[math]::Round($_.CPU,1)}}, @{N='RAM(MB)';E={[math]::Round($_.WorkingSet64/1MB,1)}} | Format-Table -AutoSize" Click="OnQuickCommandClick"/>
-                                <Button Content="Disk Volumes" Tag="Get-PSDrive -PSProvider FileSystem | Select-Object Name, @{N='Used(GB)';E={[math]::Round($_.Used/1GB,1)}}, @{N='Free(GB)';E={[math]::Round($_.Free/1GB,1)}} | Format-Table -AutoSize" Click="OnQuickCommandClick"/>
-                                <Button Content="Uptime" Tag="(Get-Date) - (Get-CimInstance Win32_OperatingSystem).LastBootUpTime | Select-Object Days, Hours, Minutes | Format-List" Click="OnQuickCommandClick"/>
-                            </StackPanel>
+                            <Button x:Name="ShellSendBtn" DockPanel.Dock="Right" Content="Run" Width="110" HorizontalContentAlignment="Center"
+                                    Background="#0284C7" BorderBrush="#38BDF8" Foreground="White" Margin="10,0,0,0" Click="OnShellSend"/>
+                            <Border DockPanel.Dock="Left" Background="#172033" CornerRadius="7" Padding="10,6" Margin="0,0,10,0">
+                                <TextBlock Text="PS &gt;" FontFamily="Menlo, Consolas, monospace" FontWeight="Bold" Foreground="#38BDF8" VerticalAlignment="Center"/>
+                            </Border>
+                            <TextBox x:Name="ShellInputBox" FontFamily="Menlo, Consolas, monospace" FontSize="13" KeyDown="OnShellInputKeyDown"/>
                         </DockPanel>
                     </Border>
 
-                    <Border DockPanel.Dock="Bottom" Background="#1C212E" BorderBrush="#282F40" BorderThickness="1"
-                            CornerRadius="12" Padding="10" Margin="0,12,0,0">
-                        <DockPanel>
-                            <Button x:Name="ShellSendBtn" DockPanel.Dock="Right" Content="Run Command" Width="130"
-                                    HorizontalContentAlignment="Center" Background="#3B82F6" Foreground="White"
-                                    FontWeight="SemiBold" Margin="10,0,0,0" Click="OnShellSend"/>
-                            <Border DockPanel.Dock="Left" Background="#1E293B" CornerRadius="6" Padding="10,6" Margin="0,0,10,0">
-                                <TextBlock Text="PS &gt;" FontFamily="Menlo, Consolas, monospace" FontWeight="Bold"
-                                           Foreground="#60A5FA" VerticalAlignment="Center"/>
-                            </Border>
-                            <TextBox x:Name="ShellInputBox" FontFamily="Menlo, Consolas, monospace" FontSize="13"
-                                     KeyDown="OnShellInputKeyDown"/>
-                        </DockPanel>
-                    </Border>
-
-                    <Border Background="#090C12" BorderBrush="#282F40" BorderThickness="1" CornerRadius="12" Padding="4">
-                        <TextBox x:Name="ShellOutput" IsReadOnly="True" Background="Transparent"
-                                 Foreground="#E2E8F0" BorderThickness="0" Padding="14,12"
-                                 FontFamily="Menlo, Consolas, monospace" FontSize="12.5"
-                                 TextWrapping="Wrap" AcceptsReturn="True"/>
+                    <Border Background="#07090F" BorderBrush="#23293B" BorderThickness="1" CornerRadius="14" Padding="4">
+                        <TextBox x:Name="ShellOutput" IsReadOnly="True" Background="Transparent" Foreground="#E2E8F0" BorderThickness="0" Padding="14,12"
+                                 FontFamily="Menlo, Consolas, monospace" FontSize="12.5" TextWrapping="Wrap" AcceptsReturn="True"/>
                     </Border>
                 </DockPanel>
 
-                <!-- ==================== 4. SILENT SOFTWARE DEPLOYMENT VIEW ==================== -->
+                <!-- ==================== 5. SILENT DEPLOY VIEW ==================== -->
                 <DockPanel x:Name="DeployPanel" IsVisible="False">
-
-                    <Border DockPanel.Dock="Top" Background="#1C212E" BorderBrush="#282F40" BorderThickness="1"
-                            CornerRadius="12" Padding="18,16" Margin="0,0,0,14">
+                    <Border DockPanel.Dock="Top" Background="#151926" BorderBrush="#23293B" BorderThickness="1" CornerRadius="14" Padding="18,16" Margin="0,0,0,14">
                         <StackPanel>
                             <DockPanel Margin="0,0,0,12">
-                                <Border DockPanel.Dock="Right" Background="#243B82F6" CornerRadius="6" Padding="10,3">
-                                    <TextBlock x:Name="DeployStatusBadge" Text="Ready to Deploy" FontSize="11.5"
-                                               FontWeight="SemiBold" Foreground="#93C5FD"/>
+                                <Border DockPanel.Dock="Right" Background="#1F38BDF8" CornerRadius="6" Padding="10,3">
+                                    <TextBlock x:Name="DeployStatusBadge" Text="Ready" FontSize="11.5" FontWeight="SemiBold" Foreground="#38BDF8"/>
                                 </Border>
                                 <StackPanel>
-                                    <TextBlock Text="UPLOAD &amp; SILENTLY INSTALL PACKAGE (.EXE / .MSI / .MSP / .PS1)" FontSize="11" FontWeight="Bold" Foreground="#9CA3AF" Margin="0,0,0,3"/>
-                                    <TextBlock Text="Streams your local installer file from macOS over Mutual TLS to the Windows Agent and runs it silently."
-                                               FontSize="12" Foreground="#9CA3AF"/>
+                                    <TextBlock Text="SILENT INSTALLER DEPLOY (.EXE / .MSI / .MSP / .PS1)" FontSize="10.5" FontWeight="Bold" Foreground="#94A3B8" Margin="0,0,0,3"/>
+                                    <TextBlock Text="Stream any local installer over mTLS to the remote PC and install silently." FontSize="12" Foreground="#94A3B8"/>
                                 </StackPanel>
                             </DockPanel>
 
-                            <Grid ColumnDefinitions="2*,10,Auto,16,1.2*,14,Auto" Margin="0,0,0,12">
+                            <Grid ColumnDefinitions="2*,10,Auto,14,1.2*,14,Auto" Margin="0,0,0,12">
                                 <StackPanel Grid.Column="0">
-                                    <TextBlock Text="Local Installer File (.exe, .msi, .msp, .ps1)" FontSize="11.5" Foreground="#9CA3AF" Margin="0,0,0,4"/>
-                                    <TextBox x:Name="DeployFilePathBox" Text=""/>
+                                    <TextBlock Text="Installer File" FontSize="11" Foreground="#94A3B8" Margin="0,0,0,4"/>
+                                    <TextBox x:Name="DeployFilePathBox"/>
                                 </StackPanel>
-
-                                <Button Grid.Column="2" Content="📂  Browse File…" VerticalAlignment="Bottom" Click="OnBrowseDeployFileClick"/>
-
+                                <Button Grid.Column="2" Content="📂 Browse…" VerticalAlignment="Bottom" Click="OnBrowseDeployFileClick"/>
                                 <StackPanel Grid.Column="4">
-                                    <TextBlock Text="Silent Flags (AUTO detects NSIS / Inno / MSI / Burn)" FontSize="11.5" Foreground="#9CA3AF" Margin="0,0,0,4"/>
+                                    <TextBlock Text="Silent Flags (AUTO)" FontSize="11" Foreground="#94A3B8" Margin="0,0,0,4"/>
                                     <TextBox x:Name="DeployArgsBox" Text="AUTO"/>
                                 </StackPanel>
-
-                                <Button x:Name="DeployRunBtn" Grid.Column="6" Content="🚀  Upload &amp; Install Silently"
-                                        Background="#3B82F6" Foreground="White" FontWeight="SemiBold"
-                                        VerticalAlignment="Bottom" Padding="18,8" Click="OnStartDeployClick"/>
+                                <Button x:Name="DeployRunBtn" Grid.Column="6" Content="🚀 Install Silently"
+                                        Background="#0284C7" BorderBrush="#38BDF8" Foreground="White" VerticalAlignment="Bottom" Click="OnStartDeployClick"/>
                             </Grid>
 
-                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Spacing="8">
-                                <TextBlock Text="FLAG PRESETS:" FontSize="11" FontWeight="Bold" Foreground="#9CA3AF" VerticalAlignment="Center" Margin="0,0,4,0"/>
-                                <Button Content="Smart Auto-Detect (AUTO)" Tag="AUTO" Click="OnDeployPresetFlagClick"/>
-                                <Button Content="NSIS / Standard (/S)" Tag="/S" Click="OnDeployPresetFlagClick"/>
-                                <Button Content="Inno Setup (/VERYSILENT)" Tag="/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /SP-" Click="OnDeployPresetFlagClick"/>
-                                <Button Content="MSI Quiet (/qn /norestart)" Tag="/qn /norestart" Click="OnDeployPresetFlagClick"/>
-                                <Button Content="Burn / WiX (/quiet /norestart)" Tag="/quiet /norestart" Click="OnDeployPresetFlagClick"/>
-                            </StackPanel>
+                            <WrapPanel>
+                                <Button Content="AUTO" Tag="AUTO" Margin="0,0,6,0" Click="OnDeployPresetFlagClick"/>
+                                <Button Content="NSIS (/S)" Tag="/S" Margin="0,0,6,0" Click="OnDeployPresetFlagClick"/>
+                                <Button Content="Inno (/VERYSILENT)" Tag="/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /SP-" Margin="0,0,6,0" Click="OnDeployPresetFlagClick"/>
+                                <Button Content="MSI (/qn /norestart)" Tag="/qn /norestart" Margin="0,0,6,0" Click="OnDeployPresetFlagClick"/>
+                                <Button Content="WiX (/quiet /norestart)" Tag="/quiet /norestart" Click="OnDeployPresetFlagClick"/>
+                            </WrapPanel>
                         </StackPanel>
                     </Border>
 
-                    <Border DockPanel.Dock="Top" Background="#1C212E" BorderBrush="#282F40" BorderThickness="1"
-                            CornerRadius="12" Padding="14,10" Margin="0,0,0,14">
+                    <Border DockPanel.Dock="Top" Background="#151926" BorderBrush="#23293B" BorderThickness="1" CornerRadius="14" Padding="14,10" Margin="0,0,0,14">
                         <DockPanel>
-                            <Button DockPanel.Dock="Right" Content="Clear Log" Click="OnClearDeployLogClick"/>
-                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Spacing="8">
-                                <TextBlock Text="ONE-CLICK WINGET SILENT INSTALL:" FontSize="11" FontWeight="Bold" Foreground="#9CA3AF"
-                                           VerticalAlignment="Center" Margin="0,0,4,0"/>
-                                <Button Content="7-Zip" Tag="7zip.7zip" Click="OnWingetQuickInstallClick"/>
-                                <Button Content="Google Chrome" Tag="Google.Chrome" Click="OnWingetQuickInstallClick"/>
-                                <Button Content="Mozilla Firefox" Tag="Mozilla.Firefox" Click="OnWingetQuickInstallClick"/>
-                                <Button Content="VLC Media Player" Tag="VideoLAN.VLC" Click="OnWingetQuickInstallClick"/>
-                                <Button Content="Notepad++" Tag="Notepad++.Notepad++" Click="OnWingetQuickInstallClick"/>
+                            <Button DockPanel.Dock="Right" Content="Clear" Click="OnClearDeployLogClick"/>
+                            <WrapPanel VerticalAlignment="Center">
+                                <TextBlock Text="WINGET 1-CLICK:" FontSize="10.5" FontWeight="Bold" Foreground="#94A3B8" VerticalAlignment="Center" Margin="0,0,10,0"/>
+                                <Button Content="7-Zip" Tag="7zip.7zip" Margin="0,0,6,0" Click="OnWingetQuickInstallClick"/>
+                                <Button Content="Chrome" Tag="Google.Chrome" Margin="0,0,6,0" Click="OnWingetQuickInstallClick"/>
+                                <Button Content="Firefox" Tag="Mozilla.Firefox" Margin="0,0,6,0" Click="OnWingetQuickInstallClick"/>
+                                <Button Content="VLC" Tag="VideoLAN.VLC" Margin="0,0,6,0" Click="OnWingetQuickInstallClick"/>
+                                <Button Content="Notepad++" Tag="Notepad++.Notepad++" Margin="0,0,6,0" Click="OnWingetQuickInstallClick"/>
                                 <Button Content="VS Code" Tag="Microsoft.VisualStudioCode" Click="OnWingetQuickInstallClick"/>
-                            </StackPanel>
+                            </WrapPanel>
                         </DockPanel>
                     </Border>
 
-                    <Border Background="#090C12" BorderBrush="#282F40" BorderThickness="1" CornerRadius="12" Padding="4">
-                        <TextBox x:Name="DeployOutputBox" IsReadOnly="True" Background="Transparent"
-                                 Foreground="#E2E8F0" BorderThickness="0" Padding="14,12"
-                                 FontFamily="Menlo, Consolas, monospace" FontSize="12.5"
-                                 TextWrapping="Wrap" AcceptsReturn="True"/>
+                    <Border Background="#07090F" BorderBrush="#23293B" BorderThickness="1" CornerRadius="14" Padding="4">
+                        <TextBox x:Name="DeployOutputBox" IsReadOnly="True" Background="Transparent" Foreground="#E2E8F0" BorderThickness="0" Padding="14,12"
+                                 FontFamily="Menlo, Consolas, monospace" FontSize="12.5" TextWrapping="Wrap" AcceptsReturn="True"/>
                     </Border>
                 </DockPanel>
 
-                <!-- ==================== 5. WINDOWS 11 STYLE SETTINGS & UPDATES VIEW ==================== -->
-                <Grid x:Name="SystemPanel" IsVisible="False" ColumnDefinitions="230,16,*">
-
-                    <!-- Windows 11 Left Settings Sidebar -->
-                    <Border Grid.Column="0" Background="#1C212E" BorderBrush="#282F40" BorderThickness="1" CornerRadius="12" Padding="12">
+                <!-- ==================== 6. WINDOWS 11 SETTINGS & UPDATES VIEW ==================== -->
+                <Grid x:Name="SystemPanel" IsVisible="False" ColumnDefinitions="228,14,*">
+                    <Border Grid.Column="0" Background="#151926" BorderBrush="#23293B" BorderThickness="1" CornerRadius="14" Padding="12">
                         <DockPanel>
                             <StackPanel DockPanel.Dock="Top" Margin="0,0,0,12" Spacing="6">
-                                <TextBlock Text="WINDOWS SETTINGS" FontSize="11" FontWeight="Bold" Foreground="#9CA3AF" Margin="2,0,0,0"/>
+                                <TextBlock Text="WINDOWS SETTINGS" FontSize="10.5" FontWeight="Bold" Foreground="#94A3B8" Margin="2,0,0,0"/>
                                 <TextBox x:Name="SettingsSearchBox" Watermark="Find a setting…" TextChanged="OnSettingsSearchChanged"/>
                             </StackPanel>
-
                             <ScrollViewer VerticalScrollBarVisibility="Auto">
                                 <StackPanel x:Name="Win11SidebarPanel"/>
                             </ScrollViewer>
                         </DockPanel>
                     </Border>
 
-                    <!-- Windows 11 Right Settings Content + Live Output -->
                     <DockPanel Grid.Column="2" LastChildFill="True">
-
-                        <Border DockPanel.Dock="Top" Background="#1C212E" BorderBrush="#282F40" BorderThickness="1" CornerRadius="12" Padding="16,12" Margin="0,0,0,12">
+                        <Border DockPanel.Dock="Top" Background="#151926" BorderBrush="#23293B" BorderThickness="1" CornerRadius="14" Padding="16,12" Margin="0,0,0,12">
                             <DockPanel>
                                 <Border x:Name="SystemAdminBadge" DockPanel.Dock="Right" Background="#24F59E0B" CornerRadius="6" Padding="10,4" VerticalAlignment="Center">
                                     <TextBlock x:Name="SystemAdminText" Text="⚠ Agent: Standard User" FontSize="11.5" FontWeight="SemiBold" Foreground="#FBBF24"/>
                                 </Border>
                                 <StackPanel>
                                     <TextBlock x:Name="Win11PageTitle" Text="Home" FontSize="18" FontWeight="Bold"/>
-                                    <TextBlock x:Name="Win11PageSubtitle" Text="Device overview, quick settings, and remote status" FontSize="12" Foreground="#9CA3AF" Margin="0,2,0,0"/>
+                                    <TextBlock x:Name="Win11PageSubtitle" Text="Device overview and remote settings" FontSize="12" Foreground="#94A3B8" Margin="0,2,0,0"/>
                                 </StackPanel>
                             </DockPanel>
                         </Border>
 
-                        <Border DockPanel.Dock="Top" Background="#1C212E" BorderBrush="#282F40" BorderThickness="1" CornerRadius="12" Padding="14,10" Margin="0,0,0,12">
+                        <Border DockPanel.Dock="Top" Background="#151926" BorderBrush="#23293B" BorderThickness="1" CornerRadius="14" Padding="14,10" Margin="0,0,0,12">
                             <Grid ColumnDefinitions="1.4*,12,*">
                                 <StackPanel Grid.Column="0">
-                                    <TextBlock x:Name="SystemTargetLabel" Text="Target" FontSize="11" Foreground="#9CA3AF" Margin="0,0,0,4"/>
+                                    <TextBlock x:Name="SystemTargetLabel" Text="Target" FontSize="11" Foreground="#94A3B8" Margin="0,0,0,4"/>
                                     <TextBox x:Name="SystemTargetBox"/>
                                 </StackPanel>
                                 <StackPanel Grid.Column="2">
-                                    <TextBlock x:Name="SystemExtraLabel" Text="Extra argument" FontSize="11" Foreground="#9CA3AF" Margin="0,0,0,4"/>
+                                    <TextBlock x:Name="SystemExtraLabel" Text="Extra" FontSize="11" Foreground="#94A3B8" Margin="0,0,0,4"/>
                                     <TextBox x:Name="SystemExtraBox"/>
                                 </StackPanel>
                             </Grid>
                         </Border>
 
-                        <Border DockPanel.Dock="Bottom" Background="#090C12" BorderBrush="#282F40" BorderThickness="1" CornerRadius="12" Padding="4" Height="220" Margin="0,12,0,0">
+                        <Border DockPanel.Dock="Bottom" Background="#07090F" BorderBrush="#23293B" BorderThickness="1" CornerRadius="14" Padding="4" Height="210" Margin="0,12,0,0">
                             <DockPanel>
                                 <DockPanel DockPanel.Dock="Top" Margin="12,8,12,6">
                                     <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="8">
-                                        <TextBlock Text="Filter:" Foreground="#9CA3AF" VerticalAlignment="Center"/>
-                                        <TextBox x:Name="SystemFilterBox" Width="180" TextChanged="OnSystemFilterChanged"/>
+                                        <TextBlock Text="Filter:" Foreground="#94A3B8" VerticalAlignment="Center"/>
+                                        <TextBox x:Name="SystemFilterBox" Width="170" TextChanged="OnSystemFilterChanged"/>
                                     </StackPanel>
-                                    <TextBlock x:Name="SystemMessageText" Text="Select any setting card above to inspect or change it on the remote PC."
-                                               Foreground="#9CA3AF" FontSize="12" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+                                    <TextBlock x:Name="SystemMessageText" Text="Click any setting action above to execute on the remote PC." Foreground="#94A3B8" FontSize="12" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
                                 </DockPanel>
-                                <TextBlock x:Name="SystemHeaderText" DockPanel.Dock="Top" FontFamily="Menlo, Consolas, monospace" FontSize="12"
-                                           FontWeight="Bold" Foreground="#93C5FD" Margin="12,0,12,4"/>
-                                <ListBox x:Name="SystemRowsList" Background="Transparent" BorderThickness="0"
-                                         FontFamily="Menlo, Consolas, monospace" FontSize="12"
-                                         SelectionChanged="OnSystemRowSelected"/>
+                                <TextBlock x:Name="SystemHeaderText" DockPanel.Dock="Top" FontFamily="Menlo, Consolas, monospace" FontSize="12" FontWeight="Bold" Foreground="#38BDF8" Margin="12,0,12,4"/>
+                                <ListBox x:Name="SystemRowsList" Background="Transparent" BorderThickness="0" FontFamily="Menlo, Consolas, monospace" FontSize="12" SelectionChanged="OnSystemRowSelected"/>
                             </DockPanel>
                         </Border>
 
@@ -520,6 +477,6 @@
                 </Grid>
 
             </Grid>
-        </DockPanel>
+        </Grid>
     </Grid>
 </Window>

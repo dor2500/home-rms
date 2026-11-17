@@ -198,6 +198,12 @@ public partial class MainWindow
         if (ScreenImage is not null) ScreenImage.Cursor = null;
     }
 
+    /// <summary>The app's violet → cyan accent gradient (App.axaml "AccentGradient").</summary>
+    private static Avalonia.Media.IBrush AccentBrush() =>
+        Application.Current is { } app && app.TryGetResource("AccentGradient", null, out var v) && v is Avalonia.Media.IBrush b
+            ? b
+            : new Avalonia.Media.SolidColorBrush(Avalonia.Media.Color.FromRgb(139, 92, 246));
+
     private sealed class StreamStats
     {
         private readonly object _gate = new();

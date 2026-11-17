@@ -19,10 +19,22 @@ internal static class ConsentPrompt
             MaximizeBox = false,
             ShowInTaskbar = true,
             TopMost = true,
-            BackColor = Theme.Surface,
+            BackColor = Theme.Bg,
             ForeColor = Theme.Text,
             Font = Theme.UiFont,
-            ClientSize = new Size(520, 270),
+            ClientSize = new Size(560, 300),
+        };
+        Theme.ApplyWindowChrome(form);
+        form.Paint += (_, e) => Theme.PaintBackdrop(e.Graphics, form.ClientRectangle);
+
+        var badge = new Label
+        {
+            Text = "ACCESS REQUEST",
+            Font = Theme.CaptionFont,
+            ForeColor = Theme.AccentLight,
+            BackColor = Color.Transparent,
+            AutoSize = true,
+            Location = new Point(32, 26),
         };
 
         var title = new Label
@@ -30,17 +42,19 @@ internal static class ConsentPrompt
             Text = "Remote access request",
             Font = Theme.TitleFont,
             ForeColor = Theme.Text,
+            BackColor = Color.Transparent,
             AutoSize = true,
-            Location = new Point(28, 22),
+            Location = new Point(30, 46),
         };
 
         var who = new Label
         {
             Text = $"\"{operatorName}\" wants to {action} on this computer.",
             Font = Theme.ValueFont,
-            ForeColor = Theme.Accent,
-            Location = new Point(28, 66),
-            Size = new Size(464, 34),
+            ForeColor = Theme.AccentLight,
+            BackColor = Color.Transparent,
+            Location = new Point(32, 92),
+            Size = new Size(500, 30),
         };
 
         var detail = new Label
@@ -49,17 +63,18 @@ internal static class ConsentPrompt
                    "for the entire session, you can stop it at any time from the tray, and access expires " +
                    "automatically after one hour.",
             ForeColor = Theme.Muted,
+            BackColor = Color.Transparent,
             Font = Theme.UiFont,
-            Location = new Point(28, 110),
-            Size = new Size(464, 78),
+            Location = new Point(32, 132),
+            Size = new Size(500, 80),
         };
 
         var deny = Theme.Flat("Deny", Theme.Card, Theme.Text, (_, _) => form.DialogResult = DialogResult.Cancel, 125);
         var allow = Theme.Flat("Allow", Theme.Accent, Color.White, (_, _) => form.DialogResult = DialogResult.OK, 125);
-        deny.Location = new Point(252, 208);
-        allow.Location = new Point(386, 208);
+        deny.Location = new Point(288, 232);
+        allow.Location = new Point(420, 232);
 
-        form.Controls.AddRange(new Control[] { title, who, detail, deny, allow });
+        form.Controls.AddRange(new Control[] { badge, title, who, detail, deny, allow });
         form.AcceptButton = allow;
         form.CancelButton = deny;
 

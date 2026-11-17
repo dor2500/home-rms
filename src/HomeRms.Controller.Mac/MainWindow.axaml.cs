@@ -56,8 +56,12 @@ public partial class MainWindow : Window
             _machines.Add(m);
 
         MachinesList.ItemsSource = _machines;
+        MachineSwitcher.ItemsSource = _machines;
         if (_machines.Count > 0)
+        {
             MachinesList.SelectedIndex = 0;
+            MachineSwitcher.SelectedIndex = 0;
+        }
 
         ShellOutput.Text =
             "Home RMS Interactive PowerShell Console (macOS -> Windows Agent)\r\n" +
@@ -76,11 +80,12 @@ public partial class MainWindow : Window
     // ---------------- Navigation ----------------
     private void OnNavTabChanged(object? sender, RoutedEventArgs e)
     {
-        if (InventoryPanel is null || DesktopPanel is null || ShellPanel is null || DeployPanel is null || SystemPanel is null) return;
+        if (FleetPanel is null || InventoryPanel is null || DesktopPanel is null || ShellPanel is null || DeployPanel is null || SystemPanel is null) return;
 
         if (_isFullScreen && NavDesktop.IsChecked != true)
             SetFullScreen(false);
 
+        FleetPanel.IsVisible = NavFleet.IsChecked == true;
         InventoryPanel.IsVisible = NavInventory.IsChecked == true;
         DesktopPanel.IsVisible = NavDesktop.IsChecked == true;
         ShellPanel.IsVisible = NavShell.IsChecked == true;
@@ -132,8 +137,8 @@ public partial class MainWindow : Window
         foreach (var b in Win11SidebarPanel.Children.OfType<Button>())
         {
             var active = ReferenceEquals(b.Tag, page);
-            b.Background = new SolidColorBrush(active ? Color.FromArgb(45, 59, 130, 246) : Colors.Transparent);
-            b.Foreground = new SolidColorBrush(active ? Colors.White : Color.FromRgb(209, 213, 219));
+            b.Background = new SolidColorBrush(active ? Color.FromArgb(51, 139, 92, 246) : Colors.Transparent);
+            b.Foreground = new SolidColorBrush(active ? Colors.White : Color.FromRgb(155, 161, 185));
         }
 
         Win11PageTitle.Text = $"{page.Icon}  {page.Title}";
@@ -172,8 +177,8 @@ public partial class MainWindow : Window
         {
             var card = new Border
             {
-                Background = new SolidColorBrush(Color.FromRgb(28, 33, 46)),
-                BorderBrush = new SolidColorBrush(Color.FromRgb(40, 47, 64)),
+                Background = new SolidColorBrush(Color.FromArgb(13, 255, 255, 255)),
+                BorderBrush = new SolidColorBrush(Color.FromArgb(23, 255, 255, 255)),
                 BorderThickness = new Thickness(1),
                 CornerRadius = new CornerRadius(10),
                 Padding = new Thickness(16, 12, 16, 12),
@@ -184,7 +189,7 @@ public partial class MainWindow : Window
             var btn = new Button
             {
                 Content = item.ButtonLabel,
-                Background = new SolidColorBrush(item.Dangerous ? Color.FromRgb(239, 68, 68) : Color.FromRgb(59, 130, 246)),
+                Background = item.Dangerous ? new SolidColorBrush(Color.FromRgb(244, 63, 94)) : AccentBrush(),
                 Foreground = Brushes.White,
                 Padding = new Thickness(14, 7, 14, 7),
                 FontSize = 12,
@@ -194,8 +199,8 @@ public partial class MainWindow : Window
             btn.Click += async (_, _) => await RunWin11ItemAsync(item);
 
             var textStack = new StackPanel { VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center, Margin = new Thickness(0, 0, 14, 0) };
-            textStack.Children.Add(new TextBlock { Text = item.Title, FontSize = 13.5, FontWeight = FontWeight.SemiBold, Foreground = new SolidColorBrush(Color.FromRgb(243, 244, 246)) });
-            textStack.Children.Add(new TextBlock { Text = item.Subtitle, FontSize = 11.5, Foreground = new SolidColorBrush(Color.FromRgb(156, 163, 175)), Margin = new Thickness(0, 2, 0, 0), TextWrapping = TextWrapping.Wrap });
+            textStack.Children.Add(new TextBlock { Text = item.Title, FontSize = 13.5, FontWeight = FontWeight.SemiBold, Foreground = new SolidColorBrush(Color.FromRgb(244, 245, 250)) });
+            textStack.Children.Add(new TextBlock { Text = item.Subtitle, FontSize = 11.5, Foreground = new SolidColorBrush(Color.FromRgb(155, 161, 185)), Margin = new Thickness(0, 2, 0, 0), TextWrapping = TextWrapping.Wrap });
 
             dock.Children.Add(btn);
             dock.Children.Add(textStack);
@@ -227,23 +232,23 @@ public partial class MainWindow : Window
         try
         {
             SystemMessageText.Text = $"Running {item.Area}/{item.Action}…";
-            SystemMessageText.Foreground = new SolidColorBrush(Color.FromRgb(156, 163, 175));
+            SystemMessageText.Foreground = new SolidColorBrush(Color.FromRgb(155, 161, 185));
             var res = await _conn!.Client.SystemOpAsync(
                 new SystemOpRequest { Area = item.Area, Action = item.Action, Target = target, Extra = extra },
                 deadline: DateTime.UtcNow.AddMinutes(item.LongRunning ? 50 : 2.2));
 
             SystemAdminText.Text = res.IsElevated ? "🛡 Agent: Administrator" : "⚠ Agent: Standard User (--elevate)";
-            SystemAdminBadge.Background = new SolidColorBrush(res.IsElevated ? Color.FromArgb(40, 34, 197, 94) : Color.FromArgb(40, 245, 158, 11));
-            SystemAdminText.Foreground = new SolidColorBrush(res.IsElevated ? Color.FromRgb(74, 222, 128) : Color.FromRgb(251, 191, 36));
+            SystemAdminBadge.Background = new SolidColorBrush(res.IsElevated ? Color.FromArgb(31, 52, 211, 153) : Color.FromArgb(40, 245, 158, 11));
+            SystemAdminText.Foreground = new SolidColorBrush(res.IsElevated ? Color.FromRgb(52, 211, 153) : Color.FromRgb(251, 191, 36));
 
             SetSystemTable(SystemCatalog.ParseTable(res.JsonData));
             SystemMessageText.Text = (res.Success ? "✔ " : "✖ ") + res.Message;
-            SystemMessageText.Foreground = new SolidColorBrush(res.Success ? Color.FromRgb(74, 222, 128) : Color.FromRgb(248, 113, 113));
+            SystemMessageText.Foreground = new SolidColorBrush(res.Success ? Color.FromRgb(52, 211, 153) : Color.FromRgb(251, 113, 133));
         }
         catch (Exception ex)
         {
             SystemMessageText.Text = "✖ " + Short(ex);
-            SystemMessageText.Foreground = new SolidColorBrush(Color.FromRgb(248, 113, 113));
+            SystemMessageText.Foreground = new SolidColorBrush(Color.FromRgb(251, 113, 133));
         }
     }
 
@@ -335,9 +340,8 @@ public partial class MainWindow : Window
         if (fullScreen)
         {
             _prevWindowState = WindowState;
-            SidebarBorder.IsVisible = false;
+            RailBorder.IsVisible = false;
             TopBarBorder.IsVisible = false;
-            NavBarBorder.IsVisible = false;
             DesktopToolbarBorder.IsVisible = false;
             WorkspaceGrid.Margin = new Thickness(0);
             ScreenCanvasBorder.CornerRadius = new CornerRadius(0);
@@ -349,21 +353,29 @@ public partial class MainWindow : Window
         else
         {
             WindowState = _prevWindowState == WindowState.Minimized ? WindowState.Normal : _prevWindowState;
-            SidebarBorder.IsVisible = true;
+            RailBorder.IsVisible = true;
             TopBarBorder.IsVisible = true;
-            NavBarBorder.IsVisible = true;
             DesktopToolbarBorder.IsVisible = true;
-            WorkspaceGrid.Margin = new Thickness(24, 18, 24, 22);
-            ScreenCanvasBorder.CornerRadius = new CornerRadius(12);
+            WorkspaceGrid.Margin = new Thickness(20, 16, 20, 18);
+            ScreenCanvasBorder.CornerRadius = new CornerRadius(14);
             ScreenCanvasBorder.BorderThickness = new Thickness(1);
             FullscreenHud.IsVisible = false;
         }
     }
 
     // ---------------- Machine List & Probing ----------------
+    private void OnMachineSwitcherChanged(object? sender, SelectionChangedEventArgs e)
+    {
+        if (MachineSwitcher.SelectedItem is not MachineProfile m) return;
+        if (!ReferenceEquals(MachinesList.SelectedItem, m))
+            MachinesList.SelectedItem = m;
+    }
+
     private void OnMachineSelectionChanged(object? sender, SelectionChangedEventArgs e)
     {
         if (MachinesList.SelectedItem is not MachineProfile m) return;
+        if (!ReferenceEquals(MachineSwitcher.SelectedItem, m))
+            MachineSwitcher.SelectedItem = m;
         NameBox.Text = m.Name;
         HostBox.Text = m.Host;
         PortBox.Text = m.Port.ToString();
@@ -560,10 +572,10 @@ public partial class MainWindow : Window
             TargetTitleText.Text = $"{_agentInfo.MachineName} ({host}:{port})";
             StatusText.Text =
                 $"User: {_agentInfo.LoggedInUser}  •  Display: {_agentInfo.PrimaryScreenWidth}×{_agentInfo.PrimaryScreenHeight}  •  Ping: {sw.ElapsedMilliseconds} ms  •  OS: {_agentInfo.OsVersion}";
-            SetBadge($"Connected ({sw.ElapsedMilliseconds}ms)", Color.FromArgb(45, 34, 197, 94), Color.FromRgb(74, 222, 128));
+            SetBadge($"Connected ({sw.ElapsedMilliseconds}ms)", Color.FromArgb(31, 52, 211, 153), Color.FromRgb(52, 211, 153));
 
             ConnectBtn.Content = "Disconnect";
-            ConnectBtn.Background = new SolidColorBrush(Color.FromRgb(239, 68, 68));
+            ConnectBtn.Background = new SolidColorBrush(Color.FromRgb(244, 63, 94));
 
             await RefreshInventoryCoreAsync();
             return true;
@@ -571,7 +583,7 @@ public partial class MainWindow : Window
         catch (Exception ex)
         {
             _conn = null;
-            SetBadge("Connection Failed", Color.FromArgb(45, 239, 68, 68), Color.FromRgb(248, 113, 113));
+            SetBadge("Connection Failed", Color.FromArgb(31, 244, 63, 94), Color.FromRgb(251, 113, 133));
             StatusText.Text = "Could not connect: " + Short(ex);
             return false;
         }
@@ -598,8 +610,8 @@ public partial class MainWindow : Window
         }
 
         ConnectBtn.Content = "Connect";
-        ConnectBtn.Background = new SolidColorBrush(Color.FromRgb(59, 130, 246));
-        SetBadge("Disconnected", Color.FromArgb(38, 107, 114, 128), Color.FromRgb(156, 163, 175));
+        ConnectBtn.Background = AccentBrush();
+        SetBadge("Disconnected", Color.FromArgb(20, 255, 255, 255), Color.FromRgb(155, 161, 185));
         StatusText.Text = "Session closed. Click Connect to start a new session.";
     }
 
@@ -844,7 +856,7 @@ public partial class MainWindow : Window
         _streamCts = new CancellationTokenSource();
         var token = _streamCts.Token;
         StreamBtn.Content = "⏹  Stop Viewing";
-        StreamBtn.Background = new SolidColorBrush(Color.FromRgb(239, 68, 68));
+        StreamBtn.Background = new SolidColorBrush(Color.FromRgb(244, 63, 94));
         StreamStatus.Text = "Awaiting on-machine consent…";
 
         var fps = int.TryParse(FpsBox.Text, out var f) ? Math.Clamp(f, 1, 60) : 60;
@@ -928,7 +940,7 @@ public partial class MainWindow : Window
         if (StreamBtn is not null)
         {
             StreamBtn.Content = "▶  Start Viewing";
-            StreamBtn.Background = new SolidColorBrush(Color.FromRgb(59, 130, 246));
+            StreamBtn.Background = AccentBrush();
         }
         ResetRemoteCursor();
         if (StreamStatus is not null && !(StreamStatus.Text?.StartsWith("Access declined") ?? false) &&

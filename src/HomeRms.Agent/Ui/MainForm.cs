@@ -35,9 +35,12 @@ internal sealed class MainForm : Form
         BackColor = Theme.Bg;
         ForeColor = Theme.Text;
         Font = Theme.UiFont;
+        Theme.ApplyWindowChrome(this);
 
         // ---------- header ----------
-        var header = new Panel { Dock = DockStyle.Top, Height = 86, BackColor = Theme.Surface, Padding = new Padding(28, 0, 28, 0) };
+        var header = new Panel { Dock = DockStyle.Top, Height = 96, BackColor = Theme.Bg, Padding = new Padding(28, 0, 28, 0) };
+        header.Paint += (_, e) => Theme.PaintBackdrop(e.Graphics, header.ClientRectangle);
+        header.Resize += (_, _) => header.Invalidate();
         if (Theme.LoadBrandBitmap() is { } logoBmp)
         {
             var logoBox = new PictureBox
@@ -45,26 +48,28 @@ internal sealed class MainForm : Form
                 Image = logoBmp,
                 SizeMode = PictureBoxSizeMode.Zoom,
                 Size = new Size(52, 52),
-                Location = new Point(28, 17),
+                Location = new Point(28, 22),
                 BackColor = Color.Transparent,
             };
             header.Controls.Add(logoBox);
         }
         var appTitle = new Label
         {
-            Text = "Home RMS Agent — Consent-Based Endpoint",
+            Text = "Home RMS Agent",
             Font = Theme.TitleFont,
             ForeColor = Theme.Text,
+            BackColor = Color.Transparent,
             AutoSize = true,
-            Location = new Point(92, 18),
+            Location = new Point(92, 20),
         };
         var appSub = new Label
         {
             Text = "This computer can be viewed or controlled only with your explicit permission. All activity is logged below.",
             ForeColor = Theme.Muted,
+            BackColor = Color.Transparent,
             Font = Theme.UiFont,
             AutoSize = true,
-            Location = new Point(92, 52),
+            Location = new Point(92, 56),
         };
         header.Controls.Add(appTitle);
         header.Controls.Add(appSub);
@@ -87,7 +92,8 @@ internal sealed class MainForm : Form
         actions.Controls.Add(hideBtn);
 
         // Activity log (fills remaining space)
-        var logHost = new Panel { Dock = DockStyle.Fill, Padding = new Padding(0, 16, 0, 0) };
+        var logHost = new Panel { Dock = DockStyle.Fill, Padding = new Padding(0, 18, 0, 0) };
+        var logCard = new RoundPanel { Dock = DockStyle.Fill, BackColor = Theme.Field, Padding = new Padding(14, 12, 6, 12), Radius = 14 };
         _logBox = new TextBox
         {
             Multiline = true,
@@ -96,22 +102,24 @@ internal sealed class MainForm : Form
             Dock = DockStyle.Fill,
             BackColor = Theme.Field,
             ForeColor = Theme.Text,
-            BorderStyle = BorderStyle.FixedSingle,
+            BorderStyle = BorderStyle.None,
             Font = Theme.MonoFont,
         };
         var logCaption = new Label
         {
-            Text = "LIVE AUDIT & ACTIVITY LOG",
+            Text = "LIVE ACTIVITY LOG",
             Font = Theme.CaptionFont,
             ForeColor = Theme.Muted,
             Dock = DockStyle.Top,
-            Height = 24,
+            Height = 26,
         };
-        logHost.Controls.Add(_logBox);
+        _logBox.HandleCreated += (_, _) => Theme.UseDarkScrollbars(_logBox);
+        logCard.Controls.Add(_logBox);
+        logHost.Controls.Add(logCard);
         logHost.Controls.Add(logCaption);
 
         // Session card
-        var sessionCard = new Panel { Dock = DockStyle.Top, Height = 82, BackColor = Theme.Card, Padding = new Padding(20, 0, 20, 0) };
+        var sessionCard = new RoundPanel { Dock = DockStyle.Top, Height = 88, BackColor = Theme.Card, Padding = new Padding(22, 0, 20, 0), Radius = 16, GlowBorder = true };
         var sessionText = new Panel { Dock = DockStyle.Fill, BackColor = Theme.Card };
         _sessionTitle = new Label { Font = Theme.ValueFont, AutoSize = true, Location = new Point(0, 16), ForeColor = Theme.Ok };
         _sessionDetail = new Label { Font = Theme.UiFont, ForeColor = Theme.Muted, AutoSize = true, Location = new Point(0, 44) };
@@ -120,13 +128,13 @@ internal sealed class MainForm : Form
         _stopButton = Theme.Flat("Stop Session", Theme.Danger, Color.White, (_, _) => RevokeRequested?.Invoke(), 148);
         _stopButton.Dock = DockStyle.Right;
         _stopButton.Enabled = false;
-        var stopWrap = new Panel { Dock = DockStyle.Right, Width = 152, Padding = new Padding(0, 22, 0, 22), BackColor = Theme.Card };
+        var stopWrap = new Panel { Dock = DockStyle.Right, Width = 152, Padding = new Padding(0, 24, 0, 24), BackColor = Theme.Card };
         stopWrap.Controls.Add(_stopButton);
         sessionCard.Controls.Add(sessionText);
         sessionCard.Controls.Add(stopWrap);
 
         // Stat cards
-        var stats = new FlowLayoutPanel { Dock = DockStyle.Top, Height = 100, BackColor = Theme.Bg, Padding = new Padding(0, 0, 0, 14), WrapContents = false };
+        var stats = new FlowLayoutPanel { Dock = DockStyle.Top, Height = 104, BackColor = Theme.Bg, Padding = new Padding(0, 0, 0, 16), WrapContents = false };
         _statusValue = AddStat(stats, "Status", "Listening", 190);
         AddStat(stats, "Endpoint Port", port.ToString(), 180);
         AddStat(stats, "Authentication", "Mutual TLS (PKI)", 210);
@@ -214,7 +222,7 @@ internal sealed class MainForm : Form
 
     private static Label AddStat(Control host, string caption, string value, int width)
     {
-        var card = new Panel { Width = width, Height = 82, Margin = new Padding(0, 0, 12, 0), BackColor = Theme.Card };
+        var card = new RoundPanel { Width = width, Height = 84, Margin = new Padding(0, 0, 12, 0), BackColor = Theme.Card, Radius = 14 };
         var cap = new Label
         {
             Text = caption.ToUpperInvariant(),

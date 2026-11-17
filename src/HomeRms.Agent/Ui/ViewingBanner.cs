@@ -20,39 +20,44 @@ internal sealed class ViewingBanner : Form
         StartPosition = FormStartPosition.Manual;
         TopMost = true;
         ShowInTaskbar = false;
-        BackColor = Color.FromArgb(200, 30, 30);
-        Width = 520;
-        Height = 40;
+        BackColor = Color.FromArgb(26, 9, 15);
+        Width = 560;
+        Height = 46;
+        Padding = new Padding(1);
+        Theme.ApplyWindowChrome(this);
 
         _label = new Label
         {
             AutoSize = false,
             Dock = DockStyle.Fill,
             ForeColor = Color.White,
-            Font = new Font("Segoe UI", 10f, FontStyle.Bold),
+            BackColor = Color.Transparent,
+            Font = new Font("Segoe UI Semibold", 10f, FontStyle.Bold),
             TextAlign = ContentAlignment.MiddleLeft,
-            Padding = new Padding(14, 0, 0, 0)
+            Padding = new Padding(36, 0, 0, 0)
+        };
+        // Red "live" dot drawn left of the text
+        _label.Paint += (_, e) =>
+        {
+            e.Graphics.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
+            using var glow = new SolidBrush(Color.FromArgb(70, Theme.Danger));
+            e.Graphics.FillEllipse(glow, 10, _label.Height / 2 - 9, 18, 18);
+            using var dot = new SolidBrush(Theme.Danger);
+            e.Graphics.FillEllipse(dot, 14, _label.Height / 2 - 5, 10, 10);
         };
 
-        var stop = new Button
-        {
-            Text = "Stop",
-            Dock = DockStyle.Right,
-            Width = 90,
-            FlatStyle = FlatStyle.Flat,
-            ForeColor = Color.White,
-            BackColor = Color.FromArgb(150, 20, 20)
-        };
-        stop.FlatAppearance.BorderSize = 0;
-        stop.Click += (_, _) => _onStop();
+        var stop = Theme.Flat("Stop", Theme.Danger, Color.White, (_, _) => _onStop(), 88);
+        stop.Dock = DockStyle.Right;
+        var stopWrap = new Panel { Dock = DockStyle.Right, Width = 100, Padding = new Padding(0, 6, 8, 6), BackColor = BackColor };
+        stopWrap.Controls.Add(stop);
 
         Controls.Add(_label);
-        Controls.Add(stop);
+        Controls.Add(stopWrap);
     }
 
     public void ShowFor(string operatorName)
     {
-        _label.Text = $"👁  \"{operatorName}\" is viewing this screen";
+        _label.Text = $"\"{operatorName}\" is viewing this screen";
         var area = Screen.PrimaryScreen?.WorkingArea ?? new Rectangle(0, 0, 1920, 1080);
         Location = new Point(area.Left + (area.Width - Width) / 2, area.Top + 8);
         Show();
