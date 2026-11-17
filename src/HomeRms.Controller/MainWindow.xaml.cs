@@ -95,6 +95,72 @@ public partial class MainWindow : Window
         }
 
         await ProbeAllMachinesAsync();
+        _ = CheckGitHubUpdateInBackgroundAsync();
+    }
+
+    private AvailableUpdate? _pendingUpdate;
+
+    private async Task CheckGitHubUpdateInBackgroundAsync()
+    {
+        try
+        {
+            await Task.Delay(2500);
+            var update = await ControllerUpdater.CheckForUpdateAsync();
+            if (update is not null)
+            {
+                _pendingUpdate = update;
+                UpdateBtn.Content = $"⬇ Update {update.Tag}";
+                UpdateBtn.Background = new SolidColorBrush(Color.FromRgb(16, 185, 129));
+                UpdateBtn.BorderBrush = new SolidColorBrush(Color.FromRgb(52, 211, 153));
+                UpdateBtn.Foreground = Brushes.White;
+                UpdateBtn.ToolTip = $"New version {update.Tag} available on GitHub. Click to update & restart.";
+            }
+            else
+            {
+                UpdateBtn.Content = $"v{ControllerUpdater.CurrentVersion.Major}.{ControllerUpdater.CurrentVersion.Minor}.{ControllerUpdater.CurrentVersion.Build} ✓";
+            }
+        }
+        catch { /* offline or rate-limited; ignore silently */ }
+    }
+
+    private async void OnCheckOrApplyUpdateClick(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            UpdateBtn.IsEnabled = false;
+            if (_pendingUpdate is null)
+            {
+                UpdateBtn.Content = "Checking GitHub…";
+                _pendingUpdate = await ControllerUpdater.CheckForUpdateAsync();
+                if (_pendingUpdate is null)
+                {
+                    UpdateBtn.Content = $"v{ControllerUpdater.CurrentVersion.Major}.{ControllerUpdater.CurrentVersion.Minor}.{ControllerUpdater.CurrentVersion.Build} ✓";
+                    MessageBox.Show($"You are running the latest version (v{ControllerUpdater.CurrentVersion}).",
+                        "Home RMS — Up to Date", MessageBoxButton.OK, MessageBoxImage.Information);
+                    return;
+                }
+                UpdateBtn.Content = $"⬇ Update {_pendingUpdate.Tag}";
+                UpdateBtn.Background = new SolidColorBrush(Color.FromRgb(16, 185, 129));
+                UpdateBtn.BorderBrush = new SolidColorBrush(Color.FromRgb(52, 211, 153));
+                UpdateBtn.Foreground = Brushes.White;
+                return;
+            }
+
+            if (MessageBox.Show($"Download and install Home RMS Controller {_pendingUpdate.Tag} from GitHub now?\n\nThe app will restart automatically.",
+                    "Home RMS — Update Available", MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes)
+                return;
+
+            await ControllerUpdater.DownloadAndApplyAsync(_pendingUpdate, msg => UpdateBtn.Content = msg);
+            Application.Current.Shutdown(0);
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show($"Update failed:\n\n{ex.Message}", "Home RMS — Update Error", MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
+        finally
+        {
+            UpdateBtn.IsEnabled = true;
+        }
     }
 
     private static string? GetArg(string[] args, string flag)

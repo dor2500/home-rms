@@ -20,6 +20,9 @@
             <DockPanel>
                 <!-- Right Action Cluster -->
                 <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
+                    <Button x:Name="UpdateBtn" Content="↻ Check Updates" Style="{StaticResource SmallPillButton}"
+                            Margin="0,0,10,0" ToolTip="Check GitHub Releases (dor2500/home-rms) for updates"
+                            Click="OnCheckOrApplyUpdateClick"/>
                     <Border Background="#131824" BorderBrush="{StaticResource LineBrush}" BorderThickness="1"
                             CornerRadius="8" Padding="11,6" Margin="0,0,10,0" VerticalAlignment="Center">
                         <TextBlock Text="🔒 mTLS PKI" FontSize="11.5" FontWeight="SemiBold" Foreground="{StaticResource MutedBrush}"/>

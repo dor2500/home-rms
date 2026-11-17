@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net9.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <RootNamespace>HomeRms.Controller.Setup</RootNamespace>
+    <AssemblyName>HomeRmsController-Setup</AssemblyName>
+    <AssemblyTitle>Home RMS Controller Setup</AssemblyTitle>
+    <Description>Installer for Home RMS Remote Management Console</Description>
+    <ApplicationIcon>..\HomeRms.Controller\Assets\controller.ico</ApplicationIcon>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Resource Include="..\HomeRms.Controller\Assets\controller.png" Link="controller.png" />
+    <Resource Include="..\HomeRms.Controller\Assets\controller.ico" Link="controller.ico" />
+    <EmbeddedResource Include="..\..\dist\HomeRmsController.exe" LogicalName="HomeRmsController.exe" Condition="Exists('..\..\dist\HomeRmsController.exe')" />
+  </ItemGroup>
+
+</Project>
