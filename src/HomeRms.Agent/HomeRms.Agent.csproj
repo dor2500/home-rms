@@ -11,6 +11,8 @@
     <Description>Home RMS Consent-Based Endpoint Agent (mTLS / HTTP2)</Description>
     <ApplicationIcon>Assets\agent.ico</ApplicationIcon>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
+    <IncludeAllContentForSelfExtract>true</IncludeAllContentForSelfExtract>
   </PropertyGroup>
 
   <ItemGroup>

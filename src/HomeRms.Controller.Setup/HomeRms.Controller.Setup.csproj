@@ -9,6 +9,8 @@
     <AssemblyTitle>Home RMS Controller Setup</AssemblyTitle>
     <Description>Installer for Home RMS Remote Management Console</Description>
     <ApplicationIcon>..\HomeRms.Controller\Assets\controller.ico</ApplicationIcon>
+    <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
+    <IncludeAllContentForSelfExtract>true</IncludeAllContentForSelfExtract>
   </PropertyGroup>
 
   <ItemGroup>
