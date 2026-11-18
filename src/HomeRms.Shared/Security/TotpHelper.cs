@@ -57,6 +57,14 @@ public static class TotpHelper
     public static string BuildOtpAuthUri(string issuer, string account, string secretBase32) =>
         $"otpauth://totp/{Uri.EscapeDataString(issuer)}:{Uri.EscapeDataString(account)}?secret={secretBase32}&issuer={Uri.EscapeDataString(issuer)}&digits=6&period=30";
 
+    public static byte[] GenerateQrPng(string payload, int pixelsPerModule = 6)
+    {
+        using var gen = new QRCoder.QRCodeGenerator();
+        using var data = gen.CreateQrCode(payload, QRCoder.QRCodeGenerator.ECCLevel.M);
+        var qr = new QRCoder.PngByteQRCode(data);
+        return qr.GetGraphic(pixelsPerModule);
+    }
+
     private static string ToBase32(byte[] data)
     {
         var sb = new StringBuilder((data.Length * 8 + 4) / 5);

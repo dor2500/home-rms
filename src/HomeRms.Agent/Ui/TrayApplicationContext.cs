@@ -162,7 +162,7 @@ internal sealed class TrayApplicationContext : ApplicationContext, IConsentUi
         using var dlg = new Form
         {
             Text = "Home RMS Agent — 2FA Security",
-            ClientSize = new Size(460, 310),
+            ClientSize = new Size(560, 320),
             FormBorderStyle = FormBorderStyle.FixedDialog,
             MaximizeBox = false,
             MinimizeBox = false,
@@ -173,6 +173,24 @@ internal sealed class TrayApplicationContext : ApplicationContext, IConsentUi
             Icon = Theme.LoadAppIcon()
         };
         Theme.ApplyWindowChrome(dlg);
+
+        static Image LoadQr(string secret)
+        {
+            var uri = TotpHelper.BuildOtpAuthUri("HomeRMS-Agent", Environment.MachineName, secret);
+            var png = TotpHelper.GenerateQrPng(uri, 5);
+            using var ms = new MemoryStream(png);
+            return Image.FromStream(ms);
+        }
+
+        var qrBox = new PictureBox
+        {
+            Image = LoadQr(cfg.TotpSecret),
+            SizeMode = PictureBoxSizeMode.Zoom,
+            BackColor = Color.White,
+            Padding = new Padding(4),
+            Size = new Size(150, 150),
+            Location = new Point(386, 56)
+        };
 
         var reqCheck = new CheckBox
         {
@@ -219,14 +237,14 @@ internal sealed class TrayApplicationContext : ApplicationContext, IConsentUi
             ForeColor = Theme.Text,
             BorderStyle = BorderStyle.FixedSingle,
             Location = new Point(22, 168),
-            Width = 412,
+            Width = 344,
             Font = Theme.MonoFont
         };
 
         var copyUriBtn = Theme.Flat("Copy Authenticator URI", Theme.Card, Theme.Text, (_, _) =>
         {
             Clipboard.SetText(TotpHelper.BuildOtpAuthUri("HomeRMS-Agent", Environment.MachineName, cfg.TotpSecret));
-        }, 190);
+        }, 175);
         copyUriBtn.Location = new Point(22, 212);
 
         var regenBtn = Theme.Flat("Regenerate Secret", Theme.Danger, Color.White, (_, _) =>
@@ -235,11 +253,13 @@ internal sealed class TrayApplicationContext : ApplicationContext, IConsentUi
             TwoFactorStore.SaveAgent(cfg);
             secBox.Text = cfg.TotpSecret;
             codeLabel.Text = TotpHelper.ComputeCode(cfg.TotpSecret);
-        }, 160);
-        regenBtn.Location = new Point(224, 212);
+            qrBox.Image?.Dispose();
+            qrBox.Image = LoadQr(cfg.TotpSecret);
+        }, 155);
+        regenBtn.Location = new Point(210, 212);
 
-        var closeBtn = Theme.Flat("Close", Theme.Accent, Color.White, (_, _) => dlg.Close(), 100);
-        closeBtn.Location = new Point(334, 260);
+        var closeBtn = Theme.Flat("Close", Theme.Accent, Color.White, (_, _) => dlg.Close(), 110);
+        closeBtn.Location = new Point(426, 265);
 
         using var tick = new System.Windows.Forms.Timer { Interval = 1000 };
         tick.Tick += (_, _) =>
@@ -249,7 +269,7 @@ internal sealed class TrayApplicationContext : ApplicationContext, IConsentUi
         };
         tick.Start();
 
-        dlg.Controls.AddRange([reqCheck, codeLabel, timerLabel, secLabel, secBox, copyUriBtn, regenBtn, closeBtn]);
+        dlg.Controls.AddRange([reqCheck, codeLabel, timerLabel, secLabel, secBox, qrBox, copyUriBtn, regenBtn, closeBtn]);
         dlg.ShowDialog();
     }
 

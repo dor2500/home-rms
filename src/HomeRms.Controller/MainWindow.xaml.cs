@@ -246,6 +246,17 @@ public partial class MainWindow : Window
         var cfg = TwoFactorStore.LoadController();
         Require2FaStartupCheck.IsChecked = cfg.RequireOnStartupOrPair;
         AboutTotpSecretBox.Text = cfg.TotpSecret;
+        var uri = TotpHelper.BuildOtpAuthUri("HomeRMS-Controller", Environment.MachineName, cfg.TotpSecret);
+        var qrBytes = TotpHelper.GenerateQrPng(uri, 5);
+        using (var ms = new MemoryStream(qrBytes))
+        {
+            var bmp = new BitmapImage();
+            bmp.BeginInit();
+            bmp.CacheOption = BitmapCacheOption.OnLoad;
+            bmp.StreamSource = ms;
+            bmp.EndInit();
+            AboutQrImage.Source = bmp;
+        }
         AboutOverlay.Visibility = Visibility.Visible;
     }
 

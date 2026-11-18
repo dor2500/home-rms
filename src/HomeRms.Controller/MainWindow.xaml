@@ -900,11 +900,21 @@
                             <TextBox x:Name="AboutFingerprintBox" IsReadOnly="True" FontFamily="Cascadia Mono, Consolas" FontSize="10.5" Padding="8,5" Margin="0,0,0,10"/>
 
                             <CheckBox x:Name="Require2FaStartupCheck" Content="Require 2FA / Windows Hello Passkey on Startup" Margin="0,0,0,8" Checked="OnToggleStartup2Fa" Unchecked="OnToggleStartup2Fa"/>
-                            <TextBlock Text="Controller 2FA Authenticator Secret (Base32):" FontSize="11" Foreground="{StaticResource MutedBrush}" Margin="0,0,0,2"/>
-                            <DockPanel>
-                                <Button DockPanel.Dock="Right" Content="Copy URI" Style="{StaticResource SmallPillButton}" Margin="6,0,0,0" Click="OnCopyController2FaUriClick"/>
-                                <TextBox x:Name="AboutTotpSecretBox" IsReadOnly="True" FontFamily="Cascadia Mono, Consolas" FontSize="10.5" Padding="8,5"/>
-                            </DockPanel>
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="12"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                                    <TextBlock Text="Controller 2FA Authenticator Secret (Scan QR or Copy):" FontSize="11" Foreground="{StaticResource MutedBrush}" Margin="0,0,0,4"/>
+                                    <TextBox x:Name="AboutTotpSecretBox" IsReadOnly="True" FontFamily="Cascadia Mono, Consolas" FontSize="10.5" Padding="8,5" Margin="0,0,0,8"/>
+                                    <Button Content="Copy Authenticator URI" Style="{StaticResource SmallPillButton}" HorizontalAlignment="Left" Click="OnCopyController2FaUriClick"/>
+                                </StackPanel>
+                                <Border Grid.Column="2" Background="White" CornerRadius="8" Padding="6" VerticalAlignment="Center">
+                                    <Image x:Name="AboutQrImage" Width="110" Height="110" RenderOptions.BitmapScalingMode="NearestNeighbor"/>
+                                </Border>
+                            </Grid>
                         </StackPanel>
                     </Border>
 

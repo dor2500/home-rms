@@ -12,6 +12,7 @@
     </PackageReference>
     <PackageReference Include="Grpc.Net.Client" Version="2.67.0" />
     <PackageReference Include="Grpc.AspNetCore.Server" Version="2.67.0" />
+    <PackageReference Include="QRCoder" Version="1.6.0" />
     <PackageReference Include="System.Security.Cryptography.ProtectedData" Version="9.0.0" />
   </ItemGroup>
 
