@@ -499,14 +499,65 @@ public sealed class RemoteManagementService(ConsentCoordinator consent, Activity
     public override Task<ClipboardData> GetClipboard(Empty request, ServerCallContext context)
     {
         var op = OperatorOf(context);
-        var text = RunSta(() => Clipboard.ContainsText() ? Clipboard.GetText() : "") ?? "";
-        log.Write($"[clipboard] '{op}' copied clipboard text from this computer ({text.Length} chars)");
-        return Task.FromResult(new ClipboardData { Text = text });
+        var data = RunSta(() =>
+        {
+            var res = new ClipboardData();
+            if (Clipboard.ContainsFileDropList())
+            {
+                long total = 0;
+                foreach (string? path in Clipboard.GetFileDropList())
+                {
+                    if (string.IsNullOrWhiteSpace(path) || !File.Exists(path)) continue;
+                    var fi = new FileInfo(path);
+                    if (total + fi.Length > 25 * 1024 * 1024) break;
+                    total += fi.Length;
+                    res.Files.Add(new ClipboardFile
+                    {
+                        FileName = fi.Name,
+                        Data = Google.Protobuf.ByteString.CopyFrom(File.ReadAllBytes(path))
+                    });
+                }
+            }
+            if (res.Files.Count == 0 && Clipboard.ContainsText())
+                res.Text = Clipboard.GetText();
+            return res;
+        }) ?? new ClipboardData();
+
+        log.Write(data.Files.Count > 0
+            ? $"[clipboard] '{op}' copied {data.Files.Count} file(s) from this computer"
+            : $"[clipboard] '{op}' copied clipboard text from this computer ({data.Text.Length} chars)");
+        return Task.FromResult(data);
     }
 
     public override Task<ClipboardAck> SetClipboard(ClipboardData request, ServerCallContext context)
     {
         var op = OperatorOf(context);
+        if (request.Files.Count > 0)
+        {
+            var stageDir = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                "HomeRMS", "ClipboardStaging", Guid.NewGuid().ToString("N")[..8]);
+            Directory.CreateDirectory(stageDir);
+
+            var paths = new System.Collections.Specialized.StringCollection();
+            foreach (var f in request.Files)
+            {
+                var safeName = Path.GetFileName(f.FileName);
+                if (string.IsNullOrWhiteSpace(safeName)) continue;
+                var dest = Path.Combine(stageDir, safeName);
+                File.WriteAllBytes(dest, f.Data.ToByteArray());
+                paths.Add(dest);
+            }
+
+            var filesOk = paths.Count > 0 && RunSta(() =>
+            {
+                Clipboard.SetFileDropList(paths);
+                return true;
+            });
+            log.Write($"[clipboard] '{op}' pasted {paths.Count} file(s) to this computer's clipboard (CF_HDROP)");
+            return Task.FromResult(new ClipboardAck { Success = filesOk });
+        }
+
         var text = request.Text ?? "";
         if (text.Length > 1024 * 1024)
             text = text[..(1024 * 1024)];

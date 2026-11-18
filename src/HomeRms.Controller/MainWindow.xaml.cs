@@ -1467,11 +1467,60 @@ public partial class MainWindow : Window
             QueueInput(new InputEvent { Kind = InputEvent.Types.Kind.MouseMove, X = x, Y = y });
     }
 
-    private void OnScreenMouseDown(object sender, MouseButtonEventArgs e)
+    [System.Runtime.InteropServices.DllImport("user32.dll")]
+    private static extern uint GetClipboardSequenceNumber();
+
+    private uint _lastSyncedClipSeq;
+
+    private static ClipboardData BuildLocalClipboardData()
+    {
+        var data = new ClipboardData();
+        if (Clipboard.ContainsFileDropList())
+        {
+            long total = 0;
+            foreach (string? path in Clipboard.GetFileDropList())
+            {
+                if (string.IsNullOrWhiteSpace(path) || !File.Exists(path)) continue;
+                var fi = new FileInfo(path);
+                if (total + fi.Length > 25 * 1024 * 1024) break;
+                total += fi.Length;
+                data.Files.Add(new ClipboardFile
+                {
+                    FileName = fi.Name,
+                    Data = Google.Protobuf.ByteString.CopyFrom(File.ReadAllBytes(path))
+                });
+            }
+        }
+        if (data.Files.Count == 0 && Clipboard.ContainsText())
+            data.Text = Clipboard.GetText();
+        return data;
+    }
+
+    private async Task SyncLocalClipboardIfChangedAsync()
+    {
+        if (_conn is null) return;
+        var seq = GetClipboardSequenceNumber();
+        if (seq == _lastSyncedClipSeq) return;
+        _lastSyncedClipSeq = seq;
+
+        var data = BuildLocalClipboardData();
+        if (data.Files.Count == 0 && string.IsNullOrEmpty(data.Text)) return;
+
+        await _conn.Client.SetClipboardAsync(data, deadline: DateTime.UtcNow.AddSeconds(15));
+    }
+
+    private async void OnScreenMouseDown(object sender, MouseButtonEventArgs e)
     {
         if (_inputCall is null) return;
         Keyboard.Focus(ScreenImage);
         ScreenImage.Focus();
+
+        // Sync local files/text to remote clipboard BEFORE right-click so Windows "Paste / הדבק" appears immediately
+        if (e.ChangedButton == MouseButton.Right)
+        {
+            try { await SyncLocalClipboardIfChangedAsync(); } catch { }
+        }
+
         if (TryMapToScreen(e.GetPosition(ScreenImage), out var x, out var y))
             QueueInput(new InputEvent { Kind = InputEvent.Types.Kind.MouseDown, X = x, Y = y, Button = ButtonCode(e.ChangedButton) });
     }
@@ -1508,19 +1557,10 @@ public partial class MainWindow : Window
         var vk = ResolveVirtualKey(e);
         if (vk == 0) return;
 
-        // Auto-sync clipboard on Ctrl+V before injecting V into the remote desktop
+        // Auto-sync clipboard (files or text) on Ctrl+V before injecting V into the remote desktop
         if ((Keyboard.Modifiers & ModifierKeys.Control) == ModifierKeys.Control && (e.Key == Key.V || vk == 0x56) && _conn is not null)
         {
-            try
-            {
-                if (Clipboard.ContainsText())
-                {
-                    var localText = Clipboard.GetText();
-                    await _conn.Client.SetClipboardAsync(new ClipboardData { Text = localText },
-                        deadline: DateTime.UtcNow.AddSeconds(3));
-                }
-            }
-            catch { }
+            try { await SyncLocalClipboardIfChangedAsync(); } catch { }
         }
 
         QueueInput(new InputEvent { Kind = InputEvent.Types.Kind.KeyDown, KeyCode = vk });
@@ -1549,9 +1589,9 @@ public partial class MainWindow : Window
         if (_conn is null && !await ConnectToCurrentFieldsAsync()) return;
         try
         {
-            var text = Clipboard.ContainsText() ? Clipboard.GetText() : "";
-            await _conn!.Client.SetClipboardAsync(new ClipboardData { Text = text },
-                deadline: DateTime.UtcNow.AddSeconds(5));
+            var data = BuildLocalClipboardData();
+            await _conn!.Client.SetClipboardAsync(data, deadline: DateTime.UtcNow.AddSeconds(15));
+            _lastSyncedClipSeq = GetClipboardSequenceNumber();
 
             // If live input control is active, also synthesize Ctrl+V so it pastes immediately
             if (_inputCall is not null)
@@ -1562,7 +1602,9 @@ public partial class MainWindow : Window
                 QueueInput(new InputEvent { Kind = InputEvent.Types.Kind.KeyUp, KeyCode = 0x11 });
             }
 
-            StatusText.Text = $"Sent clipboard to {_agentInfo?.MachineName} ({text.Length} chars).";
+            StatusText.Text = data.Files.Count > 0
+                ? $"Sent {data.Files.Count} file(s) to {_agentInfo?.MachineName} clipboard."
+                : $"Sent clipboard to {_agentInfo?.MachineName} ({data.Text.Length} chars).";
         }
         catch (Exception ex)
         {
@@ -1576,7 +1618,25 @@ public partial class MainWindow : Window
         try
         {
             var res = await _conn!.Client.GetClipboardAsync(new Empty(),
-                deadline: DateTime.UtcNow.AddSeconds(5));
+                deadline: DateTime.UtcNow.AddSeconds(15));
+            if (res.Files.Count > 0)
+            {
+                var stageDir = Path.Combine(Path.GetTempPath(), "HomeRmsClipboard", Guid.NewGuid().ToString("N")[..8]);
+                Directory.CreateDirectory(stageDir);
+                var paths = new System.Collections.Specialized.StringCollection();
+                foreach (var f in res.Files)
+                {
+                    var safeName = Path.GetFileName(f.FileName);
+                    if (string.IsNullOrWhiteSpace(safeName)) continue;
+                    var dest = Path.Combine(stageDir, safeName);
+                    await File.WriteAllBytesAsync(dest, f.Data.ToByteArray());
+                    paths.Add(dest);
+                }
+                if (paths.Count > 0) Clipboard.SetFileDropList(paths);
+                _lastSyncedClipSeq = GetClipboardSequenceNumber();
+                StatusText.Text = $"Copied {paths.Count} file(s) from {_agentInfo?.MachineName} clipboard.";
+                return;
+            }
             if (!string.IsNullOrEmpty(res.Text))
                 SetLocalClipboardFromRemote(res.Text);
             StatusText.Text = $"Copied clipboard from {_agentInfo?.MachineName} ({res.Text.Length} chars).";
