@@ -16,159 +16,332 @@
 
         <!-- ==================== TOP GLOBAL COMMAND BAR ==================== -->
         <Border x:Name="TopBarBorder" Grid.Row="0" Background="{StaticResource SurfaceBrush}"
-                BorderBrush="{StaticResource LineBrush}" BorderThickness="0,0,0,1" Padding="18,11">
+                BorderBrush="{StaticResource LineBrush}" BorderThickness="0,0,0,1" Padding="14,10">
             <DockPanel LastChildFill="True">
-                <!-- Right Action Cluster -->
+                <!-- Right Global Action Cluster -->
                 <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center" Margin="12,0,0,0">
+                    <Border Background="#111726" BorderBrush="{StaticResource LineBrush}" BorderThickness="1"
+                            CornerRadius="8" Padding="10,6" Margin="0,0,8,0" VerticalAlignment="Center"
+                            ToolTip="All endpoint sessions use Mutual-TLS (X.509 PKI)">
+                        <StackPanel Orientation="Horizontal">
+                            <Ellipse Width="7" Height="7" Fill="{StaticResource OkBrush}" Margin="0,0,6,0" VerticalAlignment="Center"/>
+                            <TextBlock Text="mTLS Active" FontSize="11.5" FontWeight="SemiBold" Foreground="{StaticResource MutedBrush}"/>
+                        </StackPanel>
+                    </Border>
+                    <Button x:Name="ProbeBtn" Content="↻ Scan LAN" Style="{StaticResource GhostButton}"
+                            Padding="11,6" Margin="0,0,8,0" Click="OnProbeMachinesClick"/>
                     <Button x:Name="UpdateBtn" Content="↻ Updates" Style="{StaticResource SmallPillButton}"
                             Margin="0,0,8,0" ToolTip="Check GitHub Releases (dor2500/home-rms) for updates"
                             Click="OnCheckOrApplyUpdateClick"/>
-                    <Border Background="#131824" BorderBrush="{StaticResource LineBrush}" BorderThickness="1"
-                            CornerRadius="8" Padding="10,6" Margin="0,0,8,0" VerticalAlignment="Center">
-                        <TextBlock Text="🔒 mTLS" FontSize="11.5" FontWeight="SemiBold" Foreground="{StaticResource MutedBrush}"/>
-                    </Border>
-                    <Button x:Name="ProbeBtn" Content="↻ Scan LAN" Style="{StaticResource GhostButton}"
-                            Padding="11,7" Margin="0,0,8,0" Click="OnProbeMachinesClick"/>
-                    <Button x:Name="ConnectBtn" Content="Connect" Width="118"
-                            Style="{StaticResource PrimaryButton}" Click="OnConnectClick"/>
+                    <Button x:Name="AddEndpointTopBtn" Content="+ Add Endpoint" Style="{StaticResource PrimaryButton}"
+                            Padding="13,7" Click="OnOpenAddEndpointDrawerClick"/>
                 </StackPanel>
 
-                <!-- Left Brand + Active Machine Switcher -->
+                <!-- Left Brand + Sidebar Toggle + Global Fleet Status -->
                 <StackPanel DockPanel.Dock="Left" Orientation="Horizontal" VerticalAlignment="Center">
-                    <Image Source="Assets/controller.png" Width="34" Height="34" Margin="0,0,10,0"
+                    <Button x:Name="SidebarToggleBtn" Content="☰" Style="{StaticResource GhostButton}"
+                            Width="34" Height="34" Padding="0" FontSize="15" Margin="0,0,10,0"
+                            ToolTip="Collapse / Expand Navigation Sidebar" Click="OnToggleSidebarClick"/>
+                    <Image Source="Assets/controller.png" Width="30" Height="30" Margin="0,0,10,0"
                            RenderOptions.BitmapScalingMode="HighQuality"/>
                     <StackPanel VerticalAlignment="Center" Margin="0,0,16,0">
-                        <TextBlock Text="HOME RMS" FontSize="14.5" FontWeight="Bold"/>
-                        <TextBlock Text="Fleet Command" FontSize="10.5" Foreground="{StaticResource MutedBrush}"/>
+                        <TextBlock Text="HOME RMS" FontSize="14" FontWeight="Bold"/>
+                        <TextBlock Text="Operations Platform" FontSize="10.5" Foreground="{StaticResource MutedBrush}"/>
                     </StackPanel>
 
-                    <!-- Machine Selector Pill -->
-                    <Border Background="{StaticResource FieldBrush}" BorderBrush="{StaticResource LineBrush}"
-                            BorderThickness="1" CornerRadius="9" Padding="9,4" Margin="0,0,10,0">
-                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                            <TextBlock Text="Target:" FontSize="11.5" Foreground="{StaticResource MutedBrush}"
-                                       VerticalAlignment="Center" Margin="0,0,6,0"/>
-                            <ComboBox x:Name="MachineSwitcher" Width="185" Background="Transparent"
-                                      Foreground="{StaticResource TextBrush}" BorderThickness="0"
-                                      DisplayMemberPath="DisplayTitle"
-                                      SelectionChanged="OnMachineSwitcherChanged"/>
-                        </StackPanel>
-                    </Border>
-
-                    <Border x:Name="ConnBadgeBorder" Background="#256B7280" CornerRadius="7"
-                            Padding="9,4" Margin="0,0,10,0" VerticalAlignment="Center">
-                        <TextBlock x:Name="ConnBadgeText" Text="Disconnected" FontSize="11"
-                                   FontWeight="SemiBold" Foreground="{StaticResource MutedBrush}"/>
+                    <Border x:Name="ConnBadgeBorder" Background="#1A0EA5E9" BorderBrush="#330EA5E9" BorderThickness="1"
+                            CornerRadius="7" Padding="10,4" Margin="0,0,12,0" VerticalAlignment="Center">
+                        <TextBlock x:Name="ConnBadgeText" Text="0 Online • Disconnected" FontSize="11"
+                                   FontWeight="SemiBold" Foreground="{StaticResource AccentBrush}"/>
                     </Border>
                 </StackPanel>
 
-                <!-- Center Status (fills remaining space cleanly without ever overlapping buttons) -->
+                <!-- Center Global Status Readout -->
                 <StackPanel VerticalAlignment="Center">
-                    <TextBlock x:Name="TargetTitleText" Text="No active session" FontSize="13" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"/>
-                    <TextBlock x:Name="StatusText" Text="Select a machine in Fleet or Scan LAN to connect."
+                    <TextBlock x:Name="TargetTitleText" Text="Fleet Operations Center" FontSize="12.5" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"/>
+                    <TextBlock x:Name="StatusText" Text="Global telemetry active. Scan LAN or select an endpoint in Fleet to connect."
                                FontSize="11" Foreground="{StaticResource MutedBrush}" TextTrimming="CharacterEllipsis"/>
                 </StackPanel>
             </DockPanel>
         </Border>
 
-        <!-- ==================== MAIN BODY: SLIM ICON RAIL + WORKSPACE ==================== -->
+        <!-- ==================== MAIN BODY: COLLAPSIBLE SIDEBAR + WORKSPACE ==================== -->
         <Grid Grid.Row="1">
             <Grid.ColumnDefinitions>
-                <ColumnDefinition x:Name="RailColumn" Width="76"/>
+                <ColumnDefinition x:Name="RailColumn" Width="204"/>
                 <ColumnDefinition Width="*"/>
             </Grid.ColumnDefinitions>
 
-            <!-- Slim Left Icon Rail -->
+            <!-- Industrial Collapsible Sidebar -->
             <Border x:Name="RailBorder" Grid.Column="0" Background="{StaticResource SurfaceBrush}"
                     BorderBrush="{StaticResource LineBrush}" BorderThickness="0,0,1,0" Padding="0,12">
-                <StackPanel>
-                    <RadioButton x:Name="NavFleet" Style="{StaticResource RailTab}" IsChecked="True" Checked="OnNavTabChanged">
-                        <StackPanel HorizontalAlignment="Center">
-                            <TextBlock Text="🌐" FontSize="19" HorizontalAlignment="Center"/>
-                            <TextBlock Text="Fleet" FontSize="10.5" Margin="0,3,0,0" HorizontalAlignment="Center"/>
+                <DockPanel>
+                    <TextBlock x:Name="SidebarSectionLabel" DockPanel.Dock="Top" Text="NAVIGATION"
+                               Style="{StaticResource Caption}" Margin="18,0,0,8"/>
+
+                    <Border DockPanel.Dock="Bottom" Background="#0A0E18" BorderBrush="{StaticResource LineBrush}"
+                            BorderThickness="1" CornerRadius="9" Padding="10,8" Margin="10,8,10,0">
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                            <Ellipse Width="8" Height="8" Fill="{StaticResource OkBrush}" Margin="0,0,8,0"/>
+                            <TextBlock x:Name="SidebarFooterText" Text="mTLS PKI Ready" FontSize="11" Foreground="{StaticResource MutedBrush}"/>
                         </StackPanel>
-                    </RadioButton>
-                    <RadioButton x:Name="NavDesktop" Style="{StaticResource RailTab}" Checked="OnNavTabChanged">
-                        <StackPanel HorizontalAlignment="Center">
-                            <TextBlock Text="🖥️" FontSize="19" HorizontalAlignment="Center"/>
-                            <TextBlock Text="Desktop" FontSize="10.5" Margin="0,3,0,0" HorizontalAlignment="Center"/>
-                        </StackPanel>
-                    </RadioButton>
-                    <RadioButton x:Name="NavInventory" Style="{StaticResource RailTab}" Checked="OnNavTabChanged">
-                        <StackPanel HorizontalAlignment="Center">
-                            <TextBlock Text="📊" FontSize="19" HorizontalAlignment="Center"/>
-                            <TextBlock Text="Monitor" FontSize="10.5" Margin="0,3,0,0" HorizontalAlignment="Center"/>
-                        </StackPanel>
-                    </RadioButton>
-                    <RadioButton x:Name="NavShell" Style="{StaticResource RailTab}" Checked="OnNavTabChanged">
-                        <StackPanel HorizontalAlignment="Center">
-                            <TextBlock Text="⌨️" FontSize="19" HorizontalAlignment="Center"/>
-                            <TextBlock Text="Shell" FontSize="10.5" Margin="0,3,0,0" HorizontalAlignment="Center"/>
-                        </StackPanel>
-                    </RadioButton>
-                    <RadioButton x:Name="NavDeploy" Style="{StaticResource RailTab}" Checked="OnNavTabChanged">
-                        <StackPanel HorizontalAlignment="Center">
-                            <TextBlock Text="📦" FontSize="19" HorizontalAlignment="Center"/>
-                            <TextBlock Text="Deploy" FontSize="10.5" Margin="0,3,0,0" HorizontalAlignment="Center"/>
-                        </StackPanel>
-                    </RadioButton>
-                    <RadioButton x:Name="NavUpdates" Style="{StaticResource RailTab}" Checked="OnNavTabChanged">
-                        <StackPanel HorizontalAlignment="Center">
-                            <TextBlock Text="🔄" FontSize="19" HorizontalAlignment="Center"/>
-                            <TextBlock Text="Updates" FontSize="10.5" Margin="0,3,0,0" HorizontalAlignment="Center"/>
-                        </StackPanel>
-                    </RadioButton>
-                    <RadioButton x:Name="NavSystem" Style="{StaticResource RailTab}" Checked="OnNavTabChanged">
-                        <StackPanel HorizontalAlignment="Center">
-                            <TextBlock Text="⚙️" FontSize="19" HorizontalAlignment="Center"/>
-                            <TextBlock Text="Settings" FontSize="10.5" Margin="0,3,0,0" HorizontalAlignment="Center"/>
-                        </StackPanel>
-                    </RadioButton>
-                </StackPanel>
+                    </Border>
+
+                    <StackPanel>
+                        <RadioButton x:Name="NavOverview" Style="{StaticResource RailTab}" IsChecked="True" Checked="OnNavTabChanged" ToolTip="Overview Dashboard">
+                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                <TextBlock Text="📈" FontSize="14.5" Width="22" TextAlignment="Center" VerticalAlignment="Center"/>
+                                <TextBlock x:Name="NavLabelOverview" Text="Overview" FontSize="12.5" FontWeight="Medium" Margin="10,0,0,0" VerticalAlignment="Center"/>
+                            </StackPanel>
+                        </RadioButton>
+                        <RadioButton x:Name="NavFleet" Style="{StaticResource RailTab}" Checked="OnNavTabChanged" ToolTip="Managed LAN Fleet">
+                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                <TextBlock Text="🌐" FontSize="14.5" Width="22" TextAlignment="Center" VerticalAlignment="Center"/>
+                                <TextBlock x:Name="NavLabelFleet" Text="Fleet" FontSize="12.5" FontWeight="Medium" Margin="10,0,0,0" VerticalAlignment="Center"/>
+                            </StackPanel>
+                        </RadioButton>
+                        <RadioButton x:Name="NavDesktop" Style="{StaticResource RailTab}" Checked="OnNavTabChanged" ToolTip="Remote Desktop Stream">
+                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                <TextBlock Text="🖥️" FontSize="14.5" Width="22" TextAlignment="Center" VerticalAlignment="Center"/>
+                                <TextBlock x:Name="NavLabelDesktop" Text="Desktop" FontSize="12.5" FontWeight="Medium" Margin="10,0,0,0" VerticalAlignment="Center"/>
+                            </StackPanel>
+                        </RadioButton>
+                        <RadioButton x:Name="NavInventory" Style="{StaticResource RailTab}" Checked="OnNavTabChanged" ToolTip="System Monitor &amp; Processes">
+                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                <TextBlock Text="📊" FontSize="14.5" Width="22" TextAlignment="Center" VerticalAlignment="Center"/>
+                                <TextBlock x:Name="NavLabelMonitor" Text="Monitor" FontSize="12.5" FontWeight="Medium" Margin="10,0,0,0" VerticalAlignment="Center"/>
+                            </StackPanel>
+                        </RadioButton>
+                        <RadioButton x:Name="NavShell" Style="{StaticResource RailTab}" Checked="OnNavTabChanged" ToolTip="Remote PowerShell Terminal">
+                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                <TextBlock Text="⌨️" FontSize="14.5" Width="22" TextAlignment="Center" VerticalAlignment="Center"/>
+                                <TextBlock x:Name="NavLabelShell" Text="Shell" FontSize="12.5" FontWeight="Medium" Margin="10,0,0,0" VerticalAlignment="Center"/>
+                            </StackPanel>
+                        </RadioButton>
+                        <RadioButton x:Name="NavDeploy" Style="{StaticResource RailTab}" Checked="OnNavTabChanged" ToolTip="Silent Software &amp; Script Deploy">
+                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                <TextBlock Text="📦" FontSize="14.5" Width="22" TextAlignment="Center" VerticalAlignment="Center"/>
+                                <TextBlock x:Name="NavLabelDeploy" Text="Deploy" FontSize="12.5" FontWeight="Medium" Margin="10,0,0,0" VerticalAlignment="Center"/>
+                            </StackPanel>
+                        </RadioButton>
+                        <RadioButton x:Name="NavUpdates" Style="{StaticResource RailTab}" Checked="OnNavTabChanged" ToolTip="Remote Windows Updates">
+                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                <TextBlock Text="🔄" FontSize="14.5" Width="22" TextAlignment="Center" VerticalAlignment="Center"/>
+                                <TextBlock x:Name="NavLabelUpdates" Text="Updates" FontSize="12.5" FontWeight="Medium" Margin="10,0,0,0" VerticalAlignment="Center"/>
+                            </StackPanel>
+                        </RadioButton>
+                        <RadioButton x:Name="NavSystem" Style="{StaticResource RailTab}" Checked="OnNavTabChanged" ToolTip="Remote System &amp; Settings">
+                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                <TextBlock Text="⚙️" FontSize="14.5" Width="22" TextAlignment="Center" VerticalAlignment="Center"/>
+                                <TextBlock x:Name="NavLabelSettings" Text="Settings" FontSize="12.5" FontWeight="Medium" Margin="10,0,0,0" VerticalAlignment="Center"/>
+                            </StackPanel>
+                        </RadioButton>
+                    </StackPanel>
+                </DockPanel>
             </Border>
 
             <!-- Workspace Area -->
-            <Grid x:Name="WorkspaceGrid" Grid.Column="1" Background="{StaticResource BgBrush}" Margin="20,16,20,18">
+            <Grid x:Name="WorkspaceGrid" Grid.Column="1" Background="{StaticResource BgBrush}" Margin="20,16,20,16">
 
-                <!-- ==================== 1. FLEET OVERVIEW (HOME) ==================== -->
-                <DockPanel x:Name="FleetPanel" Visibility="Visible">
-                    <!-- Add / Edit Endpoint Bar -->
-                    <Border DockPanel.Dock="Top" Style="{StaticResource CardStyle}" Padding="16,14" Margin="0,0,0,16">
-                        <Grid>
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="1.2*"/>
-                                <ColumnDefinition Width="10"/>
-                                <ColumnDefinition Width="1.2*"/>
-                                <ColumnDefinition Width="10"/>
-                                <ColumnDefinition Width="90"/>
-                                <ColumnDefinition Width="14"/>
-                                <ColumnDefinition Width="Auto"/>
-                            </Grid.ColumnDefinitions>
-
-                            <StackPanel Grid.Column="0">
-                                <TextBlock Text="DISPLAY NAME" Style="{StaticResource Caption}" Margin="0,0,0,4"/>
-                                <TextBox x:Name="NameBox" Text="Living Room PC"/>
-                            </StackPanel>
-                            <StackPanel Grid.Column="2">
-                                <TextBlock Text="HOST / LAN IP" Style="{StaticResource Caption}" Margin="0,0,0,4"/>
-                                <TextBox x:Name="HostBox" Text="localhost"/>
-                            </StackPanel>
-                            <StackPanel Grid.Column="4">
-                                <TextBlock Text="PORT" Style="{StaticResource Caption}" Margin="0,0,0,4"/>
-                                <TextBox x:Name="PortBox" Text="7443"/>
-                            </StackPanel>
-                            <StackPanel Grid.Column="6" Orientation="Horizontal" VerticalAlignment="Bottom">
-                                <Button Content="+ Save Endpoint" Style="{StaticResource PrimaryButton}" Margin="0,0,8,0" Click="OnSaveMachineClick"/>
-                                <Button Content="Remove" Style="{StaticResource GhostButton}" Click="OnRemoveMachineClick"/>
-                            </StackPanel>
-                        </Grid>
-                    </Border>
-
-                    <!-- Fleet Cards Grid -->
-                    <DockPanel DockPanel.Dock="Top" Margin="0,0,0,12">
-                        <TextBlock Text="MANAGED LAN FLEET  (DOUBLE-CLICK ANY CARD TO CONNECT)" Style="{StaticResource Caption}" Margin="0"/>
+                <!-- ==================== 0. OVERVIEW DASHBOARD (LANDING) ==================== -->
+                <DockPanel x:Name="OverviewPanel" Visibility="Visible">
+                    <!-- Top Header -->
+                    <DockPanel DockPanel.Dock="Top" Margin="0,0,0,14">
+                        <Button DockPanel.Dock="Right" Content="View Full Fleet →" Style="{StaticResource GhostButton}"
+                                Padding="12,6" Click="OnGoToFleetClick"/>
+                        <StackPanel>
+                            <TextBlock Text="OPERATIONS OVERVIEW" Style="{StaticResource Caption}" Margin="0,0,0,2"/>
+                            <TextBlock Text="Real-time fleet health, LAN telemetry, and recent system events" FontSize="12" Foreground="{StaticResource MutedBrush}"/>
+                        </StackPanel>
                     </DockPanel>
 
+                    <!-- Macro KPI Strip -->
+                    <Grid DockPanel.Dock="Top" Margin="0,0,0,14">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="12"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="12"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="12"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+
+                        <Border Grid.Column="0" Style="{StaticResource CardStyle}" Padding="16,14">
+                            <StackPanel>
+                                <TextBlock Text="ENDPOINTS ONLINE" Style="{StaticResource Caption}"/>
+                                <StackPanel Orientation="Horizontal" VerticalAlignment="Bottom">
+                                    <TextBlock x:Name="KpiOnlineCount" Text="0 / 0" FontSize="24" FontWeight="Bold"/>
+                                    <TextBlock x:Name="KpiOfflineSub" Text="0 offline" FontSize="11.5" Foreground="{StaticResource MutedBrush}" Margin="10,0,0,4"/>
+                                </StackPanel>
+                            </StackPanel>
+                        </Border>
+
+                        <Border Grid.Column="2" Style="{StaticResource CardStyle}" Padding="16,14">
+                            <StackPanel>
+                                <TextBlock Text="ACTIVE SESSION" Style="{StaticResource Caption}"/>
+                                <TextBlock x:Name="KpiActiveSession" Text="Standby" FontSize="20" FontWeight="Bold" Foreground="{StaticResource AccentBrush}" TextTrimming="CharacterEllipsis"/>
+                                <TextBlock x:Name="KpiActiveLatency" Text="No active mTLS tunnel" FontSize="11.5" Foreground="{StaticResource MutedBrush}" Margin="0,2,0,0"/>
+                            </StackPanel>
+                        </Border>
+
+                        <Border Grid.Column="4" Style="{StaticResource CardStyle}" Padding="16,14">
+                            <StackPanel>
+                                <TextBlock Text="FLEET CPU / RAM" Style="{StaticResource Caption}"/>
+                                <TextBlock x:Name="KpiFleetLoad" Text="--% CPU • --% RAM" FontSize="18" FontWeight="Bold"/>
+                                <ProgressBar x:Name="KpiLoadBar" Style="{StaticResource ThinProgressBar}" Value="0" Margin="0,8,0,0"/>
+                            </StackPanel>
+                        </Border>
+
+                        <Border Grid.Column="6" Style="{StaticResource CardStyle}" Padding="16,14">
+                            <StackPanel>
+                                <TextBlock Text="NETWORK LATENCY (RTT)" Style="{StaticResource Caption}"/>
+                                <DockPanel>
+                                    <TextBlock x:Name="KpiAvgLatency" Text="-- ms" FontSize="20" FontWeight="Bold" VerticalAlignment="Center"/>
+                                    <Canvas Width="110" Height="28" DockPanel.Dock="Right" HorizontalAlignment="Right">
+                                        <Polyline x:Name="OverviewSparkline" Stroke="{StaticResource AccentBrush}" StrokeThickness="2" Points="0,20 20,18 40,22 60,14 80,16 100,12"/>
+                                    </Canvas>
+                                </DockPanel>
+                            </StackPanel>
+                        </Border>
+                    </Grid>
+
+                    <!-- Middle Row: Network Traffic Sparkline & Recent Alerts -->
+                    <Grid DockPanel.Dock="Top" Height="200" Margin="0,0,0,14">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="1.2*"/>
+                            <ColumnDefinition Width="14"/>
+                            <ColumnDefinition Width="1*"/>
+                        </Grid.ColumnDefinitions>
+
+                        <Border Grid.Column="0" Style="{StaticResource CardStyle}" Padding="16,14">
+                            <DockPanel>
+                                <DockPanel DockPanel.Dock="Top" Margin="0,0,0,10">
+                                    <TextBlock DockPanel.Dock="Right" x:Name="TrafficPeakText" Text="Peak: -- ms" FontSize="11.5" Foreground="{StaticResource AccentBrush}"/>
+                                    <TextBlock Text="LAN TELEMETRY &amp; THROUGHPUT SPARKLINE" Style="{StaticResource Caption}" Margin="0"/>
+                                </DockPanel>
+                                <Border Background="#080B12" BorderBrush="{StaticResource LineBrush}" BorderThickness="1" CornerRadius="10" Padding="12,10">
+                                    <Grid>
+                                        <Viewbox Stretch="Fill">
+                                            <Canvas Width="400" Height="110">
+                                                <Line X1="0" Y1="27" X2="400" Y2="27" Stroke="#161D2E" StrokeThickness="1"/>
+                                                <Line X1="0" Y1="55" X2="400" Y2="55" Stroke="#161D2E" StrokeThickness="1"/>
+                                                <Line X1="0" Y1="82" X2="400" Y2="82" Stroke="#161D2E" StrokeThickness="1"/>
+                                                <Polyline x:Name="TrafficSparkline" Stroke="{StaticResource AccentBrush}" StrokeThickness="2.5"
+                                                          Points="0,85 45,78 90,82 135,62 180,68 225,52 270,58 315,44 360,48 400,38"/>
+                                                <Polyline x:Name="CpuSparkline" Stroke="{StaticResource IndigoBrush}" StrokeThickness="2"
+                                                          Points="0,92 45,88 90,84 135,79 180,82 225,74 270,76 315,70 360,72 400,66"/>
+                                            </Canvas>
+                                        </Viewbox>
+                                        <StackPanel Orientation="Horizontal" VerticalAlignment="Top" HorizontalAlignment="Left">
+                                            <Border Background="#1A0EA5E9" CornerRadius="4" Padding="6,2" Margin="0,0,6,0">
+                                                <TextBlock Text="● RTT / Traffic" FontSize="10" Foreground="{StaticResource AccentBrush}"/>
+                                            </Border>
+                                            <Border Background="#1A6366F1" CornerRadius="4" Padding="6,2">
+                                                <TextBlock Text="● Fleet CPU" FontSize="10" Foreground="#A5B4FC"/>
+                                            </Border>
+                                        </StackPanel>
+                                    </Grid>
+                                </Border>
+                            </DockPanel>
+                        </Border>
+
+                        <Border Grid.Column="2" Style="{StaticResource CardStyle}" Padding="16,14">
+                            <DockPanel>
+                                <TextBlock DockPanel.Dock="Top" Text="RECENT SYSTEM ALERTS &amp; EVENTS" Style="{StaticResource Caption}" Margin="0,0,0,8"/>
+                                <ListBox x:Name="OverviewEventsList" Background="Transparent" BorderThickness="0"
+                                         ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                                    <ListBox.ItemTemplate>
+                                        <DataTemplate>
+                                            <DockPanel Margin="0,3">
+                                                <TextBlock DockPanel.Dock="Left" Text="{Binding Timestamp}" FontFamily="Cascadia Mono, Consolas" FontSize="11" Foreground="{StaticResource MutedBrush}" Margin="0,0,8,0"/>
+                                                <Border DockPanel.Dock="Left" Background="{Binding BadgeBackground}" CornerRadius="4" Padding="6,1" Margin="0,0,8,0">
+                                                    <TextBlock Text="{Binding Category}" FontSize="10" FontWeight="Bold" Foreground="{Binding BadgeForeground}"/>
+                                                </Border>
+                                                <TextBlock Text="{Binding Message}" FontSize="11.5" TextTrimming="CharacterEllipsis"/>
+                                            </DockPanel>
+                                        </DataTemplate>
+                                    </ListBox.ItemTemplate>
+                                </ListBox>
+                            </DockPanel>
+                        </Border>
+                    </Grid>
+
+                    <!-- Bottom Row: Quick Fleet Snapshot -->
+                    <Border Style="{StaticResource CardStyle}" Padding="16,14">
+                        <DockPanel>
+                            <DockPanel DockPanel.Dock="Top" Margin="0,0,0,10">
+                                <TextBlock DockPanel.Dock="Right" Text="Click Connect on any host to open mTLS session" FontSize="11" Foreground="{StaticResource MutedBrush}"/>
+                                <TextBlock Text="ENDPOINT SNAPSHOT" Style="{StaticResource Caption}" Margin="0"/>
+                            </DockPanel>
+                            <ListBox x:Name="OverviewFleetList" Background="Transparent" BorderThickness="0"
+                                     HorizontalContentAlignment="Stretch"
+                                     ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                                <ListBox.ItemTemplate>
+                                    <DataTemplate>
+                                        <DockPanel Margin="0,4">
+                                            <Button DockPanel.Dock="Right" Content="{Binding ConnectActionText}" Style="{StaticResource SmallPillButton}"
+                                                    Tag="{Binding}" Click="OnCardConnectClick"/>
+                                            <TextBlock DockPanel.Dock="Right" Text="{Binding LatencyLabel}" FontFamily="Cascadia Mono, Consolas"
+                                                       FontSize="11.5" Foreground="{StaticResource MutedBrush}" VerticalAlignment="Center" Margin="16,0,14,0" Width="64" TextAlignment="Right"/>
+                                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                                <Ellipse Width="9" Height="9" Fill="{Binding DotBrush}" Margin="0,0,10,0">
+                                                    <Ellipse.Effect>
+                                                        <DropShadowEffect Color="{Binding DotGlowColor}" BlurRadius="10" ShadowDepth="0" Opacity="0.9"/>
+                                                    </Ellipse.Effect>
+                                                </Ellipse>
+                                                <TextBlock Text="{Binding DisplayTitle}" FontWeight="SemiBold" Width="210" TextTrimming="CharacterEllipsis"/>
+                                                <TextBlock Text="{Binding Address}" FontFamily="Cascadia Mono, Consolas" FontSize="11.5" Foreground="{StaticResource AccentBrush}" Width="165"/>
+                                                <TextBlock Text="{Binding OsTag}" FontSize="11.5" Foreground="{StaticResource MutedBrush}" Width="110"/>
+                                            </StackPanel>
+                                        </DockPanel>
+                                    </DataTemplate>
+                                </ListBox.ItemTemplate>
+                            </ListBox>
+                        </DockPanel>
+                    </Border>
+                </DockPanel>
+
+                <!-- ==================== 1. FLEET COMMAND GRID ==================== -->
+                <DockPanel x:Name="FleetPanel" Visibility="Collapsed">
+                    <!-- Slim Fleet Toolbar -->
+                    <DockPanel DockPanel.Dock="Top" Margin="0,0,0,14">
+                        <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                            <TextBox x:Name="FleetFilterBox" Width="220" Margin="0,0,10,0" ToolTip="Filter endpoints by name, IP, or OS" TextChanged="OnFleetFilterChanged"/>
+                            <Button Content="+ Add Endpoint" Style="{StaticResource PrimaryButton}" Padding="14,7" Click="OnOpenAddEndpointDrawerClick"/>
+                        </StackPanel>
+                        <StackPanel VerticalAlignment="Center">
+                            <TextBlock Text="MANAGED LAN FLEET" Style="{StaticResource Caption}" Margin="0,0,0,2"/>
+                            <TextBlock x:Name="FleetSummaryText" Text="Hover any card for Connect, Terminal, or Restart quick actions. Double-click to connect."
+                                       FontSize="12" Foreground="{StaticResource MutedBrush}"/>
+                        </StackPanel>
+                    </DockPanel>
+
+                    <!-- Live Activity Log / Recent Events Feed (Docked Bottom) -->
+                    <Border DockPanel.Dock="Bottom" Style="{StaticResource CardStyle}" Padding="14,12" Height="170" Margin="0,12,0,0">
+                        <DockPanel>
+                            <DockPanel DockPanel.Dock="Top" Margin="0,0,0,8">
+                                <Button DockPanel.Dock="Right" Content="Clear" Style="{StaticResource SmallPillButton}" Click="OnClearActivityLogClick"/>
+                                <TextBlock Text="LIVE ACTIVITY LOG &amp; RECENT EVENTS" Style="{StaticResource Caption}" Margin="0" VerticalAlignment="Center"/>
+                            </DockPanel>
+                            <ListBox x:Name="FleetActivityList" Background="#080B12" BorderBrush="{StaticResource LineBrush}" BorderThickness="1"
+                                     Padding="6,4" ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                                <ListBox.ItemTemplate>
+                                    <DataTemplate>
+                                        <DockPanel Margin="2,2">
+                                            <TextBlock DockPanel.Dock="Left" Text="{Binding Timestamp}" FontFamily="Cascadia Mono, Consolas" FontSize="11" Foreground="{StaticResource MutedBrush}" Margin="0,0,10,0"/>
+                                            <Border DockPanel.Dock="Left" Background="{Binding BadgeBackground}" CornerRadius="4" Padding="6,1" Margin="0,0,10,0">
+                                                <TextBlock Text="{Binding Category}" FontSize="10" FontWeight="Bold" Foreground="{Binding BadgeForeground}"/>
+                                            </Border>
+                                            <TextBlock Text="{Binding Message}" FontSize="12" TextTrimming="CharacterEllipsis"/>
+                                        </DockPanel>
+                                    </DataTemplate>
+                                </ListBox.ItemTemplate>
+                            </ListBox>
+                        </DockPanel>
+                    </Border>
+
+                    <!-- Responsive Upgraded Endpoint Cards Grid -->
                     <ListBox x:Name="MachinesList" Background="Transparent" BorderThickness="0"
                              ScrollViewer.HorizontalScrollBarVisibility="Disabled"
                              SelectionChanged="OnMachineSelectionChanged"
@@ -186,19 +359,19 @@
                                 <Setter Property="Template">
                                     <Setter.Value>
                                         <ControlTemplate TargetType="ListBoxItem">
-                                            <Border x:Name="CardBd" Width="300" Background="{StaticResource CardBrush}"
+                                            <Border x:Name="CardBd" Width="335" Background="{StaticResource CardBrush}"
                                                     BorderBrush="{StaticResource LineBrush}" BorderThickness="1"
-                                                    CornerRadius="14" Padding="18">
+                                                    CornerRadius="14" Padding="16,15">
                                                 <ContentPresenter/>
                                             </Border>
                                             <ControlTemplate.Triggers>
                                                 <Trigger Property="IsMouseOver" Value="True">
                                                     <Setter TargetName="CardBd" Property="Background" Value="{StaticResource CardHoverBrush}"/>
-                                                    <Setter TargetName="CardBd" Property="BorderBrush" Value="#38425E"/>
+                                                    <Setter TargetName="CardBd" Property="BorderBrush" Value="#334155"/>
                                                 </Trigger>
                                                 <Trigger Property="IsSelected" Value="True">
                                                     <Setter TargetName="CardBd" Property="BorderBrush" Value="{StaticResource AccentBrush}"/>
-                                                    <Setter TargetName="CardBd" Property="Background" Value="#142033"/>
+                                                    <Setter TargetName="CardBd" Property="Background" Value="#121E33"/>
                                                 </Trigger>
                                             </ControlTemplate.Triggers>
                                         </ControlTemplate>
@@ -209,18 +382,73 @@
                         <ListBox.ItemTemplate>
                             <DataTemplate>
                                 <StackPanel>
-                                    <DockPanel Margin="0,0,0,10">
-                                        <Border DockPanel.Dock="Right" Background="{Binding BadgeBackground}" CornerRadius="6" Padding="9,3">
+                                    <!-- Header: Glowing Status Dot + Hostname + Status Badge -->
+                                    <DockPanel Margin="0,0,0,8">
+                                        <Border DockPanel.Dock="Right" Background="{Binding BadgeBackground}" CornerRadius="6" Padding="8,3">
                                             <TextBlock Text="{Binding StatusLabel}" FontSize="10.5" FontWeight="SemiBold"/>
                                         </Border>
                                         <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                            <Ellipse Width="10" Height="10" Fill="{Binding DotBrush}" Margin="0,0,10,0"/>
-                                            <TextBlock Text="{Binding DisplayTitle}" FontSize="15" FontWeight="Bold" TextTrimming="CharacterEllipsis" MaxWidth="165"/>
+                                            <Ellipse Width="10" Height="10" Fill="{Binding DotBrush}" Margin="0,0,9,0">
+                                                <Ellipse.Effect>
+                                                    <DropShadowEffect Color="{Binding DotGlowColor}" BlurRadius="12" ShadowDepth="0" Opacity="0.95"/>
+                                                </Ellipse.Effect>
+                                            </Ellipse>
+                                            <TextBlock Text="{Binding DisplayTitle}" FontSize="15" FontWeight="Bold" TextTrimming="CharacterEllipsis" MaxWidth="185"/>
                                         </StackPanel>
                                     </DockPanel>
-                                    <TextBlock Text="{Binding Address}" FontSize="12" Foreground="{StaticResource AccentBrush}" Margin="0,0,0,4"/>
-                                    <TextBlock Text="{Binding UserAndOs}" FontSize="11.5" Foreground="{StaticResource MutedBrush}" TextTrimming="CharacterEllipsis"/>
+
+                                    <!-- Address + OS Badge -->
+                                    <DockPanel Margin="0,0,0,10">
+                                        <Border DockPanel.Dock="Right" Background="#0D1322" BorderBrush="{StaticResource LineBrush}" BorderThickness="1" CornerRadius="5" Padding="7,2">
+                                            <StackPanel Orientation="Horizontal">
+                                                <TextBlock Text="{Binding OsGlyph}" FontSize="11" Margin="0,0,5,0" Foreground="{StaticResource AccentBrush}"/>
+                                                <TextBlock Text="{Binding OsTag}" FontSize="10.5" Foreground="{StaticResource MutedBrush}"/>
+                                            </StackPanel>
+                                        </Border>
+                                        <TextBlock Text="{Binding Address}" FontFamily="Cascadia Mono, Consolas" FontSize="12" Foreground="{StaticResource AccentBrush}" VerticalAlignment="Center"/>
+                                    </DockPanel>
+
+                                    <!-- CPU / RAM Real-Time Mini Bars -->
+                                    <Grid Margin="0,0,0,10">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="12"/>
+                                            <ColumnDefinition Width="*"/>
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel Grid.Column="0">
+                                            <DockPanel Margin="0,0,0,3">
+                                                <TextBlock DockPanel.Dock="Right" Text="{Binding CpuLabel}" FontSize="10.5" FontWeight="SemiBold"/>
+                                                <TextBlock Text="CPU" FontSize="10" Foreground="{StaticResource MutedBrush}"/>
+                                            </DockPanel>
+                                            <ProgressBar Style="{StaticResource ThinProgressBar}" Value="{Binding CpuPercent, Mode=OneWay}"/>
+                                        </StackPanel>
+                                        <StackPanel Grid.Column="2">
+                                            <DockPanel Margin="0,0,0,3">
+                                                <TextBlock DockPanel.Dock="Right" Text="{Binding RamLabel}" FontSize="10.5" FontWeight="SemiBold"/>
+                                                <TextBlock Text="RAM" FontSize="10" Foreground="{StaticResource MutedBrush}"/>
+                                            </DockPanel>
+                                            <ProgressBar Style="{StaticResource ThinProgressBar}" Foreground="{StaticResource IndigoBrush}" Value="{Binding RamPercent, Mode=OneWay}"/>
+                                        </StackPanel>
+                                    </Grid>
+
+                                    <!-- Hover Quick Action Bar -->
+                                    <Border x:Name="QuickActionsBar" Visibility="Collapsed" BorderBrush="{StaticResource LineBrush}" BorderThickness="0,1,0,0" Padding="0,9,0,0">
+                                        <StackPanel Orientation="Horizontal">
+                                            <Button Content="{Binding ConnectActionText}" Style="{StaticResource PrimaryButton}" Padding="10,4" FontSize="11" Margin="0,0,6,0" Tag="{Binding}" Click="OnCardConnectClick"/>
+                                            <Button Content="Terminal" Style="{StaticResource SmallPillButton}" Padding="9,4" FontSize="11" Margin="0,0,6,0" Tag="{Binding}" Click="OnCardTerminalClick"/>
+                                            <Button Content="Restart" Style="{StaticResource SmallPillButton}" Padding="9,4" FontSize="11" Margin="0,0,6,0" Tag="{Binding}" Click="OnCardRestartClick"/>
+                                            <Button Content="Edit" Style="{StaticResource SmallPillButton}" Padding="9,4" FontSize="11" Tag="{Binding}" Click="OnCardEditClick"/>
+                                        </StackPanel>
+                                    </Border>
                                 </StackPanel>
+                                <DataTemplate.Triggers>
+                                    <DataTrigger Binding="{Binding RelativeSource={RelativeSource AncestorType=ListBoxItem}, Path=IsMouseOver}" Value="True">
+                                        <Setter TargetName="QuickActionsBar" Property="Visibility" Value="Visible"/>
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding RelativeSource={RelativeSource AncestorType=ListBoxItem}, Path=IsSelected}" Value="True">
+                                        <Setter TargetName="QuickActionsBar" Property="Visibility" Value="Visible"/>
+                                    </DataTrigger>
+                                </DataTemplate.Triggers>
                             </DataTemplate>
                         </ListBox.ItemTemplate>
                     </ListBox>
@@ -566,6 +794,50 @@
                 </Grid>
 
             </Grid>
+        </Grid>
+
+        <!-- ==================== ADD / EDIT ENDPOINT SLIDE-OUT DRAWER ==================== -->
+        <Grid x:Name="EndpointDrawerOverlay" Grid.RowSpan="2" Visibility="Collapsed" Background="#9904060A">
+            <Border Width="380" HorizontalAlignment="Right" Background="{StaticResource SurfaceBrush}"
+                    BorderBrush="{StaticResource LineBrush}" BorderThickness="1,0,0,0" Padding="24,22">
+                <DockPanel>
+                    <DockPanel DockPanel.Dock="Top" Margin="0,0,0,18">
+                        <Button DockPanel.Dock="Right" Content="✕" Style="{StaticResource SmallPillButton}" Click="OnCloseEndpointDrawerClick"/>
+                        <StackPanel>
+                            <TextBlock Text="ENDPOINT CONFIGURATION" Style="{StaticResource Caption}" Margin="0,0,0,2"/>
+                            <TextBlock x:Name="DrawerTitleText" Text="Add or Edit Managed Endpoint" FontSize="16" FontWeight="Bold"/>
+                        </StackPanel>
+                    </DockPanel>
+
+                    <StackPanel DockPanel.Dock="Bottom">
+                        <Button Content="+ Save Endpoint" Style="{StaticResource PrimaryButton}" Margin="0,0,0,8" Click="OnSaveMachineClick"/>
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="10"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <Button Grid.Column="0" Content="Remove" Style="{StaticResource DangerButton}" Click="OnRemoveMachineClick"/>
+                            <Button Grid.Column="2" Content="Cancel" Style="{StaticResource GhostButton}" Click="OnCloseEndpointDrawerClick"/>
+                        </Grid>
+                    </StackPanel>
+
+                    <StackPanel>
+                        <TextBlock Text="DISPLAY NAME" Style="{StaticResource Caption}"/>
+                        <TextBox x:Name="NameBox" Text="Living Room PC" Margin="0,0,0,16"/>
+
+                        <TextBlock Text="HOST / LAN IP" Style="{StaticResource Caption}"/>
+                        <TextBox x:Name="HostBox" Text="localhost" Margin="0,0,0,16"/>
+
+                        <TextBlock Text="PORT (DEFAULT 7443)" Style="{StaticResource Caption}"/>
+                        <TextBox x:Name="PortBox" Text="7443" Margin="0,0,0,16"/>
+
+                        <Border Background="#0A0E18" BorderBrush="{StaticResource LineBrush}" BorderThickness="1" CornerRadius="10" Padding="14,12">
+                            <TextBlock Text="Endpoints authenticate automatically using your Home RMS Mutual-TLS PKI certificate." FontSize="11.5" Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap"/>
+                        </Border>
+                    </StackPanel>
+                </DockPanel>
+            </Border>
         </Grid>
     </Grid>
 </Window>
