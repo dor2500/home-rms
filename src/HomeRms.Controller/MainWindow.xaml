@@ -79,13 +79,22 @@
                     <TextBlock x:Name="SidebarSectionLabel" DockPanel.Dock="Top" Text="NAVIGATION"
                                Style="{StaticResource Caption}" Margin="18,0,0,8"/>
 
-                    <Border DockPanel.Dock="Bottom" Background="#0A0E18" BorderBrush="{StaticResource LineBrush}"
-                            BorderThickness="1" CornerRadius="9" Padding="10,8" Margin="10,8,10,0">
-                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                            <Ellipse Width="8" Height="8" Fill="{StaticResource OkBrush}" Margin="0,0,8,0"/>
-                            <TextBlock x:Name="SidebarFooterText" Text="mTLS PKI Ready" FontSize="11" Foreground="{StaticResource MutedBrush}"/>
-                        </StackPanel>
-                    </Border>
+                    <StackPanel DockPanel.Dock="Bottom" Margin="10,8,10,0">
+                        <Button Style="{StaticResource GhostButton}" Padding="10,8" Margin="0,0,0,8"
+                                HorizontalContentAlignment="Left" ToolTip="About Home RMS" Click="OnOpenAboutClick">
+                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                <TextBlock Text="ℹ" FontSize="14" Width="22" TextAlignment="Center" Foreground="{StaticResource AccentBrush}" VerticalAlignment="Center"/>
+                                <TextBlock x:Name="NavLabelAbout" Text="About" FontSize="12" FontWeight="Medium" Margin="8,0,0,0" VerticalAlignment="Center"/>
+                            </StackPanel>
+                        </Button>
+                        <Border Background="#0A0E18" BorderBrush="{StaticResource LineBrush}"
+                                BorderThickness="1" CornerRadius="9" Padding="10,8">
+                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                <Ellipse Width="8" Height="8" Fill="{StaticResource OkBrush}" Margin="0,0,8,0"/>
+                                <TextBlock x:Name="SidebarFooterText" Text="mTLS PKI Ready" FontSize="11" Foreground="{StaticResource MutedBrush}"/>
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
 
                     <StackPanel>
                         <RadioButton x:Name="NavOverview" Style="{StaticResource RailTab}" IsChecked="True" Checked="OnNavTabChanged" ToolTip="Overview Dashboard">
@@ -837,6 +846,45 @@
                         </Border>
                     </StackPanel>
                 </DockPanel>
+            </Border>
+        </Grid>
+        <!-- ==================== ABOUT MODAL ==================== -->
+        <Grid x:Name="AboutOverlay" Grid.RowSpan="2" Visibility="Collapsed" Background="#AA04060A">
+            <Border Style="{StaticResource CardStyle}" Width="430" VerticalAlignment="Center" HorizontalAlignment="Center" Padding="26,24">
+                <StackPanel>
+                    <DockPanel Margin="0,0,0,14">
+                        <Button DockPanel.Dock="Right" Content="✕" Style="{StaticResource SmallPillButton}" Click="OnCloseAboutClick"/>
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                            <Image Source="Assets/controller.png" Width="34" Height="34" Margin="0,0,12,0" RenderOptions.BitmapScalingMode="HighQuality"/>
+                            <StackPanel>
+                                <TextBlock Text="Home RMS Controller" FontSize="16" FontWeight="Bold"/>
+                                <TextBlock Text="Operations Platform (mTLS / HTTP2)" FontSize="11.5" Foreground="{StaticResource MutedBrush}"/>
+                            </StackPanel>
+                        </StackPanel>
+                    </DockPanel>
+
+                    <Border Background="#0A0E18" BorderBrush="{StaticResource LineBrush}" BorderThickness="1" CornerRadius="10" Padding="14,12" Margin="0,0,0,14">
+                        <StackPanel>
+                            <DockPanel Margin="0,0,0,8">
+                                <TextBlock DockPanel.Dock="Right" x:Name="AboutVersionText" Text="v1.5.2" FontFamily="Cascadia Mono, Consolas" FontWeight="Bold" Foreground="{StaticResource AccentBrush}"/>
+                                <TextBlock Text="Version" Foreground="{StaticResource MutedBrush}"/>
+                            </DockPanel>
+                            <DockPanel>
+                                <TextBlock DockPanel.Dock="Right" Text=".NET 11.0 (WPF Self-Contained)" FontSize="12"/>
+                                <TextBlock Text="Runtime" Foreground="{StaticResource MutedBrush}"/>
+                            </DockPanel>
+                        </StackPanel>
+                    </Border>
+
+                    <TextBlock Text="Project Repository (GitHub):" FontSize="11.5" Foreground="{StaticResource MutedBrush}" Margin="0,0,0,4"/>
+                    <TextBlock Margin="0,0,0,18">
+                        <Hyperlink NavigateUri="https://github.com/dor2500/home-rms" RequestNavigate="OnOpenProjectLinkClick" Foreground="#38BDF8">
+                            https://github.com/dor2500/home-rms
+                        </Hyperlink>
+                    </TextBlock>
+
+                    <Button Content="Close" Style="{StaticResource PrimaryButton}" Click="OnCloseAboutClick"/>
+                </StackPanel>
             </Border>
         </Grid>
     </Grid>

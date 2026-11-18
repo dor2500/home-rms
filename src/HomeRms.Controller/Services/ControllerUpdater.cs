@@ -66,14 +66,7 @@ public static class ControllerUpdater
         if (string.IsNullOrEmpty(exePath))
             throw new InvalidOperationException("Cannot determine current executable path.");
 
-        onProgress?.Invoke($"Downloading {update.Tag}…");
-
-        using var http = new HttpClient { Timeout = TimeSpan.FromMinutes(3) };
-        http.DefaultRequestHeaders.UserAgent.ParseAdd("HomeRmsController-Updater/1.0");
-        var bytes = await http.GetByteArrayAsync(update.DownloadUrl, ct);
-
-        if (bytes.Length < 100_000 || bytes[0] != (byte)'M' || bytes[1] != (byte)'Z')
-            throw new InvalidDataException("Downloaded update failed executable header verification.");
+        onProgress?.Invoke($"Downloading {update.Tag} (0%)…");
 
         var updateDir = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
@@ -81,7 +74,57 @@ public static class ControllerUpdater
         Directory.CreateDirectory(updateDir);
 
         var stagedExe = Path.Combine(updateDir, $"HomeRmsController_{update.Tag}.exe");
-        await File.WriteAllBytesAsync(stagedExe, bytes, ct);
+
+        using var http = new HttpClient { Timeout = TimeSpan.FromMinutes(10) };
+        http.DefaultRequestHeaders.UserAgent.ParseAdd("HomeRmsController-Updater/1.0");
+
+        using (var resp = await http.GetAsync(update.DownloadUrl, HttpCompletionOption.ResponseHeadersRead, ct))
+        {
+            resp.EnsureSuccessStatusCode();
+            var totalBytes = resp.Content.Headers.ContentLength ?? -1L;
+
+            await using var netStream = await resp.Content.ReadAsStreamAsync(ct);
+            await using var fileStream = new FileStream(stagedExe, FileMode.Create, FileAccess.Write, FileShare.None, 65536, useAsync: true);
+
+            var buffer = new byte[65536];
+            long totalRead = 0;
+            int lastPct = -1;
+            var sw = Stopwatch.StartNew();
+
+            int read;
+            while ((read = await netStream.ReadAsync(buffer, ct)) > 0)
+            {
+                await fileStream.WriteAsync(buffer.AsMemory(0, read), ct);
+                totalRead += read;
+
+                if (totalBytes > 0)
+                {
+                    var pct = (int)(totalRead * 100 / totalBytes);
+                    if (pct != lastPct && (pct == 100 || sw.ElapsedMilliseconds >= 150))
+                    {
+                        lastPct = pct;
+                        sw.Restart();
+                        onProgress?.Invoke($"Downloading {pct}% ({totalRead / (1024 * 1024)}/{totalBytes / (1024 * 1024)} MB)…");
+                    }
+                }
+                else if (sw.ElapsedMilliseconds >= 250)
+                {
+                    sw.Restart();
+                    onProgress?.Invoke($"Downloading {totalRead / (1024 * 1024)} MB…");
+                }
+            }
+        }
+
+        var info = new FileInfo(stagedExe);
+        if (!info.Exists || info.Length < 100_000)
+            throw new InvalidDataException("Downloaded update file is incomplete.");
+
+        var header = new byte[2];
+        await using (var check = File.OpenRead(stagedExe))
+            _ = await check.ReadAsync(header, ct);
+
+        if (header[0] != (byte)'M' || header[1] != (byte)'Z')
+            throw new InvalidDataException("Downloaded update failed executable header verification.");
 
         var scriptPath = Path.Combine(updateDir, "apply-controller-update.ps1");
         var pid = Environment.ProcessId;

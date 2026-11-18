@@ -227,9 +227,30 @@ public partial class MainWindow : Window
         NavLabelDeploy.Visibility = labelVis;
         NavLabelUpdates.Visibility = labelVis;
         NavLabelSettings.Visibility = labelVis;
+        NavLabelAbout.Visibility = labelVis;
     }
 
     private void OnGoToFleetClick(object sender, RoutedEventArgs e) => NavFleet.IsChecked = true;
+
+    private void OnOpenAboutClick(object sender, RoutedEventArgs e)
+    {
+        var v = ControllerUpdater.CurrentVersion;
+        AboutVersionText.Text = $"v{v.Major}.{v.Minor}.{v.Build}";
+        AboutOverlay.Visibility = Visibility.Visible;
+    }
+
+    private void OnCloseAboutClick(object sender, RoutedEventArgs e)
+        => AboutOverlay.Visibility = Visibility.Collapsed;
+
+    private void OnOpenProjectLinkClick(object sender, System.Windows.Navigation.RequestNavigateEventArgs e)
+    {
+        try
+        {
+            Process.Start(new ProcessStartInfo(e.Uri.AbsoluteUri) { UseShellExecute = true });
+            e.Handled = true;
+        }
+        catch { }
+    }
 
     // ---------------- Windows 11 Style Settings & Updates ----------------
     private SystemCatalog.Win11SettingsPage? _win11Page;

@@ -1,3 +1,6 @@
+using System.Diagnostics;
+using System.Drawing;
+using System.Reflection;
 using System.Threading;
 using System.Windows.Forms;
 using HomeRms.Agent.Core;
@@ -55,6 +58,7 @@ internal sealed class TrayApplicationContext : ApplicationContext, IConsentUi
         };
         startupItem.CheckedChanged += (_, _) => SetStartupEnabled(startupItem.Checked);
         menu.Items.Add(startupItem);
+        menu.Items.Add("About Home RMS Agent", null, (_, _) => ShowAbout());
         menu.Items.Add(new ToolStripSeparator());
         menu.Items.Add("Exit agent", null, (_, _) => ExitThread());
 
@@ -106,6 +110,79 @@ internal sealed class TrayApplicationContext : ApplicationContext, IConsentUi
                 try { _form.SaveScreenshot(_screenshotPath); } catch { }
             }
         }, null);
+    }
+
+    private static void ShowAbout()
+    {
+        var ver = Assembly.GetExecutingAssembly().GetName().Version ?? new Version(1, 0, 0);
+        var verStr = $"v{ver.Major}.{ver.Minor}.{ver.Build}";
+
+        using var dlg = new Form
+        {
+            Text = "About Home RMS Agent",
+            ClientSize = new Size(420, 220),
+            FormBorderStyle = FormBorderStyle.FixedDialog,
+            MaximizeBox = false,
+            MinimizeBox = false,
+            StartPosition = FormStartPosition.CenterScreen,
+            BackColor = Theme.Bg,
+            ForeColor = Theme.Text,
+            Font = Theme.UiFont,
+            Icon = Theme.LoadAppIcon()
+        };
+        Theme.ApplyWindowChrome(dlg);
+
+        var title = new Label
+        {
+            Text = "Home RMS Endpoint Agent",
+            Font = new Font(Theme.UiFont.FontFamily, 14f, FontStyle.Bold),
+            ForeColor = Theme.Text,
+            Location = new Point(24, 22),
+            AutoSize = true
+        };
+        var version = new Label
+        {
+            Text = $"Version: {verStr} (.NET 11.0 Self-Contained)",
+            ForeColor = Theme.Muted,
+            Location = new Point(24, 56),
+            AutoSize = true
+        };
+        var repoLabel = new Label
+        {
+            Text = "Project Repository:",
+            ForeColor = Theme.Muted,
+            Location = new Point(24, 92),
+            AutoSize = true
+        };
+        var link = new LinkLabel
+        {
+            Text = "https://github.com/dor2500/home-rms",
+            LinkColor = Theme.Accent,
+            ActiveLinkColor = Color.White,
+            VisitedLinkColor = Theme.Accent,
+            Location = new Point(24, 114),
+            AutoSize = true
+        };
+        link.LinkClicked += (_, _) =>
+        {
+            try { Process.Start(new ProcessStartInfo(link.Text) { UseShellExecute = true }); } catch { }
+        };
+
+        var closeBtn = new Button
+        {
+            Text = "Close",
+            DialogResult = DialogResult.OK,
+            FlatStyle = FlatStyle.Flat,
+            BackColor = Theme.Accent,
+            ForeColor = Color.White,
+            Size = new Size(96, 32),
+            Location = new Point(300, 164)
+        };
+        closeBtn.FlatAppearance.BorderSize = 0;
+
+        dlg.Controls.AddRange([title, version, repoLabel, link, closeBtn]);
+        dlg.AcceptButton = closeBtn;
+        dlg.ShowDialog();
     }
 
     private static bool IsStartupEnabled()
