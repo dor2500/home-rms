@@ -119,18 +119,20 @@ internal static class Program
         }
     }
 
-    private static void RunNetsh(string arguments)
+    private static void RunNetsh(string arguments) => RunCommand("netsh", arguments);
+
+    private static void RunCommand(string fileName, string arguments)
     {
         using var proc = Process.Start(new ProcessStartInfo
         {
-            FileName = "netsh",
+            FileName = fileName,
             Arguments = arguments,
             CreateNoWindow = true,
             UseShellExecute = false,
             RedirectStandardOutput = true,
             RedirectStandardError = true
         });
-        proc?.WaitForExit(2000);
+        proc?.WaitForExit(3000);
     }
 
     private static int ParsePort(string[] args, int fallback)
@@ -168,9 +170,20 @@ internal static class Program
         if (!string.Equals(srcExe, targetExe, StringComparison.OrdinalIgnoreCase))
             File.Copy(srcExe, targetExe, overwrite: true);
 
-        // Register Windows Startup (Run at sign-in)
-        using (var runKey = Registry.CurrentUser.CreateSubKey(@"Software\Microsoft\Windows\CurrentVersion\Run"))
+        // Register Windows Startup: when installed as Administrator, use an elevated Scheduled Task
+        // (RL HIGHEST) so SendInput can control elevated windows (Task Manager, Admin PowerShell, Settings)
+        // without being blocked by Windows UIPI.
+        if (SystemOps.IsElevated())
+        {
+            RunCommand("schtasks.exe", $"/Create /TN \"HomeRmsAgent\" /TR \"\\\"{targetExe}\\\"\" /SC ONLOGON /RL HIGHEST /F");
+            using var runKey = Registry.CurrentUser.OpenSubKey(@"Software\Microsoft\Windows\CurrentVersion\Run", writable: true);
+            runKey?.DeleteValue("HomeRmsAgent", throwOnMissingValue: false);
+        }
+        else
+        {
+            using var runKey = Registry.CurrentUser.CreateSubKey(@"Software\Microsoft\Windows\CurrentVersion\Run");
             runKey.SetValue("HomeRmsAgent", $"\"{targetExe}\"");
+        }
 
         // Register in Apps & Features
         var ver = Assembly.GetExecutingAssembly().GetName().Version;
@@ -202,6 +215,7 @@ internal static class Program
             if (p.Id != Environment.ProcessId)
                 try { p.Kill(); p.WaitForExit(3000); } catch { }
         }
+        RunCommand("schtasks.exe", "/Delete /TN \"HomeRmsAgent\" /F");
         using (var runKey = Registry.CurrentUser.OpenSubKey(@"Software\Microsoft\Windows\CurrentVersion\Run", writable: true))
             runKey?.DeleteValue("HomeRmsAgent", throwOnMissingValue: false);
         Registry.CurrentUser.DeleteSubKeyTree(@"Software\Microsoft\Windows\CurrentVersion\Uninstall\HomeRmsAgent", throwOnMissingSubKey: false);

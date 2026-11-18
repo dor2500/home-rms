@@ -64,11 +64,16 @@ internal static class PrivacyCurtain
     {
         lock (Gate)
         {
-            try { BlockInput(false); } catch { }
             foreach (var f in Curtains)
             {
-                try { if (!f.IsDisposed) f.Invoke(() => f.Close()); } catch { }
+                try
+                {
+                    if (!f.IsDisposed)
+                        f.Invoke(() => { try { BlockInput(false); } catch { } f.Close(); });
+                }
+                catch { }
             }
+            try { BlockInput(false); } catch { }
             Curtains.Clear();
             try { Application.ExitThread(); } catch { }
             _uiThread = null;
