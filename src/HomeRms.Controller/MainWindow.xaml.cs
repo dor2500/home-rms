@@ -554,8 +554,7 @@ public partial class MainWindow : Window
     {
         var input = UnlockPinBox.Password;
         var cfg = TwoFactorStore.LoadController();
-        var valid = TotpHelper.VerifyCode(cfg.TotpSecret, input) || DashboardPinStore.VerifyPin(input);
-        if (valid)
+        if (TotpHelper.VerifyCode(cfg.TotpSecret, input))
         {
             UnlockPinBox.Clear();
             _lastActivityUtc = DateTime.UtcNow;
@@ -563,7 +562,7 @@ public partial class MainWindow : Window
         }
         else
         {
-            MessageBox.Show("Invalid 2FA code or Security PIN.", "Home RMS — Locked", MessageBoxButton.OK, MessageBoxImage.Warning);
+            MessageBox.Show("Invalid 6-digit 2FA code.", "Home RMS — Locked", MessageBoxButton.OK, MessageBoxImage.Warning);
             UnlockPinBox.Clear();
             UnlockPinBox.Focus();
         }

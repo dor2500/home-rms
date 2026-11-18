@@ -943,9 +943,9 @@
             <Border Style="{StaticResource CardStyle}" Width="380" VerticalAlignment="Center" HorizontalAlignment="Center" Padding="26,24">
                 <StackPanel>
                     <TextBlock Text="DASHBOARD LOCKED" Style="{StaticResource Caption}" Foreground="{StaticResource AccentBrush}" Margin="0,0,0,4"/>
-                    <TextBlock Text="Enter 6-digit 2FA Code / PIN, or use Windows Hello Passkey" FontSize="12.5" FontWeight="SemiBold" TextWrapping="Wrap" Margin="0,0,0,12"/>
+                    <TextBlock Text="Enter 6-digit 2FA Code, or use Windows Hello Passkey" FontSize="12.5" FontWeight="SemiBold" TextWrapping="Wrap" Margin="0,0,0,12"/>
                     <PasswordBox x:Name="UnlockPinBox" Background="#0A0E18" Foreground="#F8FAFC" BorderBrush="{StaticResource LineBrush}" BorderThickness="1" Padding="10,8" Margin="0,0,0,12"/>
-                    <Button Content="🔓 Unlock with 2FA / PIN" Style="{StaticResource PrimaryButton}" Margin="0,0,0,8" Click="OnUnlockDashboardClick"/>
+                    <Button Content="🔓 Unlock with 2FA" Style="{StaticResource PrimaryButton}" Margin="0,0,0,8" Click="OnUnlockDashboardClick"/>
                     <Button Content="🔑 Unlock with Windows Hello / Passkey" Style="{StaticResource GhostButton}" Click="OnUnlockWithPasskeyClick"/>
                 </StackPanel>
             </Border>
