@@ -23,7 +23,7 @@ internal sealed class TrayApplicationContext : ApplicationContext, IConsentUi
     private readonly SynchronizationContext _ui;
     private readonly Icon _idleIcon;
     private readonly Icon _activeIcon;
-    private readonly bool _autoConsent;
+    private volatile bool _autoConsent;
     private readonly string? _screenshotPath;
 
     public TrayApplicationContext(
@@ -35,14 +35,14 @@ internal sealed class TrayApplicationContext : ApplicationContext, IConsentUi
         bool showWindowOnStartup = false)
     {
         _consent = consent;
-        _autoConsent = autoConsent;
+        _autoConsent = autoConsent || IsAutoApproveEnabled();
         _screenshotPath = screenshotPath;
         _ui = SynchronizationContext.Current ?? new WindowsFormsSynchronizationContext();
 
         _idleIcon = Theme.CreateDot(Theme.Accent);
         _activeIcon = Theme.CreateDot(Theme.Danger);
 
-        _form = new MainForm(log, port);
+        _form = new MainForm(log, port, _autoConsent);
         _form.RevokeRequested += () => _consent.RevokeAll();
         _form.ExitRequested += () => ExitThread();
 
@@ -52,6 +52,24 @@ internal sealed class TrayApplicationContext : ApplicationContext, IConsentUi
         menu.Items.Add("Open Home RMS", null, (_, _) => ShowMain());
         menu.Items.Add("Stop any active session", null, (_, _) => _consent.RevokeAll());
         menu.Items.Add(new ToolStripSeparator());
+        var autoApproveItem = new ToolStripMenuItem("Auto-approve connections (no prompt)")
+        {
+            Checked = _autoConsent,
+            CheckOnClick = true
+        };
+        autoApproveItem.CheckedChanged += (_, _) =>
+        {
+            _autoConsent = autoApproveItem.Checked;
+            SetAutoApproveEnabled(_autoConsent);
+            _form.SetAutoApproveChecked(_autoConsent);
+        };
+        _form.AutoApproveChanged += enabled =>
+        {
+            _autoConsent = enabled;
+            SetAutoApproveEnabled(enabled);
+            if (autoApproveItem.Checked != enabled) autoApproveItem.Checked = enabled;
+        };
+        menu.Items.Add(autoApproveItem);
         var startupItem = new ToolStripMenuItem("Start with Windows")
         {
             Checked = IsStartupEnabled(),
@@ -112,6 +130,29 @@ internal sealed class TrayApplicationContext : ApplicationContext, IConsentUi
                 try { _form.SaveScreenshot(_screenshotPath); } catch { }
             }
         }, null);
+    }
+
+    private static string AutoApproveFlagPath => Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+        "HomeRMS", "agent-auto-approve.flag");
+
+    private static bool IsAutoApproveEnabled() => File.Exists(AutoApproveFlagPath);
+
+    private static void SetAutoApproveEnabled(bool enable)
+    {
+        try
+        {
+            if (enable)
+            {
+                Directory.CreateDirectory(Path.GetDirectoryName(AutoApproveFlagPath)!);
+                File.WriteAllText(AutoApproveFlagPath, "1");
+            }
+            else if (File.Exists(AutoApproveFlagPath))
+            {
+                File.Delete(AutoApproveFlagPath);
+            }
+        }
+        catch { }
     }
 
     private static void ResetPinning()

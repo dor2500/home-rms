@@ -1,4 +1,6 @@
+using System.Diagnostics;
 using System.Drawing;
+using System.Reflection;
 using System.Windows.Forms;
 using HomeRms.Agent.Core;
 
@@ -21,13 +23,19 @@ internal sealed class MainForm : Form
 
     public event Action? RevokeRequested;
     public event Action? ExitRequested;
+    public event Action<bool>? AutoApproveChanged;
 
-    public MainForm(ActivityLog log, int port)
+    private readonly CheckBox _autoApproveCheck;
+
+    public MainForm(ActivityLog log, int port, bool initialAutoApprove = false)
     {
         _log = log;
 
+        var ver = Assembly.GetExecutingAssembly().GetName().Version ?? new Version(1, 0, 0);
+        var verStr = $"v{ver.Major}.{ver.Minor}.{ver.Build}";
+
         AutoScaleMode = AutoScaleMode.None;
-        Text = "Home RMS Agent — Endpoint Monitor";
+        Text = $"Home RMS Agent {verStr} — Endpoint Monitor";
         Icon = Theme.LoadAppIcon();
         ClientSize = new Size(880, 620);
         MinimumSize = new Size(760, 520);
@@ -71,25 +79,56 @@ internal sealed class MainForm : Form
             AutoSize = true,
             Location = new Point(92, 56),
         };
+        var verBadge = new Label
+        {
+            Text = $"{verStr}  •  github.com/dor2500/home-rms",
+            ForeColor = Theme.Accent,
+            BackColor = Color.Transparent,
+            Font = Theme.UiFont,
+            AutoSize = true,
+            Cursor = Cursors.Hand,
+            Anchor = AnchorStyles.Top | AnchorStyles.Right,
+            Location = new Point(580, 26),
+        };
+        verBadge.Click += (_, _) =>
+        {
+            try { Process.Start(new ProcessStartInfo("https://github.com/dor2500/home-rms") { UseShellExecute = true }); } catch { }
+        };
         header.Controls.Add(appTitle);
         header.Controls.Add(appSub);
+        header.Controls.Add(verBadge);
 
         // ---------- body ----------
         var body = new Panel { Dock = DockStyle.Fill, Padding = new Padding(28, 20, 28, 16), BackColor = Theme.Bg };
 
         // Bottom action bar
+        var bottomBar = new Panel { Dock = DockStyle.Bottom, Height = 52, BackColor = Theme.Bg, Padding = new Padding(0, 10, 0, 0) };
+        _autoApproveCheck = new CheckBox
+        {
+            Text = "Auto-approve connections (no prompt)",
+            Checked = initialAutoApprove,
+            ForeColor = Theme.Text,
+            BackColor = Theme.Bg,
+            Font = Theme.UiFont,
+            AutoSize = true,
+            Cursor = Cursors.Hand,
+            Location = new Point(0, 16),
+        };
+        _autoApproveCheck.CheckedChanged += (_, _) => AutoApproveChanged?.Invoke(_autoApproveCheck.Checked);
+
         var actions = new FlowLayoutPanel
         {
-            Dock = DockStyle.Bottom,
-            Height = 52,
+            Dock = DockStyle.Right,
+            Width = 300,
             FlowDirection = FlowDirection.RightToLeft,
             BackColor = Theme.Bg,
-            Padding = new Padding(0, 10, 0, 0),
         };
         var exitBtn = Theme.Flat("Exit Agent", Theme.Danger, Color.White, (_, _) => RequestExit(), 135);
         var hideBtn = Theme.Flat("Hide to Tray", Theme.Card, Theme.Text, (_, _) => Hide(), 135);
         actions.Controls.Add(exitBtn);
         actions.Controls.Add(hideBtn);
+        bottomBar.Controls.Add(_autoApproveCheck);
+        bottomBar.Controls.Add(actions);
 
         // Activity log (fills remaining space)
         var logHost = new Panel { Dock = DockStyle.Fill, Padding = new Padding(0, 18, 0, 0) };
@@ -141,7 +180,7 @@ internal sealed class MainForm : Form
         AddStat(stats, "Computer Name", Environment.MachineName, 210);
 
         body.Controls.Add(logHost);
-        body.Controls.Add(actions);
+        body.Controls.Add(bottomBar);
         body.Controls.Add(sessionCard);
         body.Controls.Add(stats);
 
@@ -152,6 +191,12 @@ internal sealed class MainForm : Form
         _log.LineAdded += OnLogLine;
 
         SetSession(null);
+    }
+
+    public void SetAutoApproveChecked(bool enabled)
+    {
+        if (_autoApproveCheck.Checked != enabled)
+            _autoApproveCheck.Checked = enabled;
     }
 
     /// <summary>Updates the session card. Pass null when nobody is viewing.</summary>
