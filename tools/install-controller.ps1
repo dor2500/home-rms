@@ -14,7 +14,13 @@ if (-not $asset) { throw "HomeRmsController-Setup.exe not found in latest releas
 
 $tmp = Join-Path $env:TEMP "HomeRmsController-Setup-$($release.tag_name).exe"
 Write-Host "Downloading $($release.tag_name) ($($asset.name))..." -ForegroundColor Cyan
-Invoke-WebRequest -Uri $asset.browser_download_url -OutFile $tmp
+$ProgressPreference = 'SilentlyContinue'
+if (Get-Command curl.exe -ErrorAction SilentlyContinue) {
+    & curl.exe -fL --progress-bar $asset.browser_download_url -o $tmp
+    if ($LASTEXITCODE -ne 0) { throw "Download failed with exit code $LASTEXITCODE." }
+} else {
+    Invoke-WebRequest -Uri $asset.browser_download_url -OutFile $tmp
+}
 
 Write-Host "Launching Home RMS Controller Setup..." -ForegroundColor Green
 Start-Process -FilePath $tmp
