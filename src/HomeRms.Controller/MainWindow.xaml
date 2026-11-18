@@ -4,6 +4,7 @@
         Title="Home RMS — Fleet Command Center" Height="840" Width="1360"
         MinHeight="680" MinWidth="1020"
         Icon="Assets/controller.ico"
+        PreviewMouseDown="OnDashboardActivity"
         PreviewKeyDown="OnWindowPreviewKeyDown"
         PreviewKeyUp="OnWindowPreviewKeyUp"
         WindowStartupLocation="CenterScreen">
@@ -33,6 +34,9 @@
                     <Button x:Name="UpdateBtn" Content="↻ Updates" Style="{StaticResource SmallPillButton}"
                             Margin="0,0,8,0" ToolTip="Check GitHub Releases (dor2500/home-rms) for updates"
                             Click="OnCheckOrApplyUpdateClick"/>
+                    <Button Content="🔒 Lock" Style="{StaticResource SmallPillButton}"
+                            Margin="0,0,8,0" ToolTip="Lock Dashboard (15m auto-lock active)"
+                            Click="OnLockDashboardClick"/>
                     <Button x:Name="AddEndpointTopBtn" Content="+ Add Endpoint" Style="{StaticResource PrimaryButton}"
                             Padding="13,7" Click="OnOpenAddEndpointDrawerClick"/>
                 </StackPanel>
@@ -314,17 +318,26 @@
                 <!-- ==================== 1. FLEET COMMAND GRID ==================== -->
                 <DockPanel x:Name="FleetPanel" Visibility="Collapsed">
                     <!-- Slim Fleet Toolbar -->
-                    <DockPanel DockPanel.Dock="Top" Margin="0,0,0,14">
+                    <DockPanel DockPanel.Dock="Top" Margin="0,0,0,10">
                         <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
-                            <TextBox x:Name="FleetFilterBox" Width="220" Margin="0,0,10,0" ToolTip="Filter endpoints by name, IP, or OS" TextChanged="OnFleetFilterChanged"/>
+                            <TextBox x:Name="FleetFilterBox" Width="200" Margin="0,0,10,0" ToolTip="Filter endpoints by name, IP, or OS" TextChanged="OnFleetFilterChanged"/>
                             <Button Content="+ Add Endpoint" Style="{StaticResource PrimaryButton}" Padding="14,7" Click="OnOpenAddEndpointDrawerClick"/>
                         </StackPanel>
                         <StackPanel VerticalAlignment="Center">
                             <TextBlock Text="MANAGED LAN FLEET" Style="{StaticResource Caption}" Margin="0,0,0,2"/>
-                            <TextBlock x:Name="FleetSummaryText" Text="Hover any card for Connect, Terminal, or Restart quick actions. Double-click to connect."
+                            <TextBlock x:Name="FleetSummaryText" Text="Hover any card for Connect, Terminal, Wake, or Restart quick actions."
                                        FontSize="12" Foreground="{StaticResource MutedBrush}"/>
                         </StackPanel>
                     </DockPanel>
+
+                    <!-- 1-to-Many Mass Execution Bar -->
+                    <Border DockPanel.Dock="Top" Style="{StaticResource CardStyle}" Padding="12,10" Margin="0,0,0,12">
+                        <DockPanel>
+                            <Button DockPanel.Dock="Right" Content="⚡ Mass Run (All Online)" Style="{StaticResource GhostButton}" Padding="12,6" Margin="10,0,0,0" Click="OnMassRunClick"/>
+                            <TextBlock DockPanel.Dock="Left" Text="MASS PS:" Style="{StaticResource Caption}" VerticalAlignment="Center" Margin="0,0,10,0"/>
+                            <TextBox x:Name="MassCommandBox" Text="hostname; (Get-CimInstance Win32_OperatingSystem).LastBootUpTime"/>
+                        </DockPanel>
+                    </Border>
 
                     <!-- Live Activity Log / Recent Events Feed (Docked Bottom) -->
                     <Border DockPanel.Dock="Bottom" Style="{StaticResource CardStyle}" Padding="14,12" Height="170" Margin="0,12,0,0">
@@ -443,10 +456,11 @@
                                     <!-- Hover Quick Action Bar -->
                                     <Border x:Name="QuickActionsBar" Visibility="Collapsed" BorderBrush="{StaticResource LineBrush}" BorderThickness="0,1,0,0" Padding="0,9,0,0">
                                         <StackPanel Orientation="Horizontal">
-                                            <Button Content="{Binding ConnectActionText}" Style="{StaticResource PrimaryButton}" Padding="10,4" FontSize="11" Margin="0,0,6,0" Tag="{Binding}" Click="OnCardConnectClick"/>
-                                            <Button Content="Terminal" Style="{StaticResource SmallPillButton}" Padding="9,4" FontSize="11" Margin="0,0,6,0" Tag="{Binding}" Click="OnCardTerminalClick"/>
-                                            <Button Content="Restart" Style="{StaticResource SmallPillButton}" Padding="9,4" FontSize="11" Margin="0,0,6,0" Tag="{Binding}" Click="OnCardRestartClick"/>
-                                            <Button Content="Edit" Style="{StaticResource SmallPillButton}" Padding="9,4" FontSize="11" Tag="{Binding}" Click="OnCardEditClick"/>
+                                            <Button Content="{Binding ConnectActionText}" Style="{StaticResource PrimaryButton}" Padding="9,4" FontSize="11" Margin="0,0,5,0" Tag="{Binding}" Click="OnCardConnectClick"/>
+                                            <Button Content="Terminal" Style="{StaticResource SmallPillButton}" Padding="8,4" FontSize="11" Margin="0,0,5,0" Tag="{Binding}" Click="OnCardTerminalClick"/>
+                                            <Button Content="⚡ Wake" Style="{StaticResource SmallPillButton}" Padding="8,4" FontSize="11" Margin="0,0,5,0" Tag="{Binding}" Click="OnCardWakeClick"/>
+                                            <Button Content="Restart" Style="{StaticResource SmallPillButton}" Padding="8,4" FontSize="11" Margin="0,0,5,0" Tag="{Binding}" Click="OnCardRestartClick"/>
+                                            <Button Content="Edit" Style="{StaticResource SmallPillButton}" Padding="8,4" FontSize="11" Tag="{Binding}" Click="OnCardEditClick"/>
                                         </StackPanel>
                                     </Border>
                                 </StackPanel>
@@ -479,8 +493,12 @@
 
                             <WrapPanel Orientation="Horizontal" VerticalAlignment="Center">
                                 <Button x:Name="StreamBtn" Content="▶ Start Stream" Width="126" Style="{StaticResource PrimaryButton}" Padding="10,7" Click="OnToggleStream"/>
-                                <CheckBox x:Name="ControlCheck" Content="Control" Margin="12,0,0,0" Checked="OnControlCheckChanged" Unchecked="OnControlCheckChanged"/>
-                                <Border Width="1" Height="20" Background="{StaticResource LineBrush}" Margin="12,0"/>
+                                <CheckBox x:Name="ControlCheck" Content="Control" Margin="10,0,0,0" Checked="OnControlCheckChanged" Unchecked="OnControlCheckChanged"/>
+                                <CheckBox x:Name="PrivacyCheck" Content="🛡 Privacy" Margin="10,0,0,0" ToolTip="Blank remote screen &amp; lock remote input" Checked="OnPrivacyModeChanged" Unchecked="OnPrivacyModeChanged"/>
+                                <Border Width="1" Height="20" Background="{StaticResource LineBrush}" Margin="10,0"/>
+                                <ComboBox x:Name="MonitorCombo" Width="88" SelectedIndex="0" Margin="0,0,6,0" Background="#0C0F17" Foreground="#F8FAFC" BorderBrush="#23293B" SelectionChanged="OnMonitorSelectionChanged">
+                                    <ComboBoxItem Content="Display 1"/>
+                                </ComboBox>
                                 <TextBlock Text="FPS:" Foreground="{StaticResource MutedBrush}" VerticalAlignment="Center" Margin="0,0,4,0"/>
                                 <TextBox x:Name="FpsBox" Text="30" Width="38" Margin="0,0,8,0"/>
                                 <TextBlock Text="Q:" Foreground="{StaticResource MutedBrush}" VerticalAlignment="Center" Margin="0,0,4,0"/>
@@ -841,6 +859,9 @@
                         <TextBlock Text="PORT (DEFAULT 7443)" Style="{StaticResource Caption}"/>
                         <TextBox x:Name="PortBox" Text="7443" Margin="0,0,0,16"/>
 
+                        <TextBlock Text="MAC ADDRESS (FOR WAKE-ON-LAN)" Style="{StaticResource Caption}"/>
+                        <TextBox x:Name="MacBox" Text="" Margin="0,0,0,16"/>
+
                         <Border Background="#0A0E18" BorderBrush="{StaticResource LineBrush}" BorderThickness="1" CornerRadius="10" Padding="14,12">
                             <TextBlock Text="Endpoints authenticate automatically using your Home RMS Mutual-TLS PKI certificate." FontSize="11.5" Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap"/>
                         </Border>
@@ -894,6 +915,18 @@
                         <Button Grid.Column="0" Content="📋 Copy --pin Command for Agent" Style="{StaticResource GhostButton}" Click="OnCopyPinCommandClick"/>
                         <Button Grid.Column="2" Content="Close" Style="{StaticResource PrimaryButton}" Click="OnCloseAboutClick"/>
                     </Grid>
+                </StackPanel>
+            </Border>
+        </Grid>
+
+        <!-- ==================== 15-MINUTE AUTO-LOCK OVERLAY ==================== -->
+        <Grid x:Name="LockOverlay" Grid.RowSpan="2" Visibility="Collapsed" Background="#F0080B12">
+            <Border Style="{StaticResource CardStyle}" Width="360" VerticalAlignment="Center" HorizontalAlignment="Center" Padding="26,24">
+                <StackPanel>
+                    <TextBlock Text="DASHBOARD LOCKED" Style="{StaticResource Caption}" Foreground="{StaticResource AccentBrush}" Margin="0,0,0,4"/>
+                    <TextBlock Text="Enter Security PIN (default: 1234)" FontSize="13.5" FontWeight="SemiBold" Margin="0,0,0,12"/>
+                    <PasswordBox x:Name="UnlockPinBox" Background="#0A0E18" Foreground="#F8FAFC" BorderBrush="{StaticResource LineBrush}" BorderThickness="1" Padding="10,8" Margin="0,0,0,12"/>
+                    <Button Content="🔓 Unlock Console" Style="{StaticResource PrimaryButton}" Click="OnUnlockDashboardClick"/>
                 </StackPanel>
             </Border>
         </Grid>

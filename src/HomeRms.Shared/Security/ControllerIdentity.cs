@@ -164,27 +164,66 @@ public static class TrustedControllerStore
         }
     }
 
-    public static bool ValidateAgentPeer(X509Certificate? rawCert, X509Certificate2 caCert, string? storePath = null)
+    public static bool ValidateAgentPeer(X509Certificate? rawCert, X509Certificate2 caCert, string? storePath = null, Action<string>? onRejected = null)
     {
-        if (rawCert is null) return false;
+        if (rawCert is null) { onRejected?.Invoke("no client certificate presented"); return false; }
         var peer = rawCert as X509Certificate2 ?? X509CertificateLoader.LoadCertificate(rawCert.Export(X509ContentType.Cert));
 
         if (!ControllerIdentity.HasClientAuthEku(peer))
+        {
+            onRejected?.Invoke($"missing clientAuth EKU ({peer.Subject})");
             return false;
+        }
 
         var pinned = Load(storePath);
         if (pinned.Count > 0)
         {
-            // Strict Pinning Mode: ONLY pinned Controller fingerprints are accepted!
-            // Even certificates signed by the public deployment CA are rejected.
             var norm = ControllerIdentity.NormalizeFingerprint(ControllerIdentity.GetSha256Fingerprint(peer));
-            return pinned.Any(e => string.Equals(
+            var matched = pinned.Any(e => string.Equals(
                 ControllerIdentity.NormalizeFingerprint(e.Sha256), norm, StringComparison.OrdinalIgnoreCase));
+            if (!matched)
+                onRejected?.Invoke($"unpinned controller '{peer.Subject}' ({norm[..16]}...)");
+            return matched;
         }
 
-        // Unpinned initial state: accept either CA-signed cert or unique self-signed ClientAuth cert
-        // (paired/pinned on first consent in RemoteManagementService or via --pin CLI).
-        return DevCertificates.ValidateAgainstCa(peer, caCert, DevCertificates.ClientAuthOid)
+        var ok = DevCertificates.ValidateAgainstCa(peer, caCert, DevCertificates.ClientAuthOid)
             || peer.Verify() || peer.Subject.StartsWith("CN=HomeRMS-Controller-", StringComparison.Ordinal);
+        if (!ok) onRejected?.Invoke($"untrusted CA/cert ({peer.Subject})");
+        return ok;
+    }
+}
+
+public static class DashboardPinStore
+{
+    private static string PinPath => Path.Combine(ControllerIdentity.SecurityDir, "dashboard-pin.dpapi");
+
+    public static bool VerifyPin(string candidate)
+    {
+        var saved = LoadPin();
+        return string.Equals(candidate, saved, StringComparison.Ordinal);
+    }
+
+    public static void SavePin(string pin)
+    {
+        Directory.CreateDirectory(ControllerIdentity.SecurityDir);
+        var raw = Encoding.UTF8.GetBytes(pin);
+        var protectedBytes = OperatingSystem.IsWindows()
+            ? ProtectedData.Protect(raw, null, DataProtectionScope.CurrentUser)
+            : raw;
+        File.WriteAllBytes(PinPath, protectedBytes);
+    }
+
+    private static string LoadPin()
+    {
+        if (!File.Exists(PinPath)) return "1234";
+        try
+        {
+            var blob = File.ReadAllBytes(PinPath);
+            var raw = OperatingSystem.IsWindows()
+                ? ProtectedData.Unprotect(blob, null, DataProtectionScope.CurrentUser)
+                : blob;
+            return Encoding.UTF8.GetString(raw);
+        }
+        catch { return "1234"; }
     }
 }

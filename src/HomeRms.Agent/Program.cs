@@ -107,8 +107,8 @@ internal static class Program
                 "HomeRMS", $"fw-{port}.done");
             if (File.Exists(markerPath)) return;
 
-            RunNetsh($"advfirewall firewall add rule name=\"Home RMS Agent (mTLS TCP {port})\" dir=in action=allow protocol=TCP localport={port} profile=private,domain");
-            RunNetsh($"advfirewall firewall add rule name=\"Home RMS Agent (Discovery UDP {DiscoveryResponder.DiscoveryUdpPort})\" dir=in action=allow protocol=UDP localport={DiscoveryResponder.DiscoveryUdpPort} profile=private,domain");
+            RunNetsh($"advfirewall firewall add rule name=\"Home RMS Agent (mTLS TCP {port})\" dir=in action=allow protocol=TCP localport={port} remoteip=LocalSubnet profile=private,domain");
+            RunNetsh($"advfirewall firewall add rule name=\"Home RMS Agent (Discovery UDP {DiscoveryResponder.DiscoveryUdpPort})\" dir=in action=allow protocol=UDP localport={DiscoveryResponder.DiscoveryUdpPort} remoteip=LocalSubnet profile=private,domain");
 
             Directory.CreateDirectory(Path.GetDirectoryName(markerPath)!);
             File.WriteAllText(markerPath, DateTimeOffset.UtcNow.ToString("O"));

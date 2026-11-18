@@ -17,6 +17,8 @@ public sealed class ScreenCapturer : IDisposable
     private readonly ImageCodecInfo _jpegCodec =
         ImageCodecInfo.GetImageEncoders().First(c => c.FormatID == ImageFormat.Jpeg.Guid);
 
+    public int MonitorIndex { get; set; }
+
     public (int Width, int Height) PrimaryBounds
     {
         get
@@ -103,9 +105,29 @@ public sealed class ScreenCapturer : IDisposable
         return (null, w, h);
     }
 
-    /// <summary>Grabs the primary screen (with cursor) and scales it down to maxWidth if needed.</summary>
+    /// <summary>Grabs the selected screen (with cursor) and scales it down to maxWidth if needed.</summary>
     private Bitmap CaptureBitmap(int maxWidth)
     {
+        var screens = System.Windows.Forms.Screen.AllScreens;
+        if (MonitorIndex > 0 && MonitorIndex < screens.Length)
+        {
+            var b = screens[MonitorIndex].Bounds;
+            var secBmp = new Bitmap(b.Width, b.Height, PixelFormat.Format24bppRgb);
+            using (var g = Graphics.FromImage(secBmp))
+                g.CopyFromScreen(b.Location, Point.Empty, b.Size);
+            if (maxWidth > 0 && secBmp.Width > maxWidth)
+            {
+                var targetH = Math.Max(1, (int)Math.Round(secBmp.Height * (maxWidth / (double)secBmp.Width)));
+                var secScaled = new Bitmap(maxWidth, targetH, PixelFormat.Format24bppRgb);
+                using var sg = Graphics.FromImage(secScaled);
+                sg.InterpolationMode = InterpolationMode.HighQualityBicubic;
+                sg.DrawImage(secBmp, 0, 0, maxWidth, targetH);
+                secBmp.Dispose();
+                return secScaled;
+            }
+            return secBmp;
+        }
+
         var (w, h) = PrimaryBounds;
         var bmp = new Bitmap(w, h, PixelFormat.Format24bppRgb);
         using (var g = Graphics.FromImage(bmp))

@@ -15,6 +15,7 @@ using Grpc.Core;
 using HomeRms.Controller.Models;
 using HomeRms.Controller.Services;
 using HomeRms.Shared;
+using HomeRms.Shared.Network;
 using HomeRms.Shared.Protocol;
 using HomeRms.Shared.Security;
 
@@ -73,6 +74,7 @@ public partial class MainWindow : Window
 
         AddActivity("mTLS", "Operations Platform initialized. Mutual-TLS X.509 PKI ready.");
         UpdateOverviewMetrics();
+        StartInactivityTimer();
 
         ShellOutput.Text =
             "Home RMS Interactive PowerShell Console\r\n" +
@@ -491,8 +493,51 @@ public partial class MainWindow : Window
         if (target.Length > 0) SystemTargetBox.Text = target;
     }
 
+    private DateTime _lastActivityUtc = DateTime.UtcNow;
+    private System.Windows.Threading.DispatcherTimer? _inactivityTimer;
+
+    private void StartInactivityTimer()
+    {
+        _inactivityTimer = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromSeconds(15) };
+        _inactivityTimer.Tick += (_, _) =>
+        {
+            if (LockOverlay.Visibility != Visibility.Visible &&
+                DateTime.UtcNow - _lastActivityUtc >= TimeSpan.FromMinutes(15))
+            {
+                LockOverlay.Visibility = Visibility.Visible;
+            }
+        };
+        _inactivityTimer.Start();
+    }
+
+    private void OnDashboardActivity(object sender, MouseButtonEventArgs e) => _lastActivityUtc = DateTime.UtcNow;
+
+    private void OnLockDashboardClick(object sender, RoutedEventArgs e)
+    {
+        UnlockPinBox.Clear();
+        LockOverlay.Visibility = Visibility.Visible;
+        UnlockPinBox.Focus();
+    }
+
+    private void OnUnlockDashboardClick(object sender, RoutedEventArgs e)
+    {
+        if (DashboardPinStore.VerifyPin(UnlockPinBox.Password))
+        {
+            UnlockPinBox.Clear();
+            _lastActivityUtc = DateTime.UtcNow;
+            LockOverlay.Visibility = Visibility.Collapsed;
+        }
+        else
+        {
+            MessageBox.Show("Invalid Security PIN.", "Home RMS — Locked", MessageBoxButton.OK, MessageBoxImage.Warning);
+            UnlockPinBox.Clear();
+            UnlockPinBox.Focus();
+        }
+    }
+
     private void OnWindowPreviewKeyDown(object sender, KeyEventArgs e)
     {
+        _lastActivityUtc = DateTime.UtcNow;
         if (e.Key == Key.F11)
         {
             e.Handled = true;
@@ -575,6 +620,7 @@ public partial class MainWindow : Window
         NameBox.Text = "";
         HostBox.Text = "";
         PortBox.Text = "7443";
+        MacBox.Text = "";
         EndpointDrawerOverlay.Visibility = Visibility.Visible;
         NameBox.Focus();
     }
@@ -590,6 +636,8 @@ public partial class MainWindow : Window
         NameBox.Text = m.Name;
         HostBox.Text = m.Host;
         PortBox.Text = m.Port.ToString();
+        MacBox.Text = m.MacAddress;
+        MacBox.Text = m.MacAddress;
         EndpointDrawerOverlay.Visibility = Visibility.Visible;
     }
 
@@ -615,6 +663,7 @@ public partial class MainWindow : Window
         NameBox.Text = m.Name;
         HostBox.Text = m.Host;
         PortBox.Text = m.Port.ToString();
+        MacBox.Text = m.MacAddress;
 
         if (_conn is null)
         {
@@ -642,12 +691,13 @@ public partial class MainWindow : Window
         if (existing is not null)
         {
             existing.Name = name;
+            existing.MacAddress = MacBox.Text.Trim();
             MachinesList.SelectedItem = existing;
             AddActivity("FLEET", $"Updated endpoint '{name}' ({host}:{port}).");
         }
         else
         {
-            var created = new MachineProfile { Name = name, Host = host, Port = port, StatusLabel = "Saved" };
+            var created = new MachineProfile { Name = name, Host = host, Port = port, MacAddress = MacBox.Text.Trim(), StatusLabel = "Saved" };
             _machines.Add(created);
             MachinesList.SelectedItem = created;
             AddActivity("FLEET", $"Added new endpoint '{name}' ({host}:{port}).");
@@ -805,6 +855,61 @@ public partial class MainWindow : Window
         ShellInputBox.Focus();
     }
 
+    private async void OnCardWakeClick(object sender, RoutedEventArgs e)
+    {
+        if (sender is not Button { Tag: MachineProfile m }) return;
+        if (string.IsNullOrWhiteSpace(m.MacAddress))
+        {
+            MessageBox.Show($"No MAC address saved for '{m.DisplayTitle}'. Click Edit to enter its MAC address.",
+                "Home RMS — Wake-on-LAN", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+        try
+        {
+            await WakeOnLan.SendAsync(m.MacAddress);
+            AddActivity("WAKE", $"Sent Wake-on-LAN magic packet to {m.DisplayTitle} ({m.MacAddress}).");
+            StatusText.Text = $"Sent Wake-on-LAN packet to {m.DisplayTitle}.";
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show($"Wake-on-LAN failed:\n\n{ex.Message}", "Home RMS — Wake-on-LAN", MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
+    }
+
+    private async void OnMassRunClick(object sender, RoutedEventArgs e)
+    {
+        var cmd = MassCommandBox.Text.Trim();
+        if (string.IsNullOrWhiteSpace(cmd)) return;
+
+        var targets = _machines.Where(m => m.IsOnline || m.IsConnected).ToList();
+        if (targets.Count == 0)
+        {
+            AddActivity("MASS RUN", "No online endpoints found. Run Scan LAN first.");
+            return;
+        }
+
+        AddActivity("MASS RUN", $"Executing on {targets.Count} online endpoint(s): {cmd}");
+        await Task.WhenAll(targets.Select(async m =>
+        {
+            try
+            {
+                using var temp = new RmsConnection(m.Host, m.Port);
+                using var shell = temp.Client.Shell(deadline: DateTime.UtcNow.AddSeconds(20));
+                await shell.RequestStream.WriteAsync(new ShellInput { Data = cmd + "\r\nexit\r\n" });
+                await shell.RequestStream.CompleteAsync();
+                var sb = new StringBuilder();
+                await foreach (var o in shell.ResponseStream.ReadAllAsync())
+                    sb.Append(o.Data);
+                var firstLine = sb.ToString().Trim().Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries).LastOrDefault() ?? "OK";
+                AddActivity("MASS RUN", $"[{m.DisplayTitle}] -> {firstLine}");
+            }
+            catch (Exception ex)
+            {
+                AddActivity("ALERT", $"[{m.DisplayTitle}] Mass Run failed: {Short(ex)}");
+            }
+        }));
+    }
+
     private async void OnCardRestartClick(object sender, RoutedEventArgs e)
     {
         if (sender is not Button { Tag: MachineProfile m }) return;
@@ -842,6 +947,7 @@ public partial class MainWindow : Window
         NameBox.Text = m.Name;
         HostBox.Text = m.Host;
         PortBox.Text = m.Port.ToString();
+        MacBox.Text = m.MacAddress;
         return await ConnectToCurrentFieldsAsync();
     }
 
@@ -887,6 +993,12 @@ public partial class MainWindow : Window
                 $"{host}:{port}  ·  {_agentInfo.LoggedInUser}  ·  {_agentInfo.PrimaryScreenWidth}×{_agentInfo.PrimaryScreenHeight}  ·  {_agentInfo.OsVersion}";
             SetBadge($"Connected · {rtt} ms", Tone.Success);
             AddActivity("CONNECT", $"mTLS session established with {_agentInfo.MachineName} ({host}:{port}) in {rtt} ms.");
+
+            var monCount = Math.Max(1, _agentInfo.MonitorCount);
+            MonitorCombo.Items.Clear();
+            for (var i = 1; i <= monCount; i++)
+                MonitorCombo.Items.Add(new ComboBoxItem { Content = $"Display {i}" });
+            MonitorCombo.SelectedIndex = 0;
 
             await RefreshInventoryCoreAsync();
             UpdateOverviewMetrics();
@@ -1300,9 +1412,10 @@ public partial class MainWindow : Window
         StreamBtn.Style = (Style)FindResource("DangerButton");
         StreamStatus.Text = "Awaiting on-machine consent…";
 
-        var fps = int.TryParse(FpsBox.Text, out var f) ? Math.Clamp(f, 1, 60) : 60;
-        var quality = int.TryParse(QualityBox.Text, out var q) ? Math.Clamp(q, 20, 95) : 80;
+        var fps = int.TryParse(FpsBox.Text, out var f) ? Math.Clamp(f, 1, 60) : 30;
+        var quality = int.TryParse(QualityBox.Text, out var q) ? Math.Clamp(q, 20, 95) : 88;
         var maxWidth = ScaleBox.SelectedItem is ComboBoxItem { Tag: string ts } && int.TryParse(ts, out var mw) ? mw : 0;
+        var monitorIndex = Math.Max(0, MonitorCombo?.SelectedIndex ?? 0);
 
         var stats = new StreamStats();
         var statsTimer = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
@@ -1324,7 +1437,8 @@ public partial class MainWindow : Window
                     Quality = quality,
                     OperatorName = Environment.UserName,
                     MaxWidth = maxWidth,
-                    SupportsTiles = true
+                    SupportsTiles = true,
+                    MonitorIndex = monitorIndex
                 },
                 cancellationToken: token);
 
@@ -1368,6 +1482,33 @@ public partial class MainWindow : Window
                 statsTimer.Stop();
                 StopStream();
             });
+        }
+    }
+
+    private async void OnMonitorSelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_streamCts is not null && _conn is not null)
+        {
+            StopStream();
+            await Task.Delay(150);
+            await StartStreamCoreAsync();
+        }
+    }
+
+    private async void OnPrivacyModeChanged(object sender, RoutedEventArgs e)
+    {
+        if (_conn is null) return;
+        try
+        {
+            var enabled = PrivacyCheck.IsChecked == true;
+            await _conn.Client.SetPrivacyModeAsync(
+                new PrivacyModeRequest { Enabled = enabled, BannerText = "System under maintenance — Home RMS" },
+                deadline: DateTime.UtcNow.AddSeconds(5));
+            AddActivity("PRIVACY", $"Privacy Mode {(enabled ? "ENABLED" : "DISABLED")} on {_agentInfo?.MachineName}.");
+        }
+        catch (Exception ex)
+        {
+            StatusText.Text = "Privacy mode failed: " + Short(ex);
         }
     }
 

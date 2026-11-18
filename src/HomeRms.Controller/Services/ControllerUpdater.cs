@@ -3,11 +3,12 @@ using System.IO;
 using System.IO.Compression;
 using System.Net.Http;
 using System.Reflection;
+using System.Security.Cryptography;
 using System.Text.Json;
 
 namespace HomeRms.Controller.Services;
 
-public sealed record AvailableUpdate(string Tag, Version Version, string DownloadUrl, bool IsZip = false);
+public sealed record AvailableUpdate(string Tag, Version Version, string DownloadUrl, bool IsZip = false, string? ChecksumUrl = null, string AssetName = "HomeRmsController.exe");
 
 /// <summary>
 /// Checks GitHub Releases (dor2500/home-rms) for newer versions of HomeRmsController
@@ -47,20 +48,23 @@ public static class ControllerUpdater
 
         if (root.TryGetProperty("assets", out var assetsEl) && assetsEl.ValueKind == JsonValueKind.Array)
         {
+            string? zipUrl = null;
             string? exeUrl = null;
+            string? shaUrl = null;
             foreach (var asset in assetsEl.EnumerateArray())
             {
                 var name = asset.TryGetProperty("name", out var nEl) ? nEl.GetString() : null;
                 var url = asset.TryGetProperty("browser_download_url", out var uEl) ? uEl.GetString() : null;
                 if (string.IsNullOrWhiteSpace(url)) continue;
 
-                if (string.Equals(name, ZipAssetName, StringComparison.OrdinalIgnoreCase))
-                    return new AvailableUpdate(tag, remoteVersion, url, IsZip: true);
-                if (string.Equals(name, ExeAssetName, StringComparison.OrdinalIgnoreCase))
-                    exeUrl = url;
+                if (string.Equals(name, ZipAssetName, StringComparison.OrdinalIgnoreCase)) zipUrl = url;
+                else if (string.Equals(name, ExeAssetName, StringComparison.OrdinalIgnoreCase)) exeUrl = url;
+                else if (string.Equals(name, "checksums.sha256", StringComparison.OrdinalIgnoreCase)) shaUrl = url;
             }
+            if (!string.IsNullOrWhiteSpace(zipUrl))
+                return new AvailableUpdate(tag, remoteVersion, zipUrl, IsZip: true, ChecksumUrl: shaUrl, AssetName: ZipAssetName);
             if (!string.IsNullOrWhiteSpace(exeUrl))
-                return new AvailableUpdate(tag, remoteVersion, exeUrl, IsZip: false);
+                return new AvailableUpdate(tag, remoteVersion, exeUrl, IsZip: false, ChecksumUrl: shaUrl, AssetName: ExeAssetName);
         }
 
         return null;
@@ -124,6 +128,20 @@ public static class ControllerUpdater
             }
         }
 
+        if (!string.IsNullOrWhiteSpace(update.ChecksumUrl))
+        {
+            onProgress?.Invoke("Verifying SHA-256 signature…");
+            var shaText = await http.GetStringAsync(update.ChecksumUrl, ct);
+            var expected = ParseExpectedHash(shaText, update.AssetName);
+            if (!string.IsNullOrWhiteSpace(expected))
+            {
+                await using var hashStream = File.OpenRead(downloadPath);
+                var actual = Convert.ToHexString(await SHA256.HashDataAsync(hashStream, ct));
+                if (!string.Equals(actual, expected, StringComparison.OrdinalIgnoreCase))
+                    throw new InvalidDataException($"SHA-256 mismatch for {update.AssetName}! Update aborted for security.");
+            }
+        }
+
         if (update.IsZip)
         {
             onProgress?.Invoke("Extracting update…");
@@ -174,6 +192,17 @@ Start-Process -FilePath '{exePath.Replace("'", "''")}'
             UseShellExecute = false,
             CreateNoWindow = true
         });
+    }
+
+    private static string? ParseExpectedHash(string checksumsText, string fileName)
+    {
+        foreach (var line in checksumsText.Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries))
+        {
+            var parts = line.Trim().Split([' ', '\t'], StringSplitOptions.RemoveEmptyEntries);
+            if (parts.Length >= 2 && string.Equals(parts[^1].TrimStart('*'), fileName, StringComparison.OrdinalIgnoreCase))
+                return parts[0];
+        }
+        return null;
     }
 
     private static bool TryParseReleaseVersion(string tag, out Version version)

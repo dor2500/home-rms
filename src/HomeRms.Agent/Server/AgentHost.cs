@@ -40,7 +40,8 @@ public static class AgentHost
                     https.SslProtocols = SslProtocols.Tls12 | SslProtocols.Tls13;
                     https.ClientCertificateMode = ClientCertificateMode.RequireCertificate;
                     https.ClientCertificateValidation = (cert, _, _) =>
-                        TrustedControllerStore.ValidateAgentPeer(cert, caCert);
+                        TrustedControllerStore.ValidateAgentPeer(
+                            cert, caCert, onRejected: reason => log.Write($"[security] REJECTED connection: {reason}"));
                 });
             });
         });

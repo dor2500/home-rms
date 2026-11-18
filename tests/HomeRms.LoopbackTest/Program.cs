@@ -158,6 +158,12 @@ try
         Console.WriteLine($"[test] Strict Pinning Gate OK -> pinnedOk={pinnedOk}, unpinnedRejected={unpinnedRejected}");
         if (!pinnedOk || !unpinnedRejected)
             failures.Add("Strict controller pinning failed to enforce exclusive trust");
+
+        // 8c) Wake-on-LAN packet + Multi-monitor count check
+        var wol = HomeRms.Shared.Network.WakeOnLan.BuildMagicPacket("AA:BB:CC:DD:EE:FF");
+        if (wol.Length != 102) failures.Add("Wake-on-LAN magic packet length mismatch");
+        if (info.MonitorCount < 1) failures.Add("AgentInfo.MonitorCount < 1");
+        Console.WriteLine($"[test] WoL & Multi-Monitor OK -> wolBytes={wol.Length}, monitors={info.MonitorCount}");
     }
     finally
     {

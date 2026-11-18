@@ -48,7 +48,8 @@ public sealed class RemoteManagementService(ConsentCoordinator consent, Activity
             AgentVersion = typeof(RemoteManagementService).Assembly.GetName().Version?.ToString() ?? "1.0",
             LoggedInUser = Environment.UserName,
             PrimaryScreenWidth = w,
-            PrimaryScreenHeight = h
+            PrimaryScreenHeight = h,
+            MonitorCount = Math.Max(1, Screen.AllScreens.Length)
         });
     }
 
@@ -72,12 +73,12 @@ public sealed class RemoteManagementService(ConsentCoordinator consent, Activity
         var maxWidth = request.MaxWidth;
 
         using var _ = consent.BeginViewing(op);
-        using var cap = new ScreenCapturer();
+        using var cap = new ScreenCapturer { MonitorIndex = Math.Max(0, request.MonitorIndex) };
         var sw = new Stopwatch();
         long seq = 0;
 
-        // Tile-capable controller at native resolution: GPU capture + dirty tiles
-        if (request.SupportsTiles && (maxWidth <= 0 || maxWidth >= cap.PrimaryBounds.Width))
+        // Tile-capable controller at native resolution on primary monitor: GPU capture + dirty tiles
+        if (request.SupportsTiles && cap.MonitorIndex == 0 && (maxWidth <= 0 || maxWidth >= cap.PrimaryBounds.Width))
         {
             using var tiles = new TileStreamer(log.Write);
             if (tiles.Available)
@@ -623,6 +624,21 @@ public sealed class RemoteManagementService(ConsentCoordinator consent, Activity
 
     [System.Runtime.InteropServices.DllImport("user32.dll")]
     private static extern uint GetClipboardSequenceNumber();
+
+    public override Task<ClipboardAck> SetPrivacyMode(PrivacyModeRequest request, ServerCallContext context)
+    {
+        var op = OperatorOf(context);
+        if (!consent.RequestGrant(op, request.Enabled ? "enable privacy mode (blank screen & lock input)" : "disable privacy mode"))
+            throw new RpcException(new Status(StatusCode.PermissionDenied, "Privacy mode was declined."));
+
+        if (request.Enabled)
+            PrivacyCurtain.Enable(request.BannerText);
+        else
+            PrivacyCurtain.Disable();
+
+        log.Write($"[privacy] '{op}' set Privacy Mode = {request.Enabled}");
+        return Task.FromResult(new ClipboardAck { Success = true });
+    }
 
     public override async Task<SystemOpResult> SystemOp(SystemOpRequest request, ServerCallContext context)
     {

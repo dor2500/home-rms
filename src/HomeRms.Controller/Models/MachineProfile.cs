@@ -11,6 +11,7 @@ public sealed class MachineProfile : INotifyPropertyChanged
     private string _name = "";
     private string _host = "";
     private int _port = 7443;
+    private string _macAddress = "";
     private bool _isOnline;
     private bool _isConnected;
     private string _statusLabel = "Unknown";
@@ -36,6 +37,12 @@ public sealed class MachineProfile : INotifyPropertyChanged
     {
         get => _port;
         set { _port = value; OnPropertyChanged(); OnPropertyChanged(nameof(Address)); OnPropertyChanged(nameof(Subtitle)); }
+    }
+
+    public string MacAddress
+    {
+        get => _macAddress;
+        set { _macAddress = value; OnPropertyChanged(); }
     }
 
     [JsonIgnore]

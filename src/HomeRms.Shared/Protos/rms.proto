@@ -43,6 +43,14 @@ service RemoteManagement {
   // registry, firewall and general settings. Allowlisted actions only; every call is
   // written to the agent's audit log. ---
   rpc SystemOp (SystemOpRequest) returns (SystemOpResult);
+
+  // --- Privacy / Maintenance curtain (blank remote screen & block physical input). ---
+  rpc SetPrivacyMode (PrivacyModeRequest) returns (ClipboardAck);
+}
+
+message PrivacyModeRequest {
+  bool enabled = 1;
+  string banner_text = 2;
 }
 
 message SystemOpRequest {
@@ -68,6 +76,7 @@ message AgentInfo {
   string logged_in_user = 4;
   int32 primary_screen_width = 5;
   int32 primary_screen_height = 6;
+  int32 monitor_count = 7;
 }
 
 // ---------------- Inventory ----------------
@@ -123,6 +132,7 @@ message ScreenRequest {
   string operator_name = 3;  // shown in the agent's consent prompt + banner
   int32 max_width = 4;       // optional max frame width for faster streaming (0 = native)
   bool supports_tiles = 5;   // controller can apply partial (dirty-tile) frames
+  int32 monitor_index = 6;   // 0 = primary monitor, 1+ = secondary monitors
 }
 
 // A changed rectangle of the remote screen, JPEG-encoded at its own size.
