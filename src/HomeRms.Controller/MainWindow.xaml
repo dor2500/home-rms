@@ -869,21 +869,31 @@
                                 <TextBlock DockPanel.Dock="Right" x:Name="AboutVersionText" Text="v1.5.2" FontFamily="Cascadia Mono, Consolas" FontWeight="Bold" Foreground="{StaticResource AccentBrush}"/>
                                 <TextBlock Text="Version" Foreground="{StaticResource MutedBrush}"/>
                             </DockPanel>
-                            <DockPanel>
+                            <DockPanel Margin="0,0,0,8">
                                 <TextBlock DockPanel.Dock="Right" Text=".NET 11.0 (WPF Self-Contained)" FontSize="12"/>
                                 <TextBlock Text="Runtime" Foreground="{StaticResource MutedBrush}"/>
                             </DockPanel>
+                            <TextBlock Text="Unique Controller Signature (SHA-256):" FontSize="11" Foreground="{StaticResource MutedBrush}" Margin="0,4,0,2"/>
+                            <TextBox x:Name="AboutFingerprintBox" IsReadOnly="True" FontFamily="Cascadia Mono, Consolas" FontSize="10.5" Padding="8,5"/>
                         </StackPanel>
                     </Border>
 
                     <TextBlock Text="Project Repository (GitHub):" FontSize="11.5" Foreground="{StaticResource MutedBrush}" Margin="0,0,0,4"/>
-                    <TextBlock Margin="0,0,0,18">
+                    <TextBlock Margin="0,0,0,14">
                         <Hyperlink NavigateUri="https://github.com/dor2500/home-rms" RequestNavigate="OnOpenProjectLinkClick" Foreground="#38BDF8">
                             https://github.com/dor2500/home-rms
                         </Hyperlink>
                     </TextBlock>
 
-                    <Button Content="Close" Style="{StaticResource PrimaryButton}" Click="OnCloseAboutClick"/>
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="10"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <Button Grid.Column="0" Content="📋 Copy --pin Command for Agent" Style="{StaticResource GhostButton}" Click="OnCopyPinCommandClick"/>
+                        <Button Grid.Column="2" Content="Close" Style="{StaticResource PrimaryButton}" Click="OnCloseAboutClick"/>
+                    </Grid>
                 </StackPanel>
             </Border>
         </Grid>

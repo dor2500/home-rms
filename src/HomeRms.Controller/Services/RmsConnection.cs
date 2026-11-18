@@ -23,7 +23,7 @@ public sealed class RmsConnection : IDisposable
         Host = host;
         Port = port;
 
-        var clientCert = DevCertificates.Load(RmsPaths.CertDir, DevCertificates.ControllerFileName, RmsPaths.CertPassword);
+        var clientCert = ControllerIdentity.GetOrCreateUniqueControllerCert();
         var ca = DevCertificates.LoadCaPublicOnly(RmsPaths.CertDir, RmsPaths.CertPassword);
 
         // SocketsHttpHandler (not HttpClientHandler): it does managed ALPN for HTTP/2,

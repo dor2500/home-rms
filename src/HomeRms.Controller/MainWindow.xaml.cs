@@ -236,7 +236,16 @@ public partial class MainWindow : Window
     {
         var v = ControllerUpdater.CurrentVersion;
         AboutVersionText.Text = $"v{v.Major}.{v.Minor}.{v.Build}";
+        var cert = ControllerIdentity.GetOrCreateUniqueControllerCert();
+        AboutFingerprintBox.Text = ControllerIdentity.GetSha256Fingerprint(cert);
         AboutOverlay.Visibility = Visibility.Visible;
+    }
+
+    private void OnCopyPinCommandClick(object sender, RoutedEventArgs e)
+    {
+        var fp = ControllerIdentity.NormalizeFingerprint(AboutFingerprintBox.Text);
+        Clipboard.SetText($"HomeRmsAgent.exe --install --silent --pin {fp}");
+        StatusText.Text = "Copied Agent --pin command to clipboard!";
     }
 
     private void OnCloseAboutClick(object sender, RoutedEventArgs e)

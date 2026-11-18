@@ -19,6 +19,10 @@ internal static class Program
     [STAThread]
     private static void Main(string[] args)
     {
+        if (ParseStringArg(args, "--pin") is { } pinFp && !string.IsNullOrWhiteSpace(pinFp))
+        {
+            TrustedControllerStore.AddPinned(pinFp, "Pinned Controller");
+        }
         if (args.Any(a => string.Equals(a, "--install", StringComparison.OrdinalIgnoreCase)))
         {
             InstallAgent(args);

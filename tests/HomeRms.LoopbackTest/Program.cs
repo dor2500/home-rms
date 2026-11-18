@@ -145,6 +145,25 @@ try
     if (!ekuRejected)
         failures.Add("Security regression: Agent server cert was accepted for clientAuth");
 
+    // 8b) strict controller pinning: once a unique Controller fingerprint is pinned, even the shared CA cert is rejected
+    var pinFile = Path.Combine(Path.GetTempPath(), $"pin-test-{Guid.NewGuid():N}.json");
+    try
+    {
+        var uniqueCtrl = ControllerIdentity.GetOrCreateUniqueControllerCert();
+        var fp = ControllerIdentity.GetSha256Fingerprint(uniqueCtrl);
+        TrustedControllerStore.AddPinned(fp, "TestOwner", pinFile);
+        var pinnedOk = TrustedControllerStore.ValidateAgentPeer(uniqueCtrl, caPublic, pinFile);
+        var sharedCtrl = DevCertificates.Load(RmsPaths.CertDir, DevCertificates.ControllerFileName, RmsPaths.CertPassword);
+        var unpinnedRejected = !TrustedControllerStore.ValidateAgentPeer(sharedCtrl, caPublic, pinFile);
+        Console.WriteLine($"[test] Strict Pinning Gate OK -> pinnedOk={pinnedOk}, unpinnedRejected={unpinnedRejected}");
+        if (!pinnedOk || !unpinnedRejected)
+            failures.Add("Strict controller pinning failed to enforce exclusive trust");
+    }
+    finally
+    {
+        try { if (File.Exists(pinFile)) File.Delete(pinFile); } catch { }
+    }
+
     // 9) system control: read-only ops work, malicious / unknown input is rejected
     var sysInfo = await client.SystemOpAsync(new SystemOpRequest { Area = "system", Action = "info" }, deadline: DateTime.UtcNow.AddSeconds(60));
     var sysRows = HomeRms.Shared.SystemCatalog.ParseTable(sysInfo.JsonData).Rows.Count;

@@ -40,7 +40,7 @@ public static class AgentHost
                     https.SslProtocols = SslProtocols.Tls12 | SslProtocols.Tls13;
                     https.ClientCertificateMode = ClientCertificateMode.RequireCertificate;
                     https.ClientCertificateValidation = (cert, _, _) =>
-                        DevCertificates.ValidateAgainstCa(cert, caCert, DevCertificates.ClientAuthOid);
+                        TrustedControllerStore.ValidateAgentPeer(cert, caCert);
                 });
             });
         });

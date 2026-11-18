@@ -8,6 +8,7 @@ using Grpc.Core;
 using HomeRms.Agent.Core;
 using HomeRms.Agent.Features;
 using HomeRms.Shared.Protocol;
+using HomeRms.Shared.Security;
 
 namespace HomeRms.Agent.Server;
 
@@ -24,7 +25,19 @@ public sealed class RemoteManagementService(ConsentCoordinator consent, Activity
 
     public override Task<AgentInfo> GetAgentInfo(Empty request, ServerCallContext context)
     {
+        var cert = context.GetHttpContext().Connection.ClientCertificate;
         var op = OperatorOf(context);
+
+        if (cert is not null && !TrustedControllerStore.HasPinned()
+            && cert.Subject.Contains("CN=HomeRMS-Controller-", StringComparison.Ordinal))
+        {
+            var fp = ControllerIdentity.GetSha256Fingerprint(cert);
+            if (!consent.RequestGrant(op, $"pair & permanently pin this Controller\n({fp[..23]}...)"))
+                throw new RpcException(new Status(StatusCode.PermissionDenied, "Controller pairing was declined."));
+            TrustedControllerStore.AddPinned(fp, op);
+            log.Write($"[security] pinned Controller '{op}' ({fp[..23]}...)");
+        }
+
         log.Write($"[info] '{op}' connected and requested agent info");
         using var cap = new ScreenCapturer();
         var (w, h) = cap.PrimaryBounds;

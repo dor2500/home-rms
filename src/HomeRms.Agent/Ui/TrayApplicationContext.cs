@@ -4,6 +4,7 @@ using System.Reflection;
 using System.Threading;
 using System.Windows.Forms;
 using HomeRms.Agent.Core;
+using HomeRms.Shared.Security;
 using Microsoft.Win32;
 
 namespace HomeRms.Agent.Ui;
@@ -58,6 +59,7 @@ internal sealed class TrayApplicationContext : ApplicationContext, IConsentUi
         };
         startupItem.CheckedChanged += (_, _) => SetStartupEnabled(startupItem.Checked);
         menu.Items.Add(startupItem);
+        menu.Items.Add("Security: Reset Pinned Controllers", null, (_, _) => ResetPinning());
         menu.Items.Add("About Home RMS Agent", null, (_, _) => ShowAbout());
         menu.Items.Add(new ToolStripSeparator());
         menu.Items.Add("Exit agent", null, (_, _) => ExitThread());
@@ -110,6 +112,22 @@ internal sealed class TrayApplicationContext : ApplicationContext, IConsentUi
                 try { _form.SaveScreenshot(_screenshotPath); } catch { }
             }
         }, null);
+    }
+
+    private static void ResetPinning()
+    {
+        var count = TrustedControllerStore.Load().Count;
+        if (count == 0)
+        {
+            MessageBox.Show("No Controller is currently pinned (any valid Home RMS Controller can pair).",
+                "Home RMS Security", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            return;
+        }
+        if (MessageBox.Show($"Remove {count} pinned Controller fingerprint(s)?\nYou will need to re-pair your Controller.",
+                "Home RMS Security", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) == DialogResult.Yes)
+        {
+            TrustedControllerStore.ClearAll();
+        }
     }
 
     private static void ShowAbout()
