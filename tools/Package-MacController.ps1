@@ -76,9 +76,9 @@ $infoPlist = @"
     <key>CFBundleIdentifier</key>
     <string>com.homerms.controller</string>
     <key>CFBundleVersion</key>
-    <string>1.5.6</string>
+    <string>1.5.7</string>
     <key>CFBundleShortVersionString</key>
-    <string>1.5.6</string>
+    <string>1.5.7</string>
     <key>CFBundlePackageType</key>
     <string>APPL</string>
     <key>CFBundleExecutable</key>

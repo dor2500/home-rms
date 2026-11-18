@@ -482,13 +482,13 @@
                                 <CheckBox x:Name="ControlCheck" Content="Control" Margin="12,0,0,0" Checked="OnControlCheckChanged" Unchecked="OnControlCheckChanged"/>
                                 <Border Width="1" Height="20" Background="{StaticResource LineBrush}" Margin="12,0"/>
                                 <TextBlock Text="FPS:" Foreground="{StaticResource MutedBrush}" VerticalAlignment="Center" Margin="0,0,4,0"/>
-                                <TextBox x:Name="FpsBox" Text="20" Width="38" Margin="0,0,8,0"/>
+                                <TextBox x:Name="FpsBox" Text="30" Width="38" Margin="0,0,8,0"/>
                                 <TextBlock Text="Q:" Foreground="{StaticResource MutedBrush}" VerticalAlignment="Center" Margin="0,0,4,0"/>
-                                <TextBox x:Name="QualityBox" Text="65" Width="38" Margin="0,0,8,0"/>
+                                <TextBox x:Name="QualityBox" Text="88" Width="38" Margin="0,0,8,0"/>
                                 <ComboBox x:Name="ScaleBox" Width="106" SelectedIndex="0" Margin="0,0,6,0" Background="#0C0F17" Foreground="#F8FAFC" BorderBrush="#23293B">
+                                    <ComboBoxItem Content="Native" Tag="0"/>
                                     <ComboBoxItem Content="1080p (Fast)" Tag="1920"/>
                                     <ComboBoxItem Content="720p (Ultra)" Tag="1280"/>
-                                    <ComboBoxItem Content="Native" Tag="0"/>
                                 </ComboBox>
                                 <ComboBox x:Name="UpscaleBox" Width="76" SelectedIndex="0" SelectionChanged="OnUpscaleModeChanged" Background="#0C0F17" Foreground="#F8FAFC" BorderBrush="#23293B">
                                     <ComboBoxItem Content="Sharp+" Tag="cas"/>

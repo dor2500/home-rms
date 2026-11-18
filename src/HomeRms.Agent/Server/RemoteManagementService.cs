@@ -68,7 +68,7 @@ public sealed class RemoteManagementService(ConsentCoordinator consent, Activity
 
         var fps = Math.Clamp(request.Fps <= 0 ? 15 : request.Fps, 1, 60);
         var intervalMs = 1000.0 / fps;
-        var quality = request.Quality <= 0 ? 65 : request.Quality;
+        var quality = request.Quality <= 0 ? 88 : request.Quality;
         var maxWidth = request.MaxWidth;
 
         using var _ = consent.BeginViewing(op);
