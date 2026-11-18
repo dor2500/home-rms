@@ -1673,6 +1673,40 @@ public partial class MainWindow : Window
             QueueInput(new InputEvent { Kind = InputEvent.Types.Kind.MouseUp, X = x, Y = y, Button = ButtonCode(e.ChangedButton) });
     }
 
+    private void OnScreenTouchDown(object sender, TouchEventArgs e)
+    {
+        if (_inputCall is null) return;
+        e.Handled = true;
+        ScreenImage.CaptureTouch(e.TouchDevice);
+        Keyboard.Focus(ScreenImage);
+        ScreenImage.Focus();
+        var pos = e.GetTouchPoint(ScreenImage).Position;
+        if (TryMapToScreen(pos, out var x, out var y))
+        {
+            QueueInput(new InputEvent { Kind = InputEvent.Types.Kind.MouseMove, X = x, Y = y });
+            QueueInput(new InputEvent { Kind = InputEvent.Types.Kind.MouseDown, X = x, Y = y, Button = 0 });
+        }
+    }
+
+    private void OnScreenTouchMove(object sender, TouchEventArgs e)
+    {
+        if (_inputCall is null) return;
+        e.Handled = true;
+        var pos = e.GetTouchPoint(ScreenImage).Position;
+        if (TryMapToScreen(pos, out var x, out var y))
+            QueueInput(new InputEvent { Kind = InputEvent.Types.Kind.MouseMove, X = x, Y = y });
+    }
+
+    private void OnScreenTouchUp(object sender, TouchEventArgs e)
+    {
+        if (_inputCall is null) return;
+        e.Handled = true;
+        ScreenImage.ReleaseTouchCapture(e.TouchDevice);
+        var pos = e.GetTouchPoint(ScreenImage).Position;
+        if (TryMapToScreen(pos, out var x, out var y))
+            QueueInput(new InputEvent { Kind = InputEvent.Types.Kind.MouseUp, X = x, Y = y, Button = 0 });
+    }
+
     private void OnScreenMouseWheel(object sender, MouseWheelEventArgs e)
     {
         if (_inputCall is null) return;
