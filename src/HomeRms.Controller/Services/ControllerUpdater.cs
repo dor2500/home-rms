@@ -1,12 +1,13 @@
 using System.Diagnostics;
 using System.IO;
+using System.IO.Compression;
 using System.Net.Http;
 using System.Reflection;
 using System.Text.Json;
 
 namespace HomeRms.Controller.Services;
 
-public sealed record AvailableUpdate(string Tag, Version Version, string DownloadUrl);
+public sealed record AvailableUpdate(string Tag, Version Version, string DownloadUrl, bool IsZip = false);
 
 /// <summary>
 /// Checks GitHub Releases (dor2500/home-rms) for newer versions of HomeRmsController
@@ -15,7 +16,8 @@ public sealed record AvailableUpdate(string Tag, Version Version, string Downloa
 public static class ControllerUpdater
 {
     private const string LatestReleaseApi = "https://api.github.com/repos/dor2500/home-rms/releases/latest";
-    private const string AssetName = "HomeRmsController.exe";
+    private const string ZipAssetName = "HomeRmsController-win-x64.zip";
+    private const string ExeAssetName = "HomeRmsController.exe";
 
     public static Version CurrentVersion
     {
@@ -45,16 +47,20 @@ public static class ControllerUpdater
 
         if (root.TryGetProperty("assets", out var assetsEl) && assetsEl.ValueKind == JsonValueKind.Array)
         {
+            string? exeUrl = null;
             foreach (var asset in assetsEl.EnumerateArray())
             {
                 var name = asset.TryGetProperty("name", out var nEl) ? nEl.GetString() : null;
-                if (string.Equals(name, AssetName, StringComparison.OrdinalIgnoreCase))
-                {
-                    var url = asset.TryGetProperty("browser_download_url", out var uEl) ? uEl.GetString() : null;
-                    if (!string.IsNullOrWhiteSpace(url))
-                        return new AvailableUpdate(tag, remoteVersion, url);
-                }
+                var url = asset.TryGetProperty("browser_download_url", out var uEl) ? uEl.GetString() : null;
+                if (string.IsNullOrWhiteSpace(url)) continue;
+
+                if (string.Equals(name, ZipAssetName, StringComparison.OrdinalIgnoreCase))
+                    return new AvailableUpdate(tag, remoteVersion, url, IsZip: true);
+                if (string.Equals(name, ExeAssetName, StringComparison.OrdinalIgnoreCase))
+                    exeUrl = url;
             }
+            if (!string.IsNullOrWhiteSpace(exeUrl))
+                return new AvailableUpdate(tag, remoteVersion, exeUrl, IsZip: false);
         }
 
         return null;
@@ -73,6 +79,9 @@ public static class ControllerUpdater
             "HomeRMS", "Update");
         Directory.CreateDirectory(updateDir);
 
+        var downloadPath = Path.Combine(updateDir, update.IsZip
+            ? $"HomeRmsController_{update.Tag}.zip"
+            : $"HomeRmsController_{update.Tag}.exe");
         var stagedExe = Path.Combine(updateDir, $"HomeRmsController_{update.Tag}.exe");
 
         using var http = new HttpClient { Timeout = TimeSpan.FromMinutes(10) };
@@ -84,7 +93,7 @@ public static class ControllerUpdater
             var totalBytes = resp.Content.Headers.ContentLength ?? -1L;
 
             await using var netStream = await resp.Content.ReadAsStreamAsync(ct);
-            await using var fileStream = new FileStream(stagedExe, FileMode.Create, FileAccess.Write, FileShare.None, 65536, useAsync: true);
+            await using var fileStream = new FileStream(downloadPath, FileMode.Create, FileAccess.Write, FileShare.None, 65536, useAsync: true);
 
             var buffer = new byte[65536];
             long totalRead = 0;
@@ -113,6 +122,19 @@ public static class ControllerUpdater
                     onProgress?.Invoke($"Downloading {totalRead / (1024 * 1024)} MB…");
                 }
             }
+        }
+
+        if (update.IsZip)
+        {
+            onProgress?.Invoke("Extracting update…");
+            var extractDir = Path.Combine(updateDir, $"extract_{update.Tag}");
+            if (Directory.Exists(extractDir)) Directory.Delete(extractDir, recursive: true);
+            ZipFile.ExtractToDirectory(downloadPath, extractDir, overwriteFiles: true);
+            var extracted = Path.Combine(extractDir, ExeAssetName);
+            if (!File.Exists(extracted))
+                throw new FileNotFoundException("HomeRmsController.exe missing from update archive.");
+            File.Move(extracted, stagedExe, overwrite: true);
+            try { File.Delete(downloadPath); Directory.Delete(extractDir, recursive: true); } catch { }
         }
 
         var info = new FileInfo(stagedExe);
