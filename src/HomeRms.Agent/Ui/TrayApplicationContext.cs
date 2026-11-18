@@ -77,6 +77,7 @@ internal sealed class TrayApplicationContext : ApplicationContext, IConsentUi
         };
         startupItem.CheckedChanged += (_, _) => SetStartupEnabled(startupItem.Checked);
         menu.Items.Add(startupItem);
+        menu.Items.Add("🔐 2FA Security Setup", null, (_, _) => Show2FaDialog());
         menu.Items.Add("Security: Reset Pinned Controllers", null, (_, _) => ResetPinning());
         menu.Items.Add("About Home RMS Agent", null, (_, _) => ShowAbout());
         menu.Items.Add(new ToolStripSeparator());
@@ -153,6 +154,103 @@ internal sealed class TrayApplicationContext : ApplicationContext, IConsentUi
             }
         }
         catch { }
+    }
+
+    internal static void Show2FaDialog()
+    {
+        var cfg = TwoFactorStore.LoadAgent();
+        using var dlg = new Form
+        {
+            Text = "Home RMS Agent — 2FA Security",
+            ClientSize = new Size(460, 310),
+            FormBorderStyle = FormBorderStyle.FixedDialog,
+            MaximizeBox = false,
+            MinimizeBox = false,
+            StartPosition = FormStartPosition.CenterScreen,
+            BackColor = Theme.Bg,
+            ForeColor = Theme.Text,
+            Font = Theme.UiFont,
+            Icon = Theme.LoadAppIcon()
+        };
+        Theme.ApplyWindowChrome(dlg);
+
+        var reqCheck = new CheckBox
+        {
+            Text = "Require 2FA code for initial Controller pairing",
+            Checked = cfg.RequireOnStartupOrPair,
+            ForeColor = Theme.Text,
+            Location = new Point(22, 20),
+            AutoSize = true
+        };
+        reqCheck.CheckedChanged += (_, _) =>
+        {
+            cfg = cfg with { RequireOnStartupOrPair = reqCheck.Checked };
+            TwoFactorStore.SaveAgent(cfg);
+        };
+
+        var codeLabel = new Label
+        {
+            Text = TotpHelper.ComputeCode(cfg.TotpSecret),
+            Font = new Font("Cascadia Mono", 26f, FontStyle.Bold),
+            ForeColor = Theme.Accent,
+            Location = new Point(22, 58),
+            AutoSize = true
+        };
+        var timerLabel = new Label
+        {
+            Text = $"Refreshes in {TotpHelper.SecondsRemaining()}s",
+            ForeColor = Theme.Muted,
+            Location = new Point(22, 112),
+            AutoSize = true
+        };
+
+        var secLabel = new Label
+        {
+            Text = "Authenticator Secret (Base32):",
+            ForeColor = Theme.Muted,
+            Location = new Point(22, 146),
+            AutoSize = true
+        };
+        var secBox = new TextBox
+        {
+            Text = cfg.TotpSecret,
+            ReadOnly = true,
+            BackColor = Theme.Field,
+            ForeColor = Theme.Text,
+            BorderStyle = BorderStyle.FixedSingle,
+            Location = new Point(22, 168),
+            Width = 412,
+            Font = Theme.MonoFont
+        };
+
+        var copyUriBtn = Theme.Flat("Copy Authenticator URI", Theme.Card, Theme.Text, (_, _) =>
+        {
+            Clipboard.SetText(TotpHelper.BuildOtpAuthUri("HomeRMS-Agent", Environment.MachineName, cfg.TotpSecret));
+        }, 190);
+        copyUriBtn.Location = new Point(22, 212);
+
+        var regenBtn = Theme.Flat("Regenerate Secret", Theme.Danger, Color.White, (_, _) =>
+        {
+            cfg = cfg with { TotpSecret = TotpHelper.GenerateSecretBase32() };
+            TwoFactorStore.SaveAgent(cfg);
+            secBox.Text = cfg.TotpSecret;
+            codeLabel.Text = TotpHelper.ComputeCode(cfg.TotpSecret);
+        }, 160);
+        regenBtn.Location = new Point(224, 212);
+
+        var closeBtn = Theme.Flat("Close", Theme.Accent, Color.White, (_, _) => dlg.Close(), 100);
+        closeBtn.Location = new Point(334, 260);
+
+        using var tick = new System.Windows.Forms.Timer { Interval = 1000 };
+        tick.Tick += (_, _) =>
+        {
+            codeLabel.Text = TotpHelper.ComputeCode(cfg.TotpSecret);
+            timerLabel.Text = $"Refreshes in {TotpHelper.SecondsRemaining()}s";
+        };
+        tick.Start();
+
+        dlg.Controls.AddRange([reqCheck, codeLabel, timerLabel, secLabel, secBox, copyUriBtn, regenBtn, closeBtn]);
+        dlg.ShowDialog();
     }
 
     private static void ResetPinning()

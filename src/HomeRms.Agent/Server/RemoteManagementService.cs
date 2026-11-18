@@ -31,6 +31,13 @@ public sealed class RemoteManagementService(ConsentCoordinator consent, Activity
         if (cert is not null && !TrustedControllerStore.HasPinned()
             && cert.Subject.Contains("CN=HomeRMS-Controller-", StringComparison.Ordinal))
         {
+            var cfg = TwoFactorStore.LoadAgent();
+            if (cfg.RequireOnStartupOrPair)
+            {
+                log.Write($"[security] '{op}' requires initial 2FA pairing");
+                throw new RpcException(new Status(StatusCode.Unauthenticated, "2FA_REQUIRED"));
+            }
+
             var fp = ControllerIdentity.GetSha256Fingerprint(cert);
             if (!consent.RequestGrant(op, $"pair & permanently pin this Controller\n({fp[..23]}...)"))
                 throw new RpcException(new Status(StatusCode.PermissionDenied, "Controller pairing was declined."));
@@ -624,6 +631,28 @@ public sealed class RemoteManagementService(ConsentCoordinator consent, Activity
 
     [System.Runtime.InteropServices.DllImport("user32.dll")]
     private static extern uint GetClipboardSequenceNumber();
+
+    public override Task<PairResult> PairWith2Fa(PairRequest request, ServerCallContext context)
+    {
+        var cert = context.GetHttpContext().Connection.ClientCertificate;
+        var op = OperatorOf(context);
+        var cfg = TwoFactorStore.LoadAgent();
+
+        if (!TotpHelper.VerifyCode(cfg.TotpSecret, request.TotpCode))
+        {
+            log.Write($"[security] FAILED 2FA pairing attempt from '{op}'");
+            return Task.FromResult(new PairResult { Success = false, Message = "Invalid 6-digit 2FA code." });
+        }
+
+        if (cert is not null)
+        {
+            var fp = ControllerIdentity.GetSha256Fingerprint(cert);
+            TrustedControllerStore.AddPinned(fp, string.IsNullOrWhiteSpace(request.ControllerName) ? op : request.ControllerName);
+            log.Write($"[security] 2FA paired & pinned Controller '{op}' ({fp[..23]}...)");
+        }
+
+        return Task.FromResult(new PairResult { Success = true, Message = "Controller paired & pinned." });
+    }
 
     public override Task<ClipboardAck> SetPrivacyMode(PrivacyModeRequest request, ServerCallContext context)
     {

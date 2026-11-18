@@ -897,7 +897,14 @@
                                 <TextBlock Text="Runtime" Foreground="{StaticResource MutedBrush}"/>
                             </DockPanel>
                             <TextBlock Text="Unique Controller Signature (SHA-256):" FontSize="11" Foreground="{StaticResource MutedBrush}" Margin="0,4,0,2"/>
-                            <TextBox x:Name="AboutFingerprintBox" IsReadOnly="True" FontFamily="Cascadia Mono, Consolas" FontSize="10.5" Padding="8,5"/>
+                            <TextBox x:Name="AboutFingerprintBox" IsReadOnly="True" FontFamily="Cascadia Mono, Consolas" FontSize="10.5" Padding="8,5" Margin="0,0,0,10"/>
+
+                            <CheckBox x:Name="Require2FaStartupCheck" Content="Require 2FA / Windows Hello Passkey on Startup" Margin="0,0,0,8" Checked="OnToggleStartup2Fa" Unchecked="OnToggleStartup2Fa"/>
+                            <TextBlock Text="Controller 2FA Authenticator Secret (Base32):" FontSize="11" Foreground="{StaticResource MutedBrush}" Margin="0,0,0,2"/>
+                            <DockPanel>
+                                <Button DockPanel.Dock="Right" Content="Copy URI" Style="{StaticResource SmallPillButton}" Margin="6,0,0,0" Click="OnCopyController2FaUriClick"/>
+                                <TextBox x:Name="AboutTotpSecretBox" IsReadOnly="True" FontFamily="Cascadia Mono, Consolas" FontSize="10.5" Padding="8,5"/>
+                            </DockPanel>
                         </StackPanel>
                     </Border>
 
@@ -921,14 +928,35 @@
             </Border>
         </Grid>
 
-        <!-- ==================== 15-MINUTE AUTO-LOCK OVERLAY ==================== -->
+        <!-- ==================== 15-MINUTE AUTO-LOCK & 2FA/PASSKEY OVERLAY ==================== -->
         <Grid x:Name="LockOverlay" Grid.RowSpan="2" Visibility="Collapsed" Background="#F0080B12">
-            <Border Style="{StaticResource CardStyle}" Width="360" VerticalAlignment="Center" HorizontalAlignment="Center" Padding="26,24">
+            <Border Style="{StaticResource CardStyle}" Width="380" VerticalAlignment="Center" HorizontalAlignment="Center" Padding="26,24">
                 <StackPanel>
                     <TextBlock Text="DASHBOARD LOCKED" Style="{StaticResource Caption}" Foreground="{StaticResource AccentBrush}" Margin="0,0,0,4"/>
-                    <TextBlock Text="Enter Security PIN (default: 1234)" FontSize="13.5" FontWeight="SemiBold" Margin="0,0,0,12"/>
+                    <TextBlock Text="Enter 6-digit 2FA Code / PIN, or use Windows Hello Passkey" FontSize="12.5" FontWeight="SemiBold" TextWrapping="Wrap" Margin="0,0,0,12"/>
                     <PasswordBox x:Name="UnlockPinBox" Background="#0A0E18" Foreground="#F8FAFC" BorderBrush="{StaticResource LineBrush}" BorderThickness="1" Padding="10,8" Margin="0,0,0,12"/>
-                    <Button Content="🔓 Unlock Console" Style="{StaticResource PrimaryButton}" Click="OnUnlockDashboardClick"/>
+                    <Button Content="🔓 Unlock with 2FA / PIN" Style="{StaticResource PrimaryButton}" Margin="0,0,0,8" Click="OnUnlockDashboardClick"/>
+                    <Button Content="🔑 Unlock with Windows Hello / Passkey" Style="{StaticResource GhostButton}" Click="OnUnlockWithPasskeyClick"/>
+                </StackPanel>
+            </Border>
+        </Grid>
+
+        <!-- ==================== AGENT INITIAL 2FA PAIRING MODAL ==================== -->
+        <Grid x:Name="AgentPair2FaOverlay" Grid.RowSpan="2" Visibility="Collapsed" Background="#AA04060A">
+            <Border Style="{StaticResource CardStyle}" Width="390" VerticalAlignment="Center" HorizontalAlignment="Center" Padding="26,24">
+                <StackPanel>
+                    <TextBlock Text="AGENT 2FA VERIFICATION" Style="{StaticResource Caption}" Foreground="{StaticResource AccentBrush}" Margin="0,0,0,4"/>
+                    <TextBlock x:Name="AgentPairPromptText" Text="Enter the 6-digit 2FA code shown on the remote Agent to pair and permanently pin this Controller." FontSize="12.5" TextWrapping="Wrap" Margin="0,0,0,12"/>
+                    <TextBox x:Name="Agent2FaCodeBox" FontFamily="Cascadia Mono, Consolas" FontSize="18" TextAlignment="Center" Padding="10,8" Margin="0,0,0,14"/>
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="10"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <Button Grid.Column="0" Content="Verify &amp; Pair" Style="{StaticResource PrimaryButton}" Click="OnSubmitAgent2FaClick"/>
+                        <Button Grid.Column="2" Content="Cancel" Style="{StaticResource GhostButton}" Click="OnCancelAgent2FaClick"/>
+                    </Grid>
                 </StackPanel>
             </Border>
         </Grid>

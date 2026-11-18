@@ -46,6 +46,19 @@ service RemoteManagement {
 
   // --- Privacy / Maintenance curtain (blank remote screen & block physical input). ---
   rpc SetPrivacyMode (PrivacyModeRequest) returns (ClipboardAck);
+
+  // --- Initial 2FA TOTP pairing (pins the Controller's unique SHA-256 fingerprint). ---
+  rpc PairWith2Fa (PairRequest) returns (PairResult);
+}
+
+message PairRequest {
+  string totp_code = 1;
+  string controller_name = 2;
+}
+
+message PairResult {
+  bool success = 1;
+  string message = 2;
 }
 
 message PrivacyModeRequest {

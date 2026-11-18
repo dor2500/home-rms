@@ -119,14 +119,16 @@ internal sealed class MainForm : Form
         var actions = new FlowLayoutPanel
         {
             Dock = DockStyle.Right,
-            Width = 300,
+            Width = 430,
             FlowDirection = FlowDirection.RightToLeft,
             BackColor = Theme.Bg,
         };
-        var exitBtn = Theme.Flat("Exit Agent", Theme.Danger, Color.White, (_, _) => RequestExit(), 135);
-        var hideBtn = Theme.Flat("Hide to Tray", Theme.Card, Theme.Text, (_, _) => Hide(), 135);
+        var exitBtn = Theme.Flat("Exit Agent", Theme.Danger, Color.White, (_, _) => RequestExit(), 130);
+        var hideBtn = Theme.Flat("Hide to Tray", Theme.Card, Theme.Text, (_, _) => Hide(), 130);
+        var tfaBtn = Theme.Flat("🔐 2FA Setup", Theme.Card, Theme.Accent, (_, _) => TrayApplicationContext.Show2FaDialog(), 135);
         actions.Controls.Add(exitBtn);
         actions.Controls.Add(hideBtn);
+        actions.Controls.Add(tfaBtn);
         bottomBar.Controls.Add(_autoApproveCheck);
         bottomBar.Controls.Add(actions);
 

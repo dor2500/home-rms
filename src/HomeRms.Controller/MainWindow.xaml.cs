@@ -103,6 +103,9 @@ public partial class MainWindow : Window
                 return;
             }
 
+            if (TwoFactorStore.LoadController().RequireOnStartupOrPair)
+                LockOverlay.Visibility = Visibility.Visible;
+
             await ProbeAllMachinesAsync();
             _ = CheckGitHubUpdateInBackgroundAsync();
         }
@@ -240,7 +243,24 @@ public partial class MainWindow : Window
         AboutVersionText.Text = $"v{v.Major}.{v.Minor}.{v.Build}";
         var cert = ControllerIdentity.GetOrCreateUniqueControllerCert();
         AboutFingerprintBox.Text = ControllerIdentity.GetSha256Fingerprint(cert);
+        var cfg = TwoFactorStore.LoadController();
+        Require2FaStartupCheck.IsChecked = cfg.RequireOnStartupOrPair;
+        AboutTotpSecretBox.Text = cfg.TotpSecret;
         AboutOverlay.Visibility = Visibility.Visible;
+    }
+
+    private void OnToggleStartup2Fa(object sender, RoutedEventArgs e)
+    {
+        if (AboutOverlay.Visibility != Visibility.Visible) return;
+        var cfg = TwoFactorStore.LoadController() with { RequireOnStartupOrPair = Require2FaStartupCheck.IsChecked == true };
+        TwoFactorStore.SaveController(cfg);
+    }
+
+    private void OnCopyController2FaUriClick(object sender, RoutedEventArgs e)
+    {
+        var cfg = TwoFactorStore.LoadController();
+        Clipboard.SetText(TotpHelper.BuildOtpAuthUri("HomeRMS-Controller", Environment.MachineName, cfg.TotpSecret));
+        StatusText.Text = "Copied Controller 2FA Authenticator URI to clipboard!";
     }
 
     private void OnCopyPinCommandClick(object sender, RoutedEventArgs e)
@@ -521,7 +541,10 @@ public partial class MainWindow : Window
 
     private void OnUnlockDashboardClick(object sender, RoutedEventArgs e)
     {
-        if (DashboardPinStore.VerifyPin(UnlockPinBox.Password))
+        var input = UnlockPinBox.Password;
+        var cfg = TwoFactorStore.LoadController();
+        var valid = TotpHelper.VerifyCode(cfg.TotpSecret, input) || DashboardPinStore.VerifyPin(input);
+        if (valid)
         {
             UnlockPinBox.Clear();
             _lastActivityUtc = DateTime.UtcNow;
@@ -529,9 +552,19 @@ public partial class MainWindow : Window
         }
         else
         {
-            MessageBox.Show("Invalid Security PIN.", "Home RMS — Locked", MessageBoxButton.OK, MessageBoxImage.Warning);
+            MessageBox.Show("Invalid 2FA code or Security PIN.", "Home RMS — Locked", MessageBoxButton.OK, MessageBoxImage.Warning);
             UnlockPinBox.Clear();
             UnlockPinBox.Focus();
+        }
+    }
+
+    private void OnUnlockWithPasskeyClick(object sender, RoutedEventArgs e)
+    {
+        if (WindowsHelloPasskey.Verify(this, "Verify Windows Hello / Passkey to unlock Home RMS"))
+        {
+            UnlockPinBox.Clear();
+            _lastActivityUtc = DateTime.UtcNow;
+            LockOverlay.Visibility = Visibility.Collapsed;
         }
     }
 
@@ -951,6 +984,21 @@ public partial class MainWindow : Window
         return await ConnectToCurrentFieldsAsync();
     }
 
+    private TaskCompletionSource<string?>? _agent2FaTcs;
+
+    private void OnSubmitAgent2FaClick(object sender, RoutedEventArgs e)
+    {
+        var code = Agent2FaCodeBox.Text.Trim();
+        AgentPair2FaOverlay.Visibility = Visibility.Collapsed;
+        _agent2FaTcs?.TrySetResult(code);
+    }
+
+    private void OnCancelAgent2FaClick(object sender, RoutedEventArgs e)
+    {
+        AgentPair2FaOverlay.Visibility = Visibility.Collapsed;
+        _agent2FaTcs?.TrySetResult(null);
+    }
+
     private async Task<bool> ConnectToCurrentFieldsAsync()
     {
         var host = HostBox.Text.Trim();
@@ -964,8 +1012,32 @@ public partial class MainWindow : Window
 
             var sw = Stopwatch.StartNew();
             var conn = new RmsConnection(host, port);
-            _agentInfo = await conn.Client.GetAgentInfoAsync(new Empty(),
-                deadline: DateTime.UtcNow.AddSeconds(8));
+            try
+            {
+                _agentInfo = await conn.Client.GetAgentInfoAsync(new Empty(),
+                    deadline: DateTime.UtcNow.AddSeconds(8));
+            }
+            catch (RpcException rpcEx) when (rpcEx.StatusCode == StatusCode.Unauthenticated)
+            {
+                _agent2FaTcs = new TaskCompletionSource<string?>();
+                Agent2FaCodeBox.Text = "";
+                AgentPairPromptText.Text = $"Enter the 6-digit 2FA code shown on {host}:{port} to pair and pin this Controller:";
+                AgentPair2FaOverlay.Visibility = Visibility.Visible;
+                Agent2FaCodeBox.Focus();
+
+                var code = await _agent2FaTcs.Task;
+                if (string.IsNullOrWhiteSpace(code))
+                    throw new OperationCanceledException("2FA pairing cancelled.");
+
+                var pairRes = await conn.Client.PairWith2FaAsync(
+                    new PairRequest { TotpCode = code, ControllerName = Environment.MachineName },
+                    deadline: DateTime.UtcNow.AddSeconds(8));
+                if (!pairRes.Success)
+                    throw new UnauthorizedAccessException(pairRes.Message);
+
+                _agentInfo = await conn.Client.GetAgentInfoAsync(new Empty(),
+                    deadline: DateTime.UtcNow.AddSeconds(8));
+            }
             sw.Stop();
             _conn = conn;
             _frameWidth = _agentInfo.PrimaryScreenWidth;
