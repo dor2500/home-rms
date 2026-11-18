@@ -12,7 +12,7 @@ $release = Invoke-RestMethod -Uri "https://api.github.com/repos/dor2500/home-rms
 $asset = $release.assets | Where-Object { $_.name -eq "HomeRmsController-Setup.exe" } | Select-Object -First 1
 if (-not $asset) { throw "HomeRmsController-Setup.exe not found in latest release $($release.tag_name)." }
 
-$tmp = Join-Path $env:TEMP "HomeRmsController-Setup-$($release.tag_name).exe"
+$tmp = Join-Path $env:TEMP "HomeRmsController-Setup-$($release.tag_name)-$([Guid]::NewGuid().ToString('N').Substring(0,6)).exe"
 Write-Host "Downloading $($release.tag_name) ($($asset.name))..." -ForegroundColor Cyan
 $ProgressPreference = 'SilentlyContinue'
 if (Get-Command curl.exe -ErrorAction SilentlyContinue) {
