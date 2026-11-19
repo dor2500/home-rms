@@ -205,6 +205,29 @@ public static class SystemOps
         ["system/network-list"] = new("@(Get-NetAdapter | Select-Object Name,InterfaceDescription,Status,LinkSpeed,MacAddress) | ConvertTo-Json -Compress", true, Short),
         ["system/dns-flush"] = new("& ipconfig.exe /flushdns; 'DNS resolver cache flushed.'", false, Short),
         ["system/devices-list"] = new("@(Get-PnpDevice -PresentOnly | Where-Object { $_.FriendlyName } | Select-Object -First 120 Class,FriendlyName,Status) | ConvertTo-Json -Compress", true, Short),
+        ["agent/autostart-status"] = new("""
+            $tk = Get-ScheduledTask -TaskName 'HomeRmsAgent' -ErrorAction SilentlyContinue
+            $tkBoot = Get-ScheduledTask -TaskName 'HomeRmsAgentBoot' -ErrorAction SilentlyContinue
+            $rk = (Get-ItemProperty 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run' -Name 'HomeRmsAgent' -ErrorAction SilentlyContinue).HomeRmsAgent
+            KV ([pscustomobject]@{
+                LogonTask = if ($tk) { "$($tk.State)" } else { 'Not registered' }
+                BootTask = if ($tkBoot) { "$($tkBoot.State)" } else { 'Not registered' }
+                RunRegistry = if ($rk) { $rk } else { 'Not set' }
+                Executable = [System.Diagnostics.Process]::GetCurrentProcess().MainModule.FileName
+            }) | ConvertTo-Json -Compress
+            """, true, Short),
+        ["agent/autostart-enable"] = new("""
+            $exe = [System.Diagnostics.Process]::GetCurrentProcess().MainModule.FileName
+            schtasks /Create /TN "HomeRmsAgent" /TR "`"$exe`"" /SC ONLOGON /RL HIGHEST /F | Out-Null
+            schtasks /Create /TN "HomeRmsAgentBoot" /TR "`"$exe`"" /SC ONSTART /RU SYSTEM /RL HIGHEST /F | Out-Null
+            'Agent Auto-Start enabled (Task Scheduler ONLOGON + ONSTART).'
+            """, false, Short),
+        ["agent/autostart-disable"] = new("""
+            schtasks /Delete /TN "HomeRmsAgent" /F 2>$null | Out-Null
+            schtasks /Delete /TN "HomeRmsAgentBoot" /F 2>$null | Out-Null
+            Remove-ItemProperty 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run' -Name 'HomeRmsAgent' -ErrorAction SilentlyContinue
+            'Agent Auto-Start disabled.'
+            """, false, Short),
     };
 
     private const string InstallScript = """

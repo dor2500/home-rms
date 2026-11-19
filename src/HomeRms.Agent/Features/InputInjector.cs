@@ -8,20 +8,19 @@ namespace HomeRms.Agent.Features;
 [SupportedOSPlatform("windows")]
 public static class InputInjector
 {
-    public static void Apply(InputEvent e)
+    public static void Apply(InputEvent e, int monitorIndex = 0)
     {
-        // Absolute coordinates are normalized 0..65535 across the PRIMARY monitor,
-        // matching the primary-screen capture the agent streams.
+        var (vx, vy, vflag) = MapCoordinates(e.X, e.Y, monitorIndex);
         switch (e.Kind)
         {
             case InputEvent.Types.Kind.MouseMove:
-                SendMouse(MOUSEEVENTF_MOVE | MOUSEEVENTF_ABSOLUTE, e.X, e.Y, 0);
+                SendMouse(MOUSEEVENTF_MOVE | MOUSEEVENTF_ABSOLUTE | vflag, vx, vy, 0);
                 break;
             case InputEvent.Types.Kind.MouseDown:
-                SendMouse(DownFlag(e.Button) | MOUSEEVENTF_ABSOLUTE, e.X, e.Y, 0);
+                SendMouse(DownFlag(e.Button) | MOUSEEVENTF_ABSOLUTE | vflag, vx, vy, 0);
                 break;
             case InputEvent.Types.Kind.MouseUp:
-                SendMouse(UpFlag(e.Button) | MOUSEEVENTF_ABSOLUTE, e.X, e.Y, 0);
+                SendMouse(UpFlag(e.Button) | MOUSEEVENTF_ABSOLUTE | vflag, vx, vy, 0);
                 break;
             case InputEvent.Types.Kind.MouseWheel:
                 SendMouse(MOUSEEVENTF_WHEEL, 0, 0, e.Wheel);
@@ -33,6 +32,32 @@ public static class InputInjector
                 SendKey((ushort)e.KeyCode, down: false);
                 break;
         }
+    }
+
+    private static (int X, int Y, uint Flag) MapCoordinates(int normX, int normY, int monitorIndex)
+    {
+        if (monitorIndex == 0)
+            return (normX, normY, 0);
+
+        var vs = System.Windows.Forms.SystemInformation.VirtualScreen;
+        if (vs.Width <= 0 || vs.Height <= 0)
+            return (normX, normY, 0);
+
+        if (monitorIndex == -1)
+            return (normX, normY, MOUSEEVENTF_VIRTUALDESK);
+
+        var screens = System.Windows.Forms.Screen.AllScreens;
+        if (monitorIndex > 0 && monitorIndex < screens.Length)
+        {
+            var b = screens[monitorIndex].Bounds;
+            var px = b.Left + (normX / 65535.0) * b.Width;
+            var py = b.Top + (normY / 65535.0) * b.Height;
+            var vx = (int)Math.Clamp(Math.Round(((px - vs.Left) / vs.Width) * 65535.0), 0, 65535);
+            var vy = (int)Math.Clamp(Math.Round(((py - vs.Top) / vs.Height) * 65535.0), 0, 65535);
+            return (vx, vy, MOUSEEVENTF_VIRTUALDESK);
+        }
+
+        return (normX, normY, 0);
     }
 
     private static uint DownFlag(int button) => button switch

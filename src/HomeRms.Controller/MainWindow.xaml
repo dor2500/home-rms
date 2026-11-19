@@ -1,7 +1,7 @@
 <Window x:Class="HomeRms.Controller.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="Home RMS — Fleet Command Center" Height="840" Width="1360"
+        Title="Home RMS — Central Operations Console" Height="840" Width="1360"
         MinHeight="680" MinWidth="1020"
         Icon="Assets/controller.ico"
         PreviewMouseDown="OnDashboardActivity"
@@ -17,54 +17,82 @@
 
         <!-- ==================== TOP GLOBAL COMMAND BAR ==================== -->
         <Border x:Name="TopBarBorder" Grid.Row="0" Background="{StaticResource SurfaceBrush}"
-                BorderBrush="{StaticResource LineBrush}" BorderThickness="0,0,0,1" Padding="14,10">
+                BorderBrush="{StaticResource LineBrush}" BorderThickness="0,0,0,1" Padding="14,8">
             <DockPanel LastChildFill="True">
                 <!-- Right Global Action Cluster -->
                 <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center" Margin="12,0,0,0">
-                    <Border Background="#111726" BorderBrush="{StaticResource LineBrush}" BorderThickness="1"
-                            CornerRadius="8" Padding="10,6" Margin="0,0,8,0" VerticalAlignment="Center"
+                    <!-- Central Hub & Relay Status Pill -->
+                    <Button x:Name="MobileHubBtn" Style="{StaticResource SmallPillButton}" Margin="0,0,6,0"
+                            ToolTip="Open Central Relay Mobile Web App in browser" Click="OnOpenMobileHubClick">
+                        <StackPanel Orientation="Horizontal">
+                            <Ellipse Width="6" Height="6" Fill="{StaticResource OkBrush}" Margin="0,0,6,0" VerticalAlignment="Center"/>
+                            <TextBlock x:Name="HubRelayStatusText" Text="HUB RELAY :7480" FontFamily="{StaticResource MonoFont}"
+                                       FontSize="10.5" FontWeight="SemiBold" Foreground="{StaticResource TextBrush}"/>
+                        </StackPanel>
+                    </Button>
+
+                    <!-- Alert Center Bell -->
+                    <Button x:Name="AlertBellBtn" Style="{StaticResource SmallPillButton}" Margin="0,0,6,0"
+                            ToolTip="Open Client Health &amp; Alert Center" Click="OnOpenAlertCenterClick">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="ALERTS" FontFamily="{StaticResource MonoFont}" FontSize="10.5" FontWeight="SemiBold" Foreground="{StaticResource MutedBrush}" Margin="0,0,5,0"/>
+                            <Border x:Name="AlertBadgeBorder" Background="#223B82F6" CornerRadius="3" Padding="5,1">
+                                <TextBlock x:Name="AlertBadgeText" Text="0" FontFamily="{StaticResource MonoFont}" FontSize="10" FontWeight="Bold" Foreground="{StaticResource TextBrush}"/>
+                            </Border>
+                        </StackPanel>
+                    </Button>
+
+                    <!-- mTLS Status Pill -->
+                    <Border Background="#111317" BorderBrush="{StaticResource LineBrush}" BorderThickness="1"
+                            CornerRadius="5" Padding="9,5" Margin="0,0,8,0" VerticalAlignment="Center"
                             ToolTip="All endpoint sessions use Mutual-TLS (X.509 PKI)">
                         <StackPanel Orientation="Horizontal">
-                            <Ellipse Width="7" Height="7" Fill="{StaticResource OkBrush}" Margin="0,0,6,0" VerticalAlignment="Center"/>
-                            <TextBlock Text="mTLS Active" FontSize="11.5" FontWeight="SemiBold" Foreground="{StaticResource MutedBrush}"/>
+                            <Ellipse Width="6" Height="6" Fill="{StaticResource AccentBrush}" Margin="0,0,6,0" VerticalAlignment="Center"/>
+                            <TextBlock Text="mTLS PKI" FontFamily="{StaticResource MonoFont}" FontSize="10.5" FontWeight="SemiBold" Foreground="{StaticResource MutedBrush}"/>
                         </StackPanel>
                     </Border>
-                    <Button x:Name="ProbeBtn" Content="↻ Scan LAN" Style="{StaticResource GhostButton}"
-                            Padding="11,6" Margin="0,0,8,0" Click="OnProbeMachinesClick"/>
-                    <Button x:Name="UpdateBtn" Content="↻ Updates" Style="{StaticResource SmallPillButton}"
-                            Margin="0,0,8,0" ToolTip="Check GitHub Releases (dor2500/home-rms) for updates"
+
+                    <Button x:Name="ProbeBtn" Content="Scan LAN" Style="{StaticResource GhostButton}"
+                            Padding="10,5" Margin="0,0,6,0" Click="OnProbeMachinesClick"/>
+                    <Button x:Name="UpdateBtn" Content="Updates" Style="{StaticResource SmallPillButton}"
+                            Margin="0,0,6,0" ToolTip="Check GitHub Releases (dor2500/home-rms) for updates"
                             Click="OnCheckOrApplyUpdateClick"/>
-                    <Button Content="🔒 Lock" Style="{StaticResource SmallPillButton}"
-                            Margin="0,0,8,0" ToolTip="Lock Dashboard (15m auto-lock active)"
+                    <Button Content="Lock" Style="{StaticResource SmallPillButton}"
+                            Margin="0,0,8,0" ToolTip="Lock Console (15m inactivity lock active)"
                             Click="OnLockDashboardClick"/>
                     <Button x:Name="AddEndpointTopBtn" Content="+ Add Endpoint" Style="{StaticResource PrimaryButton}"
-                            Padding="13,7" Click="OnOpenAddEndpointDrawerClick"/>
+                            Padding="12,5" Click="OnOpenAddEndpointDrawerClick"/>
                 </StackPanel>
 
                 <!-- Left Brand + Sidebar Toggle + Global Fleet Status -->
                 <StackPanel DockPanel.Dock="Left" Orientation="Horizontal" VerticalAlignment="Center">
-                    <Button x:Name="SidebarToggleBtn" Content="☰" Style="{StaticResource GhostButton}"
-                            Width="34" Height="34" Padding="0" FontSize="15" Margin="0,0,10,0"
-                            ToolTip="Collapse / Expand Navigation Sidebar" Click="OnToggleSidebarClick"/>
-                    <Image Source="Assets/controller.png" Width="30" Height="30" Margin="0,0,10,0"
-                           RenderOptions.BitmapScalingMode="HighQuality"/>
-                    <StackPanel VerticalAlignment="Center" Margin="0,0,16,0">
-                        <TextBlock Text="HOME RMS" FontSize="14" FontWeight="Bold"/>
-                        <TextBlock Text="Operations Platform" FontSize="10.5" Foreground="{StaticResource MutedBrush}"/>
+                    <Button x:Name="SidebarToggleBtn" Style="{StaticResource GhostButton}"
+                            Width="30" Height="28" Padding="0" Margin="0,0,10,0"
+                            ToolTip="Collapse / Expand Navigation Sidebar" Click="OnToggleSidebarClick">
+                        <Path Style="{StaticResource VectorIcon}" Data="{StaticResource GeoSidebar}" Width="14" Height="14"/>
+                    </Button>
+                    <Border Width="24" Height="24" CornerRadius="4" Background="#1E232E"
+                            BorderBrush="{StaticResource LineBrush}" BorderThickness="1" Margin="0,0,9,0">
+                        <TextBlock Text="HR" FontFamily="{StaticResource MonoFont}" FontSize="10" FontWeight="Bold"
+                                   Foreground="{StaticResource AccentBrush}" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                    </Border>
+                    <StackPanel VerticalAlignment="Center" Margin="0,0,14,0">
+                        <TextBlock Text="HOME RMS" FontSize="12.5" FontWeight="Bold"/>
+                        <TextBlock Text="CENTRAL SERVER &amp; CONSOLE" FontFamily="{StaticResource MonoFont}" FontSize="9.5" Foreground="{StaticResource MutedBrush}"/>
                     </StackPanel>
 
-                    <Border x:Name="ConnBadgeBorder" Background="#1A0EA5E9" BorderBrush="#330EA5E9" BorderThickness="1"
-                            CornerRadius="7" Padding="10,4" Margin="0,0,12,0" VerticalAlignment="Center">
-                        <TextBlock x:Name="ConnBadgeText" Text="0 Online • Disconnected" FontSize="11"
+                    <Border x:Name="ConnBadgeBorder" Background="#183B82F6" BorderBrush="#333B82F6" BorderThickness="1"
+                            CornerRadius="4" Padding="8,3" Margin="0,0,12,0" VerticalAlignment="Center">
+                        <TextBlock x:Name="ConnBadgeText" Text="STANDBY" FontFamily="{StaticResource MonoFont}" FontSize="10.5"
                                    FontWeight="SemiBold" Foreground="{StaticResource AccentBrush}"/>
                     </Border>
                 </StackPanel>
 
                 <!-- Center Global Status Readout -->
                 <StackPanel VerticalAlignment="Center">
-                    <TextBlock x:Name="TargetTitleText" Text="Fleet Operations Center" FontSize="12.5" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"/>
-                    <TextBlock x:Name="StatusText" Text="Global telemetry active. Scan LAN or select an endpoint in Fleet to connect."
-                               FontSize="11" Foreground="{StaticResource MutedBrush}" TextTrimming="CharacterEllipsis"/>
+                    <TextBlock x:Name="TargetTitleText" Text="Central Operations Hub" FontSize="12" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"/>
+                    <TextBlock x:Name="StatusText" Text="Central Relay ready. Scan LAN or select an endpoint in Fleet to open a tunnel."
+                               FontFamily="{StaticResource MonoFont}" FontSize="10.5" Foreground="{StaticResource MutedBrush}" TextTrimming="CharacterEllipsis"/>
                 </StackPanel>
             </DockPanel>
         </Border>
@@ -72,30 +100,30 @@
         <!-- ==================== MAIN BODY: COLLAPSIBLE SIDEBAR + WORKSPACE ==================== -->
         <Grid Grid.Row="1">
             <Grid.ColumnDefinitions>
-                <ColumnDefinition x:Name="RailColumn" Width="204"/>
+                <ColumnDefinition x:Name="RailColumn" Width="192"/>
                 <ColumnDefinition Width="*"/>
             </Grid.ColumnDefinitions>
 
-            <!-- Industrial Collapsible Sidebar -->
+            <!-- Linear-Style Collapsible Navigation Rail -->
             <Border x:Name="RailBorder" Grid.Column="0" Background="{StaticResource SurfaceBrush}"
-                    BorderBrush="{StaticResource LineBrush}" BorderThickness="0,0,1,0" Padding="0,12">
+                    BorderBrush="{StaticResource LineBrush}" BorderThickness="0,0,1,0" Padding="0,10">
                 <DockPanel>
-                    <TextBlock x:Name="SidebarSectionLabel" DockPanel.Dock="Top" Text="NAVIGATION"
-                               Style="{StaticResource Caption}" Margin="18,0,0,8"/>
+                    <TextBlock x:Name="SidebarSectionLabel" DockPanel.Dock="Top" Text="WORKSPACE"
+                               Style="{StaticResource Caption}" Margin="16,0,0,6"/>
 
-                    <StackPanel DockPanel.Dock="Bottom" Margin="10,8,10,0">
-                        <Button Style="{StaticResource GhostButton}" Padding="10,8" Margin="0,0,0,8"
-                                HorizontalContentAlignment="Left" ToolTip="About Home RMS" Click="OnOpenAboutClick">
+                    <StackPanel DockPanel.Dock="Bottom" Margin="8,8,8,0">
+                        <Button Style="{StaticResource GhostButton}" Padding="10,7" Margin="0,0,0,6"
+                                HorizontalContentAlignment="Left" ToolTip="Server Identity &amp; 2FA Settings" Click="OnOpenAboutClick">
                             <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                <TextBlock Text="ℹ" FontSize="14" Width="22" TextAlignment="Center" Foreground="{StaticResource AccentBrush}" VerticalAlignment="Center"/>
-                                <TextBlock x:Name="NavLabelAbout" Text="About" FontSize="12" FontWeight="Medium" Margin="8,0,0,0" VerticalAlignment="Center"/>
+                                <Path Style="{StaticResource VectorIcon}" Data="{StaticResource GeoInfo}" Stroke="{StaticResource MutedBrush}"/>
+                                <TextBlock x:Name="NavLabelAbout" Text="Server &amp; PKI" FontSize="12" FontWeight="Medium" Margin="10,0,0,0" VerticalAlignment="Center"/>
                             </StackPanel>
                         </Button>
-                        <Border Background="#0A0E18" BorderBrush="{StaticResource LineBrush}"
-                                BorderThickness="1" CornerRadius="9" Padding="10,8">
+                        <Border Background="#111317" BorderBrush="{StaticResource LineBrush}"
+                                BorderThickness="1" CornerRadius="5" Padding="10,7">
                             <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                <Ellipse Width="8" Height="8" Fill="{StaticResource OkBrush}" Margin="0,0,8,0"/>
-                                <TextBlock x:Name="SidebarFooterText" Text="mTLS PKI Ready" FontSize="11" Foreground="{StaticResource MutedBrush}"/>
+                                <Ellipse Width="6" Height="6" Fill="{StaticResource OkBrush}" Margin="0,0,8,0"/>
+                                <TextBlock x:Name="SidebarFooterText" Text="HUB RELAY ONLINE" FontFamily="{StaticResource MonoFont}" FontSize="10" Foreground="{StaticResource MutedBrush}"/>
                             </StackPanel>
                         </Border>
                     </StackPanel>
@@ -103,50 +131,56 @@
                     <StackPanel>
                         <RadioButton x:Name="NavOverview" Style="{StaticResource RailTab}" IsChecked="True" Checked="OnNavTabChanged" ToolTip="Overview Dashboard">
                             <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                <TextBlock Text="📈" FontSize="14.5" Width="22" TextAlignment="Center" VerticalAlignment="Center"/>
-                                <TextBlock x:Name="NavLabelOverview" Text="Overview" FontSize="12.5" FontWeight="Medium" Margin="10,0,0,0" VerticalAlignment="Center"/>
+                                <Path Style="{StaticResource VectorIcon}" Data="{StaticResource GeoOverview}"/>
+                                <TextBlock x:Name="NavLabelOverview" Text="Overview" FontSize="12" FontWeight="Medium" Margin="10,0,0,0" VerticalAlignment="Center"/>
                             </StackPanel>
                         </RadioButton>
                         <RadioButton x:Name="NavFleet" Style="{StaticResource RailTab}" Checked="OnNavTabChanged" ToolTip="Managed LAN Fleet">
                             <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                <TextBlock Text="🌐" FontSize="14.5" Width="22" TextAlignment="Center" VerticalAlignment="Center"/>
-                                <TextBlock x:Name="NavLabelFleet" Text="Fleet" FontSize="12.5" FontWeight="Medium" Margin="10,0,0,0" VerticalAlignment="Center"/>
+                                <Path Style="{StaticResource VectorIcon}" Data="{StaticResource GeoFleet}"/>
+                                <TextBlock x:Name="NavLabelFleet" Text="Endpoints" FontSize="12" FontWeight="Medium" Margin="10,0,0,0" VerticalAlignment="Center"/>
                             </StackPanel>
                         </RadioButton>
                         <RadioButton x:Name="NavDesktop" Style="{StaticResource RailTab}" Checked="OnNavTabChanged" ToolTip="Remote Desktop Stream">
                             <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                <TextBlock Text="🖥️" FontSize="14.5" Width="22" TextAlignment="Center" VerticalAlignment="Center"/>
-                                <TextBlock x:Name="NavLabelDesktop" Text="Desktop" FontSize="12.5" FontWeight="Medium" Margin="10,0,0,0" VerticalAlignment="Center"/>
+                                <Path Style="{StaticResource VectorIcon}" Data="{StaticResource GeoDesktop}"/>
+                                <TextBlock x:Name="NavLabelDesktop" Text="Remote Desktop" FontSize="12" FontWeight="Medium" Margin="10,0,0,0" VerticalAlignment="Center"/>
                             </StackPanel>
                         </RadioButton>
                         <RadioButton x:Name="NavInventory" Style="{StaticResource RailTab}" Checked="OnNavTabChanged" ToolTip="System Monitor &amp; Processes">
                             <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                <TextBlock Text="📊" FontSize="14.5" Width="22" TextAlignment="Center" VerticalAlignment="Center"/>
-                                <TextBlock x:Name="NavLabelMonitor" Text="Monitor" FontSize="12.5" FontWeight="Medium" Margin="10,0,0,0" VerticalAlignment="Center"/>
+                                <Path Style="{StaticResource VectorIcon}" Data="{StaticResource GeoMonitor}"/>
+                                <TextBlock x:Name="NavLabelMonitor" Text="Inventory &amp; Procs" FontSize="12" FontWeight="Medium" Margin="10,0,0,0" VerticalAlignment="Center"/>
                             </StackPanel>
                         </RadioButton>
                         <RadioButton x:Name="NavShell" Style="{StaticResource RailTab}" Checked="OnNavTabChanged" ToolTip="Remote PowerShell Terminal">
                             <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                <TextBlock Text="⌨️" FontSize="14.5" Width="22" TextAlignment="Center" VerticalAlignment="Center"/>
-                                <TextBlock x:Name="NavLabelShell" Text="Shell" FontSize="12.5" FontWeight="Medium" Margin="10,0,0,0" VerticalAlignment="Center"/>
+                                <Path Style="{StaticResource VectorIcon}" Data="{StaticResource GeoShell}"/>
+                                <TextBlock x:Name="NavLabelShell" Text="PowerShell" FontSize="12" FontWeight="Medium" Margin="10,0,0,0" VerticalAlignment="Center"/>
                             </StackPanel>
                         </RadioButton>
                         <RadioButton x:Name="NavDeploy" Style="{StaticResource RailTab}" Checked="OnNavTabChanged" ToolTip="Silent Software &amp; Script Deploy">
                             <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                <TextBlock Text="📦" FontSize="14.5" Width="22" TextAlignment="Center" VerticalAlignment="Center"/>
-                                <TextBlock x:Name="NavLabelDeploy" Text="Deploy" FontSize="12.5" FontWeight="Medium" Margin="10,0,0,0" VerticalAlignment="Center"/>
+                                <Path Style="{StaticResource VectorIcon}" Data="{StaticResource GeoDeploy}"/>
+                                <TextBlock x:Name="NavLabelDeploy" Text="Deploy" FontSize="12" FontWeight="Medium" Margin="10,0,0,0" VerticalAlignment="Center"/>
                             </StackPanel>
                         </RadioButton>
                         <RadioButton x:Name="NavUpdates" Style="{StaticResource RailTab}" Checked="OnNavTabChanged" ToolTip="Remote Windows Updates">
                             <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                <TextBlock Text="🔄" FontSize="14.5" Width="22" TextAlignment="Center" VerticalAlignment="Center"/>
-                                <TextBlock x:Name="NavLabelUpdates" Text="Updates" FontSize="12.5" FontWeight="Medium" Margin="10,0,0,0" VerticalAlignment="Center"/>
+                                <Path Style="{StaticResource VectorIcon}" Data="{StaticResource GeoUpdates}"/>
+                                <TextBlock x:Name="NavLabelUpdates" Text="Windows Update" FontSize="12" FontWeight="Medium" Margin="10,0,0,0" VerticalAlignment="Center"/>
                             </StackPanel>
                         </RadioButton>
                         <RadioButton x:Name="NavSystem" Style="{StaticResource RailTab}" Checked="OnNavTabChanged" ToolTip="Remote System &amp; Settings">
                             <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                <TextBlock Text="⚙️" FontSize="14.5" Width="22" TextAlignment="Center" VerticalAlignment="Center"/>
-                                <TextBlock x:Name="NavLabelSettings" Text="Settings" FontSize="12.5" FontWeight="Medium" Margin="10,0,0,0" VerticalAlignment="Center"/>
+                                <Path Style="{StaticResource VectorIcon}" Data="{StaticResource GeoSettings}"/>
+                                <TextBlock x:Name="NavLabelSettings" Text="System &amp; Settings" FontSize="12" FontWeight="Medium" Margin="10,0,0,0" VerticalAlignment="Center"/>
+                            </StackPanel>
+                        </RadioButton>
+                        <RadioButton x:Name="NavWebUi" Style="{StaticResource RailTab}" Checked="OnNavTabChanged" Visibility="Collapsed" ToolTip="Embedded Reverse-Proxied Web UI">
+                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                <Path Style="{StaticResource VectorIcon}" Data="{StaticResource GeoDesktop}"/>
+                                <TextBlock x:Name="NavLabelWebUi" Text="Web UI (Proxy)" FontSize="12" FontWeight="Medium" Margin="10,0,0,0" VerticalAlignment="Center"/>
                             </StackPanel>
                         </RadioButton>
                     </StackPanel>
@@ -154,65 +188,65 @@
             </Border>
 
             <!-- Workspace Area -->
-            <Grid x:Name="WorkspaceGrid" Grid.Column="1" Background="{StaticResource BgBrush}" Margin="20,16,20,16">
+            <Grid x:Name="WorkspaceGrid" Grid.Column="1" Background="{StaticResource BgBrush}" Margin="18,14,18,14">
 
                 <!-- ==================== 0. OVERVIEW DASHBOARD (LANDING) ==================== -->
                 <DockPanel x:Name="OverviewPanel" Visibility="Visible">
                     <!-- Top Header -->
-                    <DockPanel DockPanel.Dock="Top" Margin="0,0,0,14">
-                        <Button DockPanel.Dock="Right" Content="View Full Fleet →" Style="{StaticResource GhostButton}"
-                                Padding="12,6" Click="OnGoToFleetClick"/>
+                    <DockPanel DockPanel.Dock="Top" Margin="0,0,0,12">
+                        <Button DockPanel.Dock="Right" Content="View All Endpoints" Style="{StaticResource GhostButton}"
+                                Padding="11,5" Click="OnGoToFleetClick"/>
                         <StackPanel>
-                            <TextBlock Text="OPERATIONS OVERVIEW" Style="{StaticResource Caption}" Margin="0,0,0,2"/>
-                            <TextBlock Text="Real-time fleet health, LAN telemetry, and recent system events" FontSize="12" Foreground="{StaticResource MutedBrush}"/>
+                            <TextBlock Text="CENTRAL HUB // OPERATIONS OVERVIEW" Style="{StaticResource Caption}" Margin="0,0,0,2"/>
+                            <TextBlock Text="Central Server relay metrics, fleet health telemetry, and audit trail" FontSize="11.5" Foreground="{StaticResource MutedBrush}"/>
                         </StackPanel>
                     </DockPanel>
 
                     <!-- Macro KPI Strip -->
-                    <Grid DockPanel.Dock="Top" Margin="0,0,0,14">
+                    <Grid DockPanel.Dock="Top" Margin="0,0,0,12">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*"/>
-                            <ColumnDefinition Width="12"/>
+                            <ColumnDefinition Width="10"/>
                             <ColumnDefinition Width="*"/>
-                            <ColumnDefinition Width="12"/>
+                            <ColumnDefinition Width="10"/>
                             <ColumnDefinition Width="*"/>
-                            <ColumnDefinition Width="12"/>
+                            <ColumnDefinition Width="10"/>
                             <ColumnDefinition Width="*"/>
                         </Grid.ColumnDefinitions>
 
-                        <Border Grid.Column="0" Style="{StaticResource CardStyle}" Padding="16,14">
+                        <Border Grid.Column="0" Style="{StaticResource CardStyle}">
                             <StackPanel>
                                 <TextBlock Text="ENDPOINTS ONLINE" Style="{StaticResource Caption}"/>
                                 <StackPanel Orientation="Horizontal" VerticalAlignment="Bottom">
-                                    <TextBlock x:Name="KpiOnlineCount" Text="0 / 0" FontSize="24" FontWeight="Bold"/>
-                                    <TextBlock x:Name="KpiOfflineSub" Text="0 offline" FontSize="11.5" Foreground="{StaticResource MutedBrush}" Margin="10,0,0,4"/>
+                                    <TextBlock x:Name="KpiOnlineCount" Text="0 / 0" FontFamily="{StaticResource MonoFont}" FontSize="20" FontWeight="SemiBold"/>
+                                    <TextBlock x:Name="KpiOfflineSub" Text="0 offline" FontFamily="{StaticResource MonoFont}" FontSize="11" Foreground="{StaticResource MutedBrush}" Margin="10,0,0,2"/>
                                 </StackPanel>
                             </StackPanel>
                         </Border>
 
-                        <Border Grid.Column="2" Style="{StaticResource CardStyle}" Padding="16,14">
+                        <Border Grid.Column="2" Style="{StaticResource CardStyle}">
                             <StackPanel>
-                                <TextBlock Text="ACTIVE SESSION" Style="{StaticResource Caption}"/>
-                                <TextBlock x:Name="KpiActiveSession" Text="Standby" FontSize="20" FontWeight="Bold" Foreground="{StaticResource AccentBrush}" TextTrimming="CharacterEllipsis"/>
-                                <TextBlock x:Name="KpiActiveLatency" Text="No active mTLS tunnel" FontSize="11.5" Foreground="{StaticResource MutedBrush}" Margin="0,2,0,0"/>
+                                <TextBlock Text="ACTIVE TUNNEL" Style="{StaticResource Caption}"/>
+                                <TextBlock x:Name="KpiActiveSession" Text="Standby" FontFamily="{StaticResource MonoFont}" FontSize="17" FontWeight="SemiBold" Foreground="{StaticResource TextBrush}" TextTrimming="CharacterEllipsis"/>
+                                <TextBlock x:Name="KpiActiveLatency" Text="No active mTLS tunnel" FontFamily="{StaticResource MonoFont}" FontSize="11" Foreground="{StaticResource MutedBrush}" Margin="0,3,0,0"/>
                             </StackPanel>
                         </Border>
 
-                        <Border Grid.Column="4" Style="{StaticResource CardStyle}" Padding="16,14">
+                        <Border Grid.Column="4" Style="{StaticResource CardStyle}">
                             <StackPanel>
                                 <TextBlock Text="FLEET CPU / RAM" Style="{StaticResource Caption}"/>
-                                <TextBlock x:Name="KpiFleetLoad" Text="--% CPU • --% RAM" FontSize="18" FontWeight="Bold"/>
+                                <TextBlock x:Name="KpiFleetLoad" Text="--% CPU  ·  --% RAM" FontFamily="{StaticResource MonoFont}" FontSize="15.5" FontWeight="SemiBold"/>
                                 <ProgressBar x:Name="KpiLoadBar" Style="{StaticResource ThinProgressBar}" Value="0" Margin="0,8,0,0"/>
                             </StackPanel>
                         </Border>
 
-                        <Border Grid.Column="6" Style="{StaticResource CardStyle}" Padding="16,14">
+                        <Border Grid.Column="6" Style="{StaticResource CardStyle}">
                             <StackPanel>
                                 <TextBlock Text="NETWORK LATENCY (RTT)" Style="{StaticResource Caption}"/>
                                 <DockPanel>
-                                    <TextBlock x:Name="KpiAvgLatency" Text="-- ms" FontSize="20" FontWeight="Bold" VerticalAlignment="Center"/>
-                                    <Canvas Width="110" Height="28" DockPanel.Dock="Right" HorizontalAlignment="Right">
-                                        <Polyline x:Name="OverviewSparkline" Stroke="{StaticResource AccentBrush}" StrokeThickness="2" Points="0,20 20,18 40,22 60,14 80,16 100,12"/>
+                                    <TextBlock x:Name="KpiAvgLatency" Text="-- ms" FontFamily="{StaticResource MonoFont}" FontSize="17" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                                    <Canvas Width="100" Height="24" DockPanel.Dock="Right" HorizontalAlignment="Right">
+                                        <Polyline x:Name="OverviewSparkline" Stroke="{StaticResource AccentBrush}" StrokeThickness="1.5" Points="0,18 20,16 40,20 60,12 80,14 100,10"/>
                                     </Canvas>
                                 </DockPanel>
                             </StackPanel>
@@ -220,38 +254,38 @@
                     </Grid>
 
                     <!-- Middle Row: Network Traffic Sparkline & Recent Alerts -->
-                    <Grid DockPanel.Dock="Top" Height="200" Margin="0,0,0,14">
+                    <Grid DockPanel.Dock="Top" Height="186" Margin="0,0,0,12">
                         <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="1.2*"/>
-                            <ColumnDefinition Width="14"/>
+                            <ColumnDefinition Width="1.15*"/>
+                            <ColumnDefinition Width="10"/>
                             <ColumnDefinition Width="1*"/>
                         </Grid.ColumnDefinitions>
 
-                        <Border Grid.Column="0" Style="{StaticResource CardStyle}" Padding="16,14">
+                        <Border Grid.Column="0" Style="{StaticResource CardStyle}">
                             <DockPanel>
-                                <DockPanel DockPanel.Dock="Top" Margin="0,0,0,10">
-                                    <TextBlock DockPanel.Dock="Right" x:Name="TrafficPeakText" Text="Peak: -- ms" FontSize="11.5" Foreground="{StaticResource AccentBrush}"/>
-                                    <TextBlock Text="LAN TELEMETRY &amp; THROUGHPUT SPARKLINE" Style="{StaticResource Caption}" Margin="0"/>
+                                <DockPanel DockPanel.Dock="Top" Margin="0,0,0,8">
+                                    <TextBlock DockPanel.Dock="Right" x:Name="TrafficPeakText" Text="PEAK: -- ms" FontFamily="{StaticResource MonoFont}" FontSize="10.5" Foreground="{StaticResource MutedBrush}"/>
+                                    <TextBlock Text="RELAY LATENCY &amp; UTILIZATION TREND" Style="{StaticResource Caption}" Margin="0"/>
                                 </DockPanel>
-                                <Border Background="#080B12" BorderBrush="{StaticResource LineBrush}" BorderThickness="1" CornerRadius="10" Padding="12,10">
+                                <Border Background="{StaticResource FieldBrush}" BorderBrush="{StaticResource LineBrush}" BorderThickness="1" CornerRadius="4" Padding="10,8">
                                     <Grid>
                                         <Viewbox Stretch="Fill">
                                             <Canvas Width="400" Height="110">
-                                                <Line X1="0" Y1="27" X2="400" Y2="27" Stroke="#161D2E" StrokeThickness="1"/>
-                                                <Line X1="0" Y1="55" X2="400" Y2="55" Stroke="#161D2E" StrokeThickness="1"/>
-                                                <Line X1="0" Y1="82" X2="400" Y2="82" Stroke="#161D2E" StrokeThickness="1"/>
-                                                <Polyline x:Name="TrafficSparkline" Stroke="{StaticResource AccentBrush}" StrokeThickness="2.5"
+                                                <Line X1="0" Y1="27" X2="400" Y2="27" Stroke="#12FFFFFF" StrokeThickness="1"/>
+                                                <Line X1="0" Y1="55" X2="400" Y2="55" Stroke="#12FFFFFF" StrokeThickness="1"/>
+                                                <Line X1="0" Y1="82" X2="400" Y2="82" Stroke="#12FFFFFF" StrokeThickness="1"/>
+                                                <Polyline x:Name="TrafficSparkline" Stroke="{StaticResource AccentBrush}" StrokeThickness="1.8"
                                                           Points="0,85 45,78 90,82 135,62 180,68 225,52 270,58 315,44 360,48 400,38"/>
-                                                <Polyline x:Name="CpuSparkline" Stroke="{StaticResource IndigoBrush}" StrokeThickness="2"
+                                                <Polyline x:Name="CpuSparkline" Stroke="{StaticResource IndigoBrush}" StrokeThickness="1.5"
                                                           Points="0,92 45,88 90,84 135,79 180,82 225,74 270,76 315,70 360,72 400,66"/>
                                             </Canvas>
                                         </Viewbox>
                                         <StackPanel Orientation="Horizontal" VerticalAlignment="Top" HorizontalAlignment="Left">
-                                            <Border Background="#1A0EA5E9" CornerRadius="4" Padding="6,2" Margin="0,0,6,0">
-                                                <TextBlock Text="● RTT / Traffic" FontSize="10" Foreground="{StaticResource AccentBrush}"/>
+                                            <Border Background="#183B82F6" BorderBrush="#263B82F6" BorderThickness="1" CornerRadius="3" Padding="6,2" Margin="0,0,6,0">
+                                                <TextBlock Text="RTT (ms)" FontFamily="{StaticResource MonoFont}" FontSize="9.5" Foreground="{StaticResource AccentBrush}"/>
                                             </Border>
-                                            <Border Background="#1A6366F1" CornerRadius="4" Padding="6,2">
-                                                <TextBlock Text="● Fleet CPU" FontSize="10" Foreground="#A5B4FC"/>
+                                            <Border Background="#1864748B" BorderBrush="#2664748B" BorderThickness="1" CornerRadius="3" Padding="6,2">
+                                                <TextBlock Text="CPU (%)" FontFamily="{StaticResource MonoFont}" FontSize="9.5" Foreground="{StaticResource MutedBrush}"/>
                                             </Border>
                                         </StackPanel>
                                     </Grid>
@@ -259,17 +293,17 @@
                             </DockPanel>
                         </Border>
 
-                        <Border Grid.Column="2" Style="{StaticResource CardStyle}" Padding="16,14">
+                        <Border Grid.Column="2" Style="{StaticResource CardStyle}">
                             <DockPanel>
-                                <TextBlock DockPanel.Dock="Top" Text="RECENT SYSTEM ALERTS &amp; EVENTS" Style="{StaticResource Caption}" Margin="0,0,0,8"/>
+                                <TextBlock DockPanel.Dock="Top" Text="SYSTEM AUDIT &amp; RELAY EVENTS" Style="{StaticResource Caption}" Margin="0,0,0,8"/>
                                 <ListBox x:Name="OverviewEventsList" Background="Transparent" BorderThickness="0"
                                          ScrollViewer.HorizontalScrollBarVisibility="Disabled">
                                     <ListBox.ItemTemplate>
                                         <DataTemplate>
-                                            <DockPanel Margin="0,3">
-                                                <TextBlock DockPanel.Dock="Left" Text="{Binding Timestamp}" FontFamily="Cascadia Mono, Consolas" FontSize="11" Foreground="{StaticResource MutedBrush}" Margin="0,0,8,0"/>
-                                                <Border DockPanel.Dock="Left" Background="{Binding BadgeBackground}" CornerRadius="4" Padding="6,1" Margin="0,0,8,0">
-                                                    <TextBlock Text="{Binding Category}" FontSize="10" FontWeight="Bold" Foreground="{Binding BadgeForeground}"/>
+                                            <DockPanel Margin="0,2">
+                                                <TextBlock DockPanel.Dock="Left" Text="{Binding Timestamp}" FontFamily="{StaticResource MonoFont}" FontSize="10.5" Foreground="{StaticResource MutedBrush}" Margin="0,0,8,0"/>
+                                                <Border DockPanel.Dock="Left" Background="{Binding BadgeBackground}" CornerRadius="3" Padding="5,1" Margin="0,0,8,0">
+                                                    <TextBlock Text="{Binding Category}" FontFamily="{StaticResource MonoFont}" FontSize="9.5" FontWeight="SemiBold" Foreground="{Binding BadgeForeground}"/>
                                                 </Border>
                                                 <TextBlock Text="{Binding Message}" FontSize="11.5" TextTrimming="CharacterEllipsis"/>
                                             </DockPanel>
@@ -280,34 +314,32 @@
                         </Border>
                     </Grid>
 
-                    <!-- Bottom Row: Quick Fleet Snapshot -->
-                    <Border Style="{StaticResource CardStyle}" Padding="16,14">
+                    <!-- Bottom Row: Quick Fleet Snapshot Table -->
+                    <Border Style="{StaticResource CardStyle}">
                         <DockPanel>
-                            <DockPanel DockPanel.Dock="Top" Margin="0,0,0,10">
-                                <TextBlock DockPanel.Dock="Right" Text="Click Connect on any host to open mTLS session" FontSize="11" Foreground="{StaticResource MutedBrush}"/>
-                                <TextBlock Text="ENDPOINT SNAPSHOT" Style="{StaticResource Caption}" Margin="0"/>
+                            <DockPanel DockPanel.Dock="Top" Margin="0,0,0,8">
+                                <TextBlock DockPanel.Dock="Right" Text="All endpoint connections route through the Central Hub" FontSize="11" Foreground="{StaticResource MutedBrush}"/>
+                                <TextBlock Text="MANAGED ENDPOINTS SNAPSHOT" Style="{StaticResource Caption}" Margin="0"/>
                             </DockPanel>
                             <ListBox x:Name="OverviewFleetList" Background="Transparent" BorderThickness="0"
                                      HorizontalContentAlignment="Stretch"
                                      ScrollViewer.HorizontalScrollBarVisibility="Disabled">
                                 <ListBox.ItemTemplate>
                                     <DataTemplate>
-                                        <DockPanel Margin="0,4">
-                                            <Button DockPanel.Dock="Right" Content="{Binding ConnectActionText}" Style="{StaticResource SmallPillButton}"
-                                                    Tag="{Binding}" Click="OnCardConnectClick"/>
-                                            <TextBlock DockPanel.Dock="Right" Text="{Binding LatencyLabel}" FontFamily="Cascadia Mono, Consolas"
-                                                       FontSize="11.5" Foreground="{StaticResource MutedBrush}" VerticalAlignment="Center" Margin="16,0,14,0" Width="64" TextAlignment="Right"/>
-                                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                                <Ellipse Width="9" Height="9" Fill="{Binding DotBrush}" Margin="0,0,10,0">
-                                                    <Ellipse.Effect>
-                                                        <DropShadowEffect Color="{Binding DotGlowColor}" BlurRadius="10" ShadowDepth="0" Opacity="0.9"/>
-                                                    </Ellipse.Effect>
-                                                </Ellipse>
-                                                <TextBlock Text="{Binding DisplayTitle}" FontWeight="SemiBold" Width="210" TextTrimming="CharacterEllipsis"/>
-                                                <TextBlock Text="{Binding Address}" FontFamily="Cascadia Mono, Consolas" FontSize="11.5" Foreground="{StaticResource AccentBrush}" Width="165"/>
-                                                <TextBlock Text="{Binding OsTag}" FontSize="11.5" Foreground="{StaticResource MutedBrush}" Width="110"/>
-                                            </StackPanel>
-                                        </DockPanel>
+                                        <Border BorderBrush="{StaticResource LineBrush}" BorderThickness="0,0,0,1" Padding="4,6">
+                                            <DockPanel>
+                                                <Button DockPanel.Dock="Right" Content="{Binding ConnectActionText}" Style="{StaticResource SmallPillButton}"
+                                                        Tag="{Binding}" Click="OnCardConnectClick"/>
+                                                <TextBlock DockPanel.Dock="Right" Text="{Binding LatencyLabel}" FontFamily="{StaticResource MonoFont}"
+                                                           FontSize="11" Foreground="{StaticResource MutedBrush}" VerticalAlignment="Center" Margin="14,0,14,0" Width="64" TextAlignment="Right"/>
+                                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                                    <Ellipse Width="7" Height="7" Fill="{Binding DotBrush}" Margin="0,0,10,0"/>
+                                                    <TextBlock Text="{Binding DisplayTitle}" FontWeight="SemiBold" Width="210" TextTrimming="CharacterEllipsis"/>
+                                                    <TextBlock Text="{Binding Address}" FontFamily="{StaticResource MonoFont}" FontSize="11.5" Foreground="{StaticResource MutedBrush}" Width="165"/>
+                                                    <TextBlock Text="{Binding OsTag}" FontFamily="{StaticResource MonoFont}" FontSize="11" Foreground="{StaticResource MutedBrush}" Width="110"/>
+                                                </StackPanel>
+                                            </DockPanel>
+                                        </Border>
                                     </DataTemplate>
                                 </ListBox.ItemTemplate>
                             </ListBox>
@@ -320,42 +352,42 @@
                     <!-- Slim Fleet Toolbar -->
                     <DockPanel DockPanel.Dock="Top" Margin="0,0,0,10">
                         <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
-                            <TextBox x:Name="FleetFilterBox" Width="200" Margin="0,0,10,0" ToolTip="Filter endpoints by name, IP, or OS" TextChanged="OnFleetFilterChanged"/>
-                            <Button Content="+ Add Endpoint" Style="{StaticResource PrimaryButton}" Padding="14,7" Click="OnOpenAddEndpointDrawerClick"/>
+                            <TextBox x:Name="FleetFilterBox" Width="210" Margin="0,0,8,0" ToolTip="Filter endpoints by name, IP, or OS" TextChanged="OnFleetFilterChanged"/>
+                            <Button Content="+ Add Endpoint" Style="{StaticResource PrimaryButton}" Padding="12,6" Click="OnOpenAddEndpointDrawerClick"/>
                         </StackPanel>
                         <StackPanel VerticalAlignment="Center">
-                            <TextBlock Text="MANAGED LAN FLEET" Style="{StaticResource Caption}" Margin="0,0,0,2"/>
-                            <TextBlock x:Name="FleetSummaryText" Text="Hover any card for Connect, Terminal, Wake, or Restart quick actions."
-                                       FontSize="12" Foreground="{StaticResource MutedBrush}"/>
+                            <TextBlock Text="MANAGED LAN ENDPOINTS" Style="{StaticResource Caption}" Margin="0,0,0,2"/>
+                            <TextBlock x:Name="FleetSummaryText" Text="Select any endpoint card for Connect, Terminal, Wake-on-LAN, or Restart actions."
+                                       FontSize="11.5" Foreground="{StaticResource MutedBrush}"/>
                         </StackPanel>
                     </DockPanel>
 
                     <!-- 1-to-Many Mass Execution Bar -->
-                    <Border DockPanel.Dock="Top" Style="{StaticResource CardStyle}" Padding="12,10" Margin="0,0,0,12">
+                    <Border DockPanel.Dock="Top" Style="{StaticResource CardStyle}" Padding="12,8" Margin="0,0,0,10">
                         <DockPanel>
-                            <Button DockPanel.Dock="Right" Content="⚡ Mass Run (All Online)" Style="{StaticResource GhostButton}" Padding="12,6" Margin="10,0,0,0" Click="OnMassRunClick"/>
-                            <TextBlock DockPanel.Dock="Left" Text="MASS PS:" Style="{StaticResource Caption}" VerticalAlignment="Center" Margin="0,0,10,0"/>
-                            <TextBox x:Name="MassCommandBox" Text="hostname; (Get-CimInstance Win32_OperatingSystem).LastBootUpTime"/>
+                            <Button DockPanel.Dock="Right" Content="Execute on All Online" Style="{StaticResource GhostButton}" Padding="12,5" Margin="8,0,0,0" Click="OnMassRunClick"/>
+                            <TextBlock DockPanel.Dock="Left" Text="BROADCAST PS:" Style="{StaticResource Caption}" VerticalAlignment="Center" Margin="0,0,10,0"/>
+                            <TextBox x:Name="MassCommandBox" FontFamily="{StaticResource MonoFont}" FontSize="12" Text="hostname; (Get-CimInstance Win32_OperatingSystem).LastBootUpTime"/>
                         </DockPanel>
                     </Border>
 
                     <!-- Live Activity Log / Recent Events Feed (Docked Bottom) -->
-                    <Border DockPanel.Dock="Bottom" Style="{StaticResource CardStyle}" Padding="14,12" Height="170" Margin="0,12,0,0">
+                    <Border DockPanel.Dock="Bottom" Style="{StaticResource CardStyle}" Padding="12,10" Height="160" Margin="0,10,0,0">
                         <DockPanel>
-                            <DockPanel DockPanel.Dock="Top" Margin="0,0,0,8">
+                            <DockPanel DockPanel.Dock="Top" Margin="0,0,0,6">
                                 <Button DockPanel.Dock="Right" Content="Clear" Style="{StaticResource SmallPillButton}" Click="OnClearActivityLogClick"/>
-                                <TextBlock Text="LIVE ACTIVITY LOG &amp; RECENT EVENTS" Style="{StaticResource Caption}" Margin="0" VerticalAlignment="Center"/>
+                                <TextBlock Text="CENTRAL HUB AUDIT LOG" Style="{StaticResource Caption}" Margin="0" VerticalAlignment="Center"/>
                             </DockPanel>
-                            <ListBox x:Name="FleetActivityList" Background="#080B12" BorderBrush="{StaticResource LineBrush}" BorderThickness="1"
+                            <ListBox x:Name="FleetActivityList" Background="{StaticResource FieldBrush}" BorderBrush="{StaticResource LineBrush}" BorderThickness="1"
                                      Padding="6,4" ScrollViewer.HorizontalScrollBarVisibility="Disabled">
                                 <ListBox.ItemTemplate>
                                     <DataTemplate>
                                         <DockPanel Margin="2,2">
-                                            <TextBlock DockPanel.Dock="Left" Text="{Binding Timestamp}" FontFamily="Cascadia Mono, Consolas" FontSize="11" Foreground="{StaticResource MutedBrush}" Margin="0,0,10,0"/>
-                                            <Border DockPanel.Dock="Left" Background="{Binding BadgeBackground}" CornerRadius="4" Padding="6,1" Margin="0,0,10,0">
-                                                <TextBlock Text="{Binding Category}" FontSize="10" FontWeight="Bold" Foreground="{Binding BadgeForeground}"/>
+                                            <TextBlock DockPanel.Dock="Left" Text="{Binding Timestamp}" FontFamily="{StaticResource MonoFont}" FontSize="10.5" Foreground="{StaticResource MutedBrush}" Margin="0,0,10,0"/>
+                                            <Border DockPanel.Dock="Left" Background="{Binding BadgeBackground}" CornerRadius="3" Padding="5,1" Margin="0,0,10,0">
+                                                <TextBlock Text="{Binding Category}" FontFamily="{StaticResource MonoFont}" FontSize="9.5" FontWeight="SemiBold" Foreground="{Binding BadgeForeground}"/>
                                             </Border>
-                                            <TextBlock Text="{Binding Message}" FontSize="12" TextTrimming="CharacterEllipsis"/>
+                                            <TextBlock Text="{Binding Message}" FontSize="11.5" TextTrimming="CharacterEllipsis"/>
                                         </DockPanel>
                                     </DataTemplate>
                                 </ListBox.ItemTemplate>
@@ -363,7 +395,7 @@
                         </DockPanel>
                     </Border>
 
-                    <!-- Responsive Upgraded Endpoint Cards Grid -->
+                    <!-- Pro-Tool Endpoint Cards Grid (Zero DropShadow Glows, Crisp 1px Borders) -->
                     <ListBox x:Name="MachinesList" Background="Transparent" BorderThickness="0"
                              ScrollViewer.HorizontalScrollBarVisibility="Disabled"
                              SelectionChanged="OnMachineSelectionChanged"
@@ -376,24 +408,24 @@
                         <ListBox.ItemContainerStyle>
                             <Style TargetType="ListBoxItem">
                                 <Setter Property="Padding" Value="0"/>
-                                <Setter Property="Margin" Value="0,0,14,14"/>
+                                <Setter Property="Margin" Value="0,0,10,10"/>
                                 <Setter Property="Cursor" Value="Hand"/>
                                 <Setter Property="Template">
                                     <Setter.Value>
                                         <ControlTemplate TargetType="ListBoxItem">
-                                            <Border x:Name="CardBd" Width="335" Background="{StaticResource CardBrush}"
+                                            <Border x:Name="CardBd" Width="328" Background="{StaticResource CardBrush}"
                                                     BorderBrush="{StaticResource LineBrush}" BorderThickness="1"
-                                                    CornerRadius="14" Padding="16,15">
+                                                    CornerRadius="6" Padding="14,12">
                                                 <ContentPresenter/>
                                             </Border>
                                             <ControlTemplate.Triggers>
                                                 <Trigger Property="IsMouseOver" Value="True">
                                                     <Setter TargetName="CardBd" Property="Background" Value="{StaticResource CardHoverBrush}"/>
-                                                    <Setter TargetName="CardBd" Property="BorderBrush" Value="#334155"/>
+                                                    <Setter TargetName="CardBd" Property="BorderBrush" Value="#2EFFFFFF"/>
                                                 </Trigger>
                                                 <Trigger Property="IsSelected" Value="True">
                                                     <Setter TargetName="CardBd" Property="BorderBrush" Value="{StaticResource AccentBrush}"/>
-                                                    <Setter TargetName="CardBd" Property="Background" Value="#121E33"/>
+                                                    <Setter TargetName="CardBd" Property="Background" Value="#1F2430"/>
                                                 </Trigger>
                                             </ControlTemplate.Triggers>
                                         </ControlTemplate>
@@ -404,74 +436,62 @@
                         <ListBox.ItemTemplate>
                             <DataTemplate>
                                 <StackPanel>
-                                    <!-- Header: Glowing Status Dot + Hostname + Status Badge -->
-                                    <DockPanel Margin="0,0,0,8">
-                                        <Border DockPanel.Dock="Right" Background="{Binding BadgeBackground}" CornerRadius="6" Padding="8,3">
-                                            <TextBlock Text="{Binding StatusLabel}" FontSize="10.5" FontWeight="SemiBold"/>
+                                    <!-- Header: Status Dot + Hostname + Status Badge -->
+                                    <DockPanel Margin="0,0,0,6">
+                                        <Border DockPanel.Dock="Right" Background="{Binding BadgeBackground}" CornerRadius="4" Padding="7,2">
+                                            <TextBlock Text="{Binding StatusLabel}" FontFamily="{StaticResource MonoFont}" FontSize="10" FontWeight="SemiBold"/>
                                         </Border>
                                         <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                            <Ellipse Width="10" Height="10" Fill="{Binding DotBrush}" Margin="0,0,9,0">
-                                                <Ellipse.Effect>
-                                                    <DropShadowEffect Color="{Binding DotGlowColor}" BlurRadius="12" ShadowDepth="0" Opacity="0.95"/>
-                                                </Ellipse.Effect>
-                                            </Ellipse>
-                                            <TextBlock Text="{Binding DisplayTitle}" FontSize="15" FontWeight="Bold" TextTrimming="CharacterEllipsis" MaxWidth="185"/>
+                                            <Ellipse Width="7" Height="7" Fill="{Binding DotBrush}" Margin="0,0,8,0"/>
+                                            <TextBlock Text="{Binding DisplayTitle}" FontSize="13.5" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" MaxWidth="190"/>
                                         </StackPanel>
                                     </DockPanel>
 
                                     <!-- Address + OS Badge -->
                                     <DockPanel Margin="0,0,0,10">
-                                        <Border DockPanel.Dock="Right" Background="#0D1322" BorderBrush="{StaticResource LineBrush}" BorderThickness="1" CornerRadius="5" Padding="7,2">
+                                        <Border DockPanel.Dock="Right" Background="{StaticResource FieldBrush}" BorderBrush="{StaticResource LineBrush}" BorderThickness="1" CornerRadius="4" Padding="6,2">
                                             <StackPanel Orientation="Horizontal">
-                                                <TextBlock Text="{Binding OsGlyph}" FontSize="11" Margin="0,0,5,0" Foreground="{StaticResource AccentBrush}"/>
-                                                <TextBlock Text="{Binding OsTag}" FontSize="10.5" Foreground="{StaticResource MutedBrush}"/>
+                                                <TextBlock Text="{Binding OsGlyph}" FontFamily="{StaticResource MonoFont}" FontSize="9.5" FontWeight="Bold" Margin="0,0,5,0" Foreground="{StaticResource AccentBrush}"/>
+                                                <TextBlock Text="{Binding OsTag}" FontFamily="{StaticResource MonoFont}" FontSize="10" Foreground="{StaticResource MutedBrush}"/>
                                             </StackPanel>
                                         </Border>
-                                        <TextBlock Text="{Binding Address}" FontFamily="Cascadia Mono, Consolas" FontSize="12" Foreground="{StaticResource AccentBrush}" VerticalAlignment="Center"/>
+                                        <TextBlock Text="{Binding Address}" FontFamily="{StaticResource MonoFont}" FontSize="11.5" Foreground="{StaticResource MutedBrush}" VerticalAlignment="Center"/>
                                     </DockPanel>
 
                                     <!-- CPU / RAM Real-Time Mini Bars -->
                                     <Grid Margin="0,0,0,10">
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="*"/>
-                                            <ColumnDefinition Width="12"/>
+                                            <ColumnDefinition Width="10"/>
                                             <ColumnDefinition Width="*"/>
                                         </Grid.ColumnDefinitions>
                                         <StackPanel Grid.Column="0">
                                             <DockPanel Margin="0,0,0,3">
-                                                <TextBlock DockPanel.Dock="Right" Text="{Binding CpuLabel}" FontSize="10.5" FontWeight="SemiBold"/>
-                                                <TextBlock Text="CPU" FontSize="10" Foreground="{StaticResource MutedBrush}"/>
+                                                <TextBlock DockPanel.Dock="Right" Text="{Binding CpuLabel}" FontFamily="{StaticResource MonoFont}" FontSize="10" FontWeight="SemiBold"/>
+                                                <TextBlock Text="CPU" FontFamily="{StaticResource MonoFont}" FontSize="9.5" Foreground="{StaticResource MutedBrush}"/>
                                             </DockPanel>
                                             <ProgressBar Style="{StaticResource ThinProgressBar}" Value="{Binding CpuPercent, Mode=OneWay}"/>
                                         </StackPanel>
                                         <StackPanel Grid.Column="2">
                                             <DockPanel Margin="0,0,0,3">
-                                                <TextBlock DockPanel.Dock="Right" Text="{Binding RamLabel}" FontSize="10.5" FontWeight="SemiBold"/>
-                                                <TextBlock Text="RAM" FontSize="10" Foreground="{StaticResource MutedBrush}"/>
+                                                <TextBlock DockPanel.Dock="Right" Text="{Binding RamLabel}" FontFamily="{StaticResource MonoFont}" FontSize="10" FontWeight="SemiBold"/>
+                                                <TextBlock Text="RAM" FontFamily="{StaticResource MonoFont}" FontSize="9.5" Foreground="{StaticResource MutedBrush}"/>
                                             </DockPanel>
                                             <ProgressBar Style="{StaticResource ThinProgressBar}" Foreground="{StaticResource IndigoBrush}" Value="{Binding RamPercent, Mode=OneWay}"/>
                                         </StackPanel>
                                     </Grid>
 
-                                    <!-- Hover Quick Action Bar -->
-                                    <Border x:Name="QuickActionsBar" Visibility="Collapsed" BorderBrush="{StaticResource LineBrush}" BorderThickness="0,1,0,0" Padding="0,9,0,0">
+                                    <!-- Action Bar -->
+                                    <Border x:Name="QuickActionsBar" BorderBrush="{StaticResource LineBrush}" BorderThickness="0,1,0,0" Padding="0,8,0,0">
                                         <StackPanel Orientation="Horizontal">
                                             <Button Content="{Binding ConnectActionText}" Style="{StaticResource PrimaryButton}" Padding="9,4" FontSize="11" Margin="0,0,5,0" Tag="{Binding}" Click="OnCardConnectClick"/>
-                                            <Button Content="Terminal" Style="{StaticResource SmallPillButton}" Padding="8,4" FontSize="11" Margin="0,0,5,0" Tag="{Binding}" Click="OnCardTerminalClick"/>
-                                            <Button Content="⚡ Wake" Style="{StaticResource SmallPillButton}" Padding="8,4" FontSize="11" Margin="0,0,5,0" Tag="{Binding}" Click="OnCardWakeClick"/>
+                                            <Button Content="Shell" Style="{StaticResource SmallPillButton}" Padding="8,4" FontSize="11" Margin="0,0,5,0" Tag="{Binding}" Click="OnCardTerminalClick"/>
+                                            <Button Content="Wake" Style="{StaticResource SmallPillButton}" Padding="8,4" FontSize="11" Margin="0,0,5,0" Tag="{Binding}" Click="OnCardWakeClick"/>
                                             <Button Content="Restart" Style="{StaticResource SmallPillButton}" Padding="8,4" FontSize="11" Margin="0,0,5,0" Tag="{Binding}" Click="OnCardRestartClick"/>
                                             <Button Content="Edit" Style="{StaticResource SmallPillButton}" Padding="8,4" FontSize="11" Tag="{Binding}" Click="OnCardEditClick"/>
                                         </StackPanel>
                                     </Border>
                                 </StackPanel>
-                                <DataTemplate.Triggers>
-                                    <DataTrigger Binding="{Binding RelativeSource={RelativeSource AncestorType=ListBoxItem}, Path=IsMouseOver}" Value="True">
-                                        <Setter TargetName="QuickActionsBar" Property="Visibility" Value="Visible"/>
-                                    </DataTrigger>
-                                    <DataTrigger Binding="{Binding RelativeSource={RelativeSource AncestorType=ListBoxItem}, Path=IsSelected}" Value="True">
-                                        <Setter TargetName="QuickActionsBar" Property="Visibility" Value="Visible"/>
-                                    </DataTrigger>
-                                </DataTemplate.Triggers>
                             </DataTemplate>
                         </ListBox.ItemTemplate>
                     </ListBox>
@@ -479,45 +499,50 @@
 
                 <!-- ==================== 2. REMOTE DESKTOP VIEW ==================== -->
                 <DockPanel x:Name="DesktopPanel" Visibility="Collapsed">
-                    <Border x:Name="DesktopToolbarBorder" DockPanel.Dock="Top" Style="{StaticResource CardStyle}" Padding="12,10" Margin="0,0,0,12">
+                    <Border x:Name="DesktopToolbarBorder" DockPanel.Dock="Top" Style="{StaticResource CardStyle}" Padding="12,8" Margin="0,0,0,10">
                         <DockPanel>
                             <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center" Margin="10,0,0,0">
-                                <Button Content="📋 Paste" Style="{StaticResource SmallPillButton}" Margin="0,0,6,0" Click="OnSendClipboardClick"/>
-                                <Button Content="📥 Copy" Style="{StaticResource SmallPillButton}" Margin="0,0,8,0" Click="OnGetClipboardClick"/>
-                                <Border Background="#0B0D14" BorderBrush="{StaticResource LineBrush}" BorderThickness="1"
-                                        CornerRadius="7" Padding="9,5" Margin="0,0,8,0">
-                                    <TextBlock x:Name="StreamStatus" Text="Idle" FontSize="11.5" Foreground="{StaticResource MutedBrush}"/>
+                                <Button Content="Send Clipboard" Style="{StaticResource SmallPillButton}" Margin="0,0,6,0" Click="OnSendClipboardClick"/>
+                                <Button Content="Pull Clipboard" Style="{StaticResource SmallPillButton}" Margin="0,0,8,0" Click="OnGetClipboardClick"/>
+                                <Border Background="{StaticResource FieldBrush}" BorderBrush="{StaticResource LineBrush}" BorderThickness="1"
+                                        CornerRadius="4" Padding="9,4" Margin="0,0,8,0">
+                                    <TextBlock x:Name="StreamStatus" Text="Idle" FontFamily="{StaticResource MonoFont}" FontSize="11" Foreground="{StaticResource MutedBrush}"/>
                                 </Border>
-                                <Button x:Name="FullScreenBtn" Content="⛶ Full Screen (F11)" Style="{StaticResource GhostButton}" Padding="10,6" Click="OnToggleFullScreenClick"/>
+                                <Button x:Name="FullScreenBtn" Content="Full Screen (F11)" Style="{StaticResource GhostButton}" Padding="10,5" Click="OnToggleFullScreenClick"/>
                             </StackPanel>
 
                             <WrapPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                <Button x:Name="StreamBtn" Content="▶ Start Stream" Width="126" Style="{StaticResource PrimaryButton}" Padding="10,7" Click="OnToggleStream"/>
-                                <CheckBox x:Name="ControlCheck" Content="Control" Margin="10,0,0,0" Checked="OnControlCheckChanged" Unchecked="OnControlCheckChanged"/>
-                                <CheckBox x:Name="PrivacyCheck" Content="🛡 Privacy" Margin="10,0,0,0" ToolTip="Blank remote screen &amp; lock remote input" Checked="OnPrivacyModeChanged" Unchecked="OnPrivacyModeChanged"/>
-                                <Border Width="1" Height="20" Background="{StaticResource LineBrush}" Margin="10,0"/>
-                                <ComboBox x:Name="MonitorCombo" Width="104" SelectedIndex="0" Margin="0,0,6,0" Background="#0C0F17" Foreground="#F8FAFC" BorderBrush="#23293B" SelectionChanged="OnMonitorSelectionChanged">
-                                    <ComboBoxItem Content="Display 1"/>
+                                <Button x:Name="StreamBtn" Content="Start Stream" Width="118" Style="{StaticResource PrimaryButton}" Padding="10,5" Click="OnToggleStream"/>
+                                <CheckBox x:Name="ControlCheck" Content="Input Control" Margin="12,0,0,0" Checked="OnControlCheckChanged" Unchecked="OnControlCheckChanged"/>
+                                <CheckBox x:Name="PrivacyCheck" Content="Curtain Mode" Margin="12,0,0,0" ToolTip="Blank remote screen &amp; lock physical input" Checked="OnPrivacyModeChanged" Unchecked="OnPrivacyModeChanged"/>
+                                <Border Width="1" Height="18" Background="{StaticResource LineBrush}" Margin="12,0"/>
+                                <ComboBox x:Name="MonitorCombo" Width="108" SelectedIndex="0" Margin="0,0,6,0" Background="{StaticResource FieldBrush}" Foreground="{StaticResource TextBrush}" BorderBrush="{StaticResource LineBrush}" SelectionChanged="OnMonitorSelectionChanged">
+                                    <ComboBoxItem Content="Screen 1" Tag="0"/>
                                 </ComboBox>
-                                <TextBlock Text="FPS:" Foreground="{StaticResource MutedBrush}" VerticalAlignment="Center" Margin="0,0,4,0"/>
-                                <TextBox x:Name="FpsBox" Text="30" Width="46" Margin="0,0,8,0"/>
-                                <TextBlock Text="Q:" Foreground="{StaticResource MutedBrush}" VerticalAlignment="Center" Margin="0,0,4,0"/>
-                                <TextBox x:Name="QualityBox" Text="88" Width="46" Margin="0,0,8,0"/>
-                                <ComboBox x:Name="ScaleBox" Width="112" SelectedIndex="0" Margin="0,0,6,0" Background="#0C0F17" Foreground="#F8FAFC" BorderBrush="#23293B">
+                                <Button x:Name="Screen1Btn" Content="1" Style="{StaticResource SmallPillButton}" Margin="0,0,3,0" ToolTip="Switch to Display 1" Tag="0" Click="OnQuickMonitorSwitchClick"/>
+                                <Button x:Name="Screen2Btn" Content="2" Style="{StaticResource SmallPillButton}" Margin="0,0,3,0" ToolTip="Switch to Display 2" Tag="1" Click="OnQuickMonitorSwitchClick"/>
+                                <Button x:Name="ScreenAllBtn" Content="All" Style="{StaticResource SmallPillButton}" Margin="0,0,6,0" ToolTip="All-in-One Side-by-Side View" Tag="-1" Click="OnQuickMonitorSwitchClick"/>
+                                <Button x:Name="DetachScreenBtn" Content="Detach 2nd" Style="{StaticResource SmallPillButton}" Margin="0,0,8,0" ToolTip="Detach Screen 2 into a separate window on your 2nd local display" Click="OnDetachSecondMonitorClick"/>
+                                <Button x:Name="LaunchRdpBtn" Content="Launch RDP" Style="{StaticResource PrimaryButton}" Padding="10,4" Margin="0,0,8,0" Visibility="Collapsed" Click="OnLaunchAgentlessRdpClick"/>
+                                <TextBlock Text="FPS" FontFamily="{StaticResource MonoFont}" FontSize="11" Foreground="{StaticResource MutedBrush}" VerticalAlignment="Center" Margin="0,0,4,0"/>
+                                <TextBox x:Name="FpsBox" FontFamily="{StaticResource MonoFont}" Text="30" Width="44" Margin="0,0,8,0"/>
+                                <TextBlock Text="JPEG" FontFamily="{StaticResource MonoFont}" FontSize="11" Foreground="{StaticResource MutedBrush}" VerticalAlignment="Center" Margin="0,0,4,0"/>
+                                <TextBox x:Name="QualityBox" FontFamily="{StaticResource MonoFont}" Text="88" Width="44" Margin="0,0,8,0"/>
+                                <ComboBox x:Name="ScaleBox" Width="108" SelectedIndex="0" Margin="0,0,6,0" Background="{StaticResource FieldBrush}" Foreground="{StaticResource TextBrush}" BorderBrush="{StaticResource LineBrush}">
                                     <ComboBoxItem Content="Native" Tag="0"/>
-                                    <ComboBoxItem Content="1080p (Fast)" Tag="1920"/>
-                                    <ComboBoxItem Content="720p (Ultra)" Tag="1280"/>
+                                    <ComboBoxItem Content="1080p" Tag="1920"/>
+                                    <ComboBoxItem Content="720p" Tag="1280"/>
                                 </ComboBox>
-                                <ComboBox x:Name="UpscaleBox" Width="90" SelectedIndex="0" SelectionChanged="OnUpscaleModeChanged" Background="#0C0F17" Foreground="#F8FAFC" BorderBrush="#23293B">
-                                    <ComboBoxItem Content="Sharp+" Tag="cas"/>
-                                    <ComboBoxItem Content="Sharp" Tag="bicubic"/>
-                                    <ComboBoxItem Content="Off" Tag="none"/>
+                                <ComboBox x:Name="UpscaleBox" Width="86" SelectedIndex="0" SelectionChanged="OnUpscaleModeChanged" Background="{StaticResource FieldBrush}" Foreground="{StaticResource TextBrush}" BorderBrush="{StaticResource LineBrush}">
+                                    <ComboBoxItem Content="CAS+" Tag="cas"/>
+                                    <ComboBoxItem Content="Bicubic" Tag="bicubic"/>
+                                    <ComboBoxItem Content="Raw" Tag="none"/>
                                 </ComboBox>
                             </WrapPanel>
                         </DockPanel>
                     </Border>
 
-                    <Border x:Name="ScreenCanvasBorder" Background="#050609" BorderBrush="{StaticResource LineBrush}" BorderThickness="1" CornerRadius="14" ClipToBounds="True">
+                    <Border x:Name="ScreenCanvasBorder" Background="#08090B" BorderBrush="{StaticResource LineBrush}" BorderThickness="1" CornerRadius="6" ClipToBounds="True">
                         <Grid>
                             <Grid x:Name="SharpenHost">
                                 <Image x:Name="ScreenImage" Stretch="Uniform" Focusable="True"
@@ -532,24 +557,28 @@
                             </Canvas>
 
                             <Border x:Name="FullscreenHud" Visibility="Collapsed" HorizontalAlignment="Right" VerticalAlignment="Top"
-                                    Margin="0,14,18,0" Background="#D90E1118" BorderBrush="{StaticResource LineBrush}"
-                                    BorderThickness="1" CornerRadius="10" Padding="12,7">
+                                    Margin="0,12,16,0" Background="#E615171C" BorderBrush="{StaticResource LineBrush}"
+                                    BorderThickness="1" CornerRadius="6" Padding="10,6">
                                 <StackPanel Orientation="Horizontal">
-                                    <TextBlock x:Name="FullscreenHudText" Text="Full Screen" Foreground="#F8FAFC" FontSize="12" VerticalAlignment="Center" Margin="0,0,12,0"/>
+                                    <TextBlock x:Name="FullscreenHudText" Text="FULL SCREEN" FontFamily="{StaticResource MonoFont}" Foreground="{StaticResource TextBrush}" FontSize="11" VerticalAlignment="Center" Margin="0,0,10,0"/>
                                     <Button x:Name="HudUpscaleBtn" Style="{StaticResource SmallPillButton}" Margin="0,0,6,0" Click="OnHudUpscaleClick">
-                                        <TextBlock x:Name="HudUpscaleText" Text="Sharp+"/>
+                                        <TextBlock x:Name="HudUpscaleText" Text="CAS+"/>
                                     </Button>
-                                    <Button Content="📋 Paste" Style="{StaticResource SmallPillButton}" Margin="0,0,6,0" Click="OnSendClipboardClick"/>
-                                    <Button Content="📥 Copy" Style="{StaticResource SmallPillButton}" Margin="0,0,8,0" Click="OnGetClipboardClick"/>
-                                    <Button Content="⛶ Exit (Esc)" Style="{StaticResource SmallPillButton}" Margin="0,0,8,0" Click="OnToggleFullScreenClick"/>
-                                    <Button Content="⏹ Stop" Style="{StaticResource DangerButton}" Padding="10,4" FontSize="11.5" Click="OnToggleStream"/>
+                                    <Button Content="Paste" Style="{StaticResource SmallPillButton}" Margin="0,0,6,0" Click="OnSendClipboardClick"/>
+                                    <Button Content="Copy" Style="{StaticResource SmallPillButton}" Margin="0,0,8,0" Click="OnGetClipboardClick"/>
+                                    <Button Content="Exit (Esc)" Style="{StaticResource SmallPillButton}" Margin="0,0,8,0" Click="OnToggleFullScreenClick"/>
+                                    <Button Content="Stop" Style="{StaticResource DangerButton}" Padding="10,4" FontSize="11" Click="OnToggleStream"/>
                                 </StackPanel>
                             </Border>
 
                             <StackPanel x:Name="DesktopOverlay" HorizontalAlignment="Center" VerticalAlignment="Center">
-                                <TextBlock Text="🖥️  Remote Desktop Canvas" FontSize="18" FontWeight="Bold" HorizontalAlignment="Center"/>
-                                <TextBlock Text="Click 'Start Stream' above or press F11 for Full Screen. Consent prompt appears on the target PC."
-                                           Foreground="{StaticResource MutedBrush}" FontSize="12.5" HorizontalAlignment="Center" Margin="0,6,0,0"/>
+                                <Border Width="42" Height="42" CornerRadius="6" Background="{StaticResource SurfaceBrush}"
+                                        BorderBrush="{StaticResource LineBrush}" BorderThickness="1" Margin="0,0,0,12" HorizontalAlignment="Center">
+                                    <Path Style="{StaticResource VectorIcon}" Data="{StaticResource GeoDesktop}" Stroke="{StaticResource MutedBrush}" Width="18" Height="18" HorizontalAlignment="Center"/>
+                                </Border>
+                                <TextBlock Text="Remote Desktop Session Standby" FontSize="14" FontWeight="SemiBold" HorizontalAlignment="Center"/>
+                                <TextBlock Text="Click 'Start Stream' or press F11 for Full Screen. Stream routes through Central Hub mTLS."
+                                           Foreground="{StaticResource MutedBrush}" FontSize="12" HorizontalAlignment="Center" Margin="0,4,0,0"/>
                             </StackPanel>
                         </Grid>
                     </Border>
@@ -557,68 +586,68 @@
 
                 <!-- ==================== 3. MONITOR & INVENTORY VIEW ==================== -->
                 <DockPanel x:Name="InventoryPanel" Visibility="Collapsed">
-                    <UniformGrid DockPanel.Dock="Top" Columns="4" Margin="0,0,0,14">
-                        <Border Style="{StaticResource CardStyle}" Margin="0,0,8,0">
+                    <UniformGrid DockPanel.Dock="Top" Columns="4" Margin="0,0,0,10">
+                        <Border Style="{StaticResource CardStyle}" Margin="0,0,6,0">
                             <StackPanel>
                                 <TextBlock Text="PROCESSOR" Style="{StaticResource Caption}"/>
                                 <TextBlock x:Name="CpuValueText" Text="—" Style="{StaticResource ValueText}" TextTrimming="CharacterEllipsis"/>
-                                <TextBlock x:Name="CpuSubText" Text="Connect to inspect" FontSize="11.5" Foreground="{StaticResource MutedBrush}" Margin="0,4,0,0"/>
+                                <TextBlock x:Name="CpuSubText" Text="Connect to inspect" FontFamily="{StaticResource MonoFont}" FontSize="11" Foreground="{StaticResource MutedBrush}" Margin="0,3,0,0"/>
                             </StackPanel>
                         </Border>
-                        <Border Style="{StaticResource CardStyle}" Margin="4,0,4,0">
+                        <Border Style="{StaticResource CardStyle}" Margin="3,0,3,0">
                             <StackPanel>
                                 <TextBlock Text="MEMORY" Style="{StaticResource Caption}"/>
-                                <TextBlock x:Name="RamValueText" Text="—" Style="{StaticResource ValueText}"/>
-                                <TextBlock x:Name="RamSubText" Text="RAM &amp; processes" FontSize="11.5" Foreground="{StaticResource MutedBrush}" Margin="0,4,0,0"/>
+                                <TextBlock x:Name="RamValueText" Text="—" FontFamily="{StaticResource MonoFont}" Style="{StaticResource ValueText}"/>
+                                <TextBlock x:Name="RamSubText" Text="RAM &amp; active processes" FontFamily="{StaticResource MonoFont}" FontSize="11" Foreground="{StaticResource MutedBrush}" Margin="0,3,0,0"/>
                             </StackPanel>
                         </Border>
-                        <Border Style="{StaticResource CardStyle}" Margin="4,0,4,0">
+                        <Border Style="{StaticResource CardStyle}" Margin="3,0,3,0">
                             <StackPanel>
                                 <TextBlock Text="GRAPHICS" Style="{StaticResource Caption}"/>
                                 <TextBlock x:Name="GpuValueText" Text="—" Style="{StaticResource ValueText}" TextTrimming="CharacterEllipsis"/>
-                                <TextBlock x:Name="GpuSubText" Text="Display adapter" FontSize="11.5" Foreground="{StaticResource MutedBrush}" Margin="0,4,0,0"/>
+                                <TextBlock x:Name="GpuSubText" Text="Display adapter" FontFamily="{StaticResource MonoFont}" FontSize="11" Foreground="{StaticResource MutedBrush}" Margin="0,3,0,0"/>
                             </StackPanel>
                         </Border>
-                        <Border Style="{StaticResource CardStyle}" Margin="8,0,0,0">
+                        <Border Style="{StaticResource CardStyle}" Margin="6,0,0,0">
                             <StackPanel>
                                 <TextBlock Text="STORAGE" Style="{StaticResource Caption}"/>
-                                <TextBlock x:Name="DiskValueText" Text="—" Style="{StaticResource ValueText}" TextTrimming="CharacterEllipsis"/>
-                                <TextBlock x:Name="DiskSubText" Text="Fixed drives" FontSize="11.5" Foreground="{StaticResource MutedBrush}" Margin="0,4,0,0" TextTrimming="CharacterEllipsis"/>
+                                <TextBlock x:Name="DiskValueText" Text="—" FontFamily="{StaticResource MonoFont}" Style="{StaticResource ValueText}" TextTrimming="CharacterEllipsis"/>
+                                <TextBlock x:Name="DiskSubText" Text="Fixed drives" FontFamily="{StaticResource MonoFont}" FontSize="11" Foreground="{StaticResource MutedBrush}" Margin="0,3,0,0" TextTrimming="CharacterEllipsis"/>
                             </StackPanel>
                         </Border>
                     </UniformGrid>
 
-                    <DockPanel DockPanel.Dock="Top" Margin="0,0,0,12">
-                        <Button x:Name="RefreshInvBtn" DockPanel.Dock="Right" Content="↻ Refresh" Style="{StaticResource PrimaryButton}" Click="OnRefreshInventory" Padding="14,7"/>
-                        <TextBlock x:Name="InventoryTimestampText" DockPanel.Dock="Right" Text="" Foreground="{StaticResource MutedBrush}" FontSize="11.5" VerticalAlignment="Center" Margin="0,0,14,0"/>
+                    <DockPanel DockPanel.Dock="Top" Margin="0,0,0,10">
+                        <Button x:Name="RefreshInvBtn" DockPanel.Dock="Right" Content="Refresh Inventory" Style="{StaticResource PrimaryButton}" Click="OnRefreshInventory" Padding="12,6"/>
+                        <TextBlock x:Name="InventoryTimestampText" DockPanel.Dock="Right" Text="" FontFamily="{StaticResource MonoFont}" Foreground="{StaticResource MutedBrush}" FontSize="11" VerticalAlignment="Center" Margin="0,0,12,0"/>
                         <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                            <TextBlock Text="Filter:" Foreground="{StaticResource MutedBrush}" VerticalAlignment="Center" Margin="0,0,10,0"/>
-                            <TextBox x:Name="SearchBox" Width="300" TextChanged="OnSearchChanged"/>
+                            <TextBlock Text="FILTER" Style="{StaticResource Caption}" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                            <TextBox x:Name="SearchBox" Width="280" TextChanged="OnSearchChanged"/>
                         </StackPanel>
                     </DockPanel>
 
                     <Grid>
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="1.15*"/>
-                            <ColumnDefinition Width="14"/>
+                            <ColumnDefinition Width="10"/>
                             <ColumnDefinition Width="0.85*"/>
                         </Grid.ColumnDefinitions>
 
                         <Border Grid.Column="0" Style="{StaticResource CardStyle}" Padding="0">
                             <DockPanel>
-                                <Border DockPanel.Dock="Top" Padding="14,10" BorderBrush="{StaticResource LineBrush}" BorderThickness="0,0,0,1">
+                                <Border DockPanel.Dock="Top" Padding="12,8" BorderBrush="{StaticResource LineBrush}" BorderThickness="0,0,0,1">
                                     <DockPanel>
-                                        <Border DockPanel.Dock="Right" Background="#1F38BDF8" CornerRadius="6" Padding="8,2">
-                                            <TextBlock x:Name="AppsCountText" Text="0 apps" FontSize="11" FontWeight="SemiBold" Foreground="{StaticResource AccentBrush}"/>
+                                        <Border DockPanel.Dock="Right" Background="#183B82F6" CornerRadius="4" Padding="7,2">
+                                            <TextBlock x:Name="AppsCountText" Text="0 apps" FontFamily="{StaticResource MonoFont}" FontSize="10.5" FontWeight="SemiBold" Foreground="{StaticResource AccentBrush}"/>
                                         </Border>
                                         <TextBlock Text="INSTALLED APPLICATIONS" Style="{StaticResource Caption}" Margin="0"/>
                                     </DockPanel>
                                 </Border>
                                 <DataGrid x:Name="AppsGrid">
                                     <DataGrid.Columns>
-                                        <DataGridTextColumn Header="Application" Binding="{Binding Name}" Width="2*"/>
-                                        <DataGridTextColumn Header="Version" Binding="{Binding Version}" Width="110"/>
-                                        <DataGridTextColumn Header="Publisher" Binding="{Binding Publisher}" Width="1.2*"/>
+                                        <DataGridTextColumn Header="APPLICATION" Binding="{Binding Name}" Width="2*"/>
+                                        <DataGridTextColumn Header="VERSION" Binding="{Binding Version}" Width="110" FontFamily="{StaticResource MonoFont}"/>
+                                        <DataGridTextColumn Header="PUBLISHER" Binding="{Binding Publisher}" Width="1.2*"/>
                                     </DataGrid.Columns>
                                 </DataGrid>
                             </DockPanel>
@@ -626,12 +655,12 @@
 
                         <Border Grid.Column="2" Style="{StaticResource CardStyle}" Padding="0">
                             <DockPanel>
-                                <Border DockPanel.Dock="Top" Padding="14,10" BorderBrush="{StaticResource LineBrush}" BorderThickness="0,0,0,1">
+                                <Border DockPanel.Dock="Top" Padding="12,8" BorderBrush="{StaticResource LineBrush}" BorderThickness="0,0,0,1">
                                     <DockPanel>
                                         <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
-                                            <Button Content="✕ End Process" Style="{StaticResource SmallPillButton}" Margin="0,0,8,0" Click="OnKillSelectedProcessClick"/>
-                                            <Border Background="#1F10B981" CornerRadius="6" Padding="8,2" VerticalAlignment="Center">
-                                                <TextBlock x:Name="ProcsCountText" Text="0 procs" FontSize="11" FontWeight="SemiBold" Foreground="#34D399"/>
+                                            <Button Content="Terminate Process" Style="{StaticResource SmallPillButton}" Margin="0,0,8,0" Click="OnKillSelectedProcessClick"/>
+                                            <Border Background="#1810B981" CornerRadius="4" Padding="7,2" VerticalAlignment="Center">
+                                                <TextBlock x:Name="ProcsCountText" Text="0 procs" FontFamily="{StaticResource MonoFont}" FontSize="10.5" FontWeight="SemiBold" Foreground="{StaticResource OkBrush}"/>
                                             </Border>
                                         </StackPanel>
                                         <TextBlock Text="RUNNING PROCESSES" Style="{StaticResource Caption}" Margin="0" VerticalAlignment="Center"/>
@@ -639,9 +668,9 @@
                                 </Border>
                                 <DataGrid x:Name="ProcGrid">
                                     <DataGrid.Columns>
-                                        <DataGridTextColumn Header="PID" Binding="{Binding Pid}" Width="68"/>
-                                        <DataGridTextColumn Header="Name" Binding="{Binding Name}" Width="*"/>
-                                        <DataGridTextColumn Header="RAM (MB)" Binding="{Binding MemoryMb}" Width="88"/>
+                                        <DataGridTextColumn Header="PID" Binding="{Binding Pid}" Width="68" FontFamily="{StaticResource MonoFont}"/>
+                                        <DataGridTextColumn Header="PROCESS" Binding="{Binding Name}" Width="*"/>
+                                        <DataGridTextColumn Header="RAM (MB)" Binding="{Binding MemoryMb}" Width="88" FontFamily="{StaticResource MonoFont}"/>
                                     </DataGrid.Columns>
                                 </DataGrid>
                             </DockPanel>
@@ -651,11 +680,11 @@
 
                 <!-- ==================== 4. REMOTE SHELL VIEW ==================== -->
                 <DockPanel x:Name="ShellPanel" Visibility="Collapsed">
-                    <Border DockPanel.Dock="Top" Style="{StaticResource CardStyle}" Padding="14,10" Margin="0,0,0,12">
+                    <Border DockPanel.Dock="Top" Style="{StaticResource CardStyle}" Padding="12,8" Margin="0,0,0,10">
                         <DockPanel>
-                            <Button DockPanel.Dock="Right" Content="Clear" Style="{StaticResource SmallPillButton}" Click="OnClearShellClick"/>
+                            <Button DockPanel.Dock="Right" Content="Clear Buffer" Style="{StaticResource SmallPillButton}" Click="OnClearShellClick"/>
                             <WrapPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                <TextBlock Text="QUICK:" Style="{StaticResource Caption}" VerticalAlignment="Center" Margin="0,0,10,0"/>
+                                <TextBlock Text="PRESETS:" Style="{StaticResource Caption}" VerticalAlignment="Center" Margin="0,0,10,0"/>
                                 <Button Content="whoami" Tag="whoami; hostname; $PSVersionTable.PSVersion.ToString()" Style="{StaticResource SmallPillButton}" Margin="0,0,6,0" Click="OnQuickCommandClick"/>
                                 <Button Content="IP Config" Tag="Get-NetIPAddress -AddressFamily IPv4 | Select-Object InterfaceAlias, IPAddress | Format-Table -AutoSize" Style="{StaticResource SmallPillButton}" Margin="0,0,6,0" Click="OnQuickCommandClick"/>
                                 <Button Content="Top CPU" Tag="Get-Process | Sort-Object CPU -Descending | Select-Object -First 10 Id, ProcessName, @{N='CPU(s)';E={[math]::Round($_.CPU,1)}}, @{N='RAM(MB)';E={[math]::Round($_.WorkingSet64/1MB,1)}} | Format-Table -AutoSize" Style="{StaticResource SmallPillButton}" Margin="0,0,6,0" Click="OnQuickCommandClick"/>
@@ -665,104 +694,130 @@
                         </DockPanel>
                     </Border>
 
-                    <Border DockPanel.Dock="Bottom" Style="{StaticResource CardStyle}" Padding="10" Margin="0,12,0,0">
+                    <Border DockPanel.Dock="Bottom" Style="{StaticResource CardStyle}" Padding="8" Margin="0,10,0,0">
                         <DockPanel>
-                            <Button x:Name="ShellSendBtn" DockPanel.Dock="Right" Content="Run" Width="110" Style="{StaticResource PrimaryButton}" Margin="10,0,0,0" Click="OnShellSend"/>
-                            <Border DockPanel.Dock="Left" Background="#172033" CornerRadius="7" Padding="10,6" Margin="0,0,10,0">
-                                <TextBlock Text="PS &gt;" FontFamily="Cascadia Mono, Consolas" FontWeight="Bold" Foreground="{StaticResource AccentBrush}" VerticalAlignment="Center"/>
+                            <Button x:Name="ShellSendBtn" DockPanel.Dock="Right" Content="Execute" Width="100" Style="{StaticResource PrimaryButton}" Margin="8,0,0,0" Click="OnShellSend"/>
+                            <Border DockPanel.Dock="Left" Background="{StaticResource SurfaceBrush}" BorderBrush="{StaticResource LineBrush}" BorderThickness="1" CornerRadius="4" Padding="9,5" Margin="0,0,8,0">
+                                <TextBlock Text="PS &gt;" FontFamily="{StaticResource MonoFont}" FontSize="11.5" FontWeight="SemiBold" Foreground="{StaticResource AccentBrush}" VerticalAlignment="Center"/>
                             </Border>
-                            <TextBox x:Name="ShellInputBox" FontFamily="Cascadia Mono, Consolas" FontSize="13" KeyDown="OnShellInputKeyDown"/>
+                            <TextBox x:Name="ShellInputBox" FontFamily="{StaticResource MonoFont}" FontSize="12.5" KeyDown="OnShellInputKeyDown"/>
                         </DockPanel>
                     </Border>
 
-                    <Border Background="#07090F" BorderBrush="{StaticResource LineBrush}" BorderThickness="1" CornerRadius="14" Padding="4">
-                        <TextBox x:Name="ShellOutput" IsReadOnly="True" Background="Transparent" Foreground="#E2E8F0" BorderThickness="0" Padding="14,12"
-                                 FontFamily="Cascadia Mono, Consolas" FontSize="12.5" VerticalScrollBarVisibility="Auto" TextWrapping="Wrap" AcceptsReturn="True"/>
+                    <Border Background="{StaticResource FieldBrush}" BorderBrush="{StaticResource LineBrush}" BorderThickness="1" CornerRadius="6" Padding="2">
+                        <TextBox x:Name="ShellOutput" IsReadOnly="True" Background="Transparent" Foreground="#E2E8F0" BorderThickness="0" Padding="12,10"
+                                 FontFamily="{StaticResource MonoFont}" FontSize="12" VerticalScrollBarVisibility="Auto" TextWrapping="Wrap" AcceptsReturn="True"/>
                     </Border>
                 </DockPanel>
 
-                <!-- ==================== 5. SILENT DEPLOY VIEW ==================== -->
+                <!-- ==================== 5. WINSTALL-STYLE VISUAL DEPLOY VIEW ==================== -->
                 <DockPanel x:Name="DeployPanel" Visibility="Collapsed" AllowDrop="True" PreviewDragOver="OnDeployDragOver" Drop="OnDeployFileDrop">
-                    <Border DockPanel.Dock="Top" Style="{StaticResource CardStyle}" Padding="18,16" Margin="0,0,0,14">
+                    <!-- Top Search, Packs, & Deploy Queue Bar -->
+                    <Border DockPanel.Dock="Top" Style="{StaticResource CardStyle}" Padding="14,10" Margin="0,0,0,10">
                         <StackPanel>
-                            <DockPanel Margin="0,0,0,12">
-                                <Border DockPanel.Dock="Right" Background="#1F38BDF8" CornerRadius="6" Padding="10,3">
-                                    <TextBlock x:Name="DeployStatusBadge" Text="Ready" FontSize="11.5" FontWeight="SemiBold" Foreground="{StaticResource AccentBrush}"/>
-                                </Border>
+                            <DockPanel Margin="0,0,0,8">
+                                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
+                                    <Border Background="#183B82F6" CornerRadius="4" Padding="8,3" Margin="0,0,8,0">
+                                        <TextBlock x:Name="DeployStatusBadge" Text="READY" FontFamily="{StaticResource MonoFont}" FontSize="10.5" FontWeight="SemiBold" Foreground="{StaticResource AccentBrush}"/>
+                                    </Border>
+                                    <Button x:Name="WingetDeploySelectedBtn" Content="Deploy Selected (0)" Style="{StaticResource PrimaryButton}" Padding="12,5" Click="OnDeploySelectedWingetClick"/>
+                                </StackPanel>
                                 <StackPanel>
-                                    <TextBlock Text="SILENT DEPLOY &amp; SCRIPT RUNNER (.EXE / .MSI / .MSP / .PS1 / .CMD / .BAT)" Style="{StaticResource Caption}" Margin="0,0,0,3"/>
-                                    <TextBlock Text="Drag &amp; drop any installer or script (.cmd / .bat / .ps1) here, or upload to run it silently over mTLS." FontSize="12" Foreground="{StaticResource MutedBrush}"/>
+                                    <TextBlock Text="VISUAL SOFTWARE CATALOG (WINGET) &amp; PACKAGE DEPLOYMENT" Style="{StaticResource Caption}" Margin="0,0,0,2"/>
+                                    <TextBlock Text="Select applications or preset packs, or drop .exe / .msi / .ps1 files to execute silently on the endpoint." FontSize="11.5" Foreground="{StaticResource MutedBrush}"/>
                                 </StackPanel>
                             </DockPanel>
 
-                            <Grid Margin="0,0,0,12">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="2*"/>
-                                    <ColumnDefinition Width="10"/>
-                                    <ColumnDefinition Width="Auto"/>
-                                    <ColumnDefinition Width="8"/>
-                                    <ColumnDefinition Width="Auto"/>
-                                    <ColumnDefinition Width="14"/>
-                                    <ColumnDefinition Width="1.2*"/>
-                                    <ColumnDefinition Width="14"/>
-                                    <ColumnDefinition Width="Auto"/>
-                                </Grid.ColumnDefinitions>
-                                <StackPanel Grid.Column="0">
-                                    <TextBlock Text="Installer or Script File" FontSize="11" Foreground="{StaticResource MutedBrush}" Margin="0,0,0,4"/>
-                                    <TextBox x:Name="DeployFilePathBox"/>
-                                </StackPanel>
-                                <Button Grid.Column="2" Content="📂 Browse…" Style="{StaticResource GhostButton}" VerticalAlignment="Bottom" Click="OnBrowseDeployFileClick"/>
-                                <Button Grid.Column="4" Content="📜 Run Script…" Style="{StaticResource GhostButton}" VerticalAlignment="Bottom" ToolTip="Upload a .cmd, .bat, or .ps1 script and run it silently" Click="OnUploadAndRunScriptClick"/>
-                                <StackPanel Grid.Column="6">
-                                    <TextBlock Text="Silent Flags / Script Args (AUTO)" FontSize="11" Foreground="{StaticResource MutedBrush}" Margin="0,0,0,4"/>
-                                    <TextBox x:Name="DeployArgsBox" Text="AUTO"/>
-                                </StackPanel>
-                                <Button x:Name="DeployRunBtn" Grid.Column="8" Content="🚀 Run / Install Silently" Style="{StaticResource PrimaryButton}" VerticalAlignment="Bottom" Click="OnStartDeployClick"/>
-                            </Grid>
-
-                            <WrapPanel>
-                                <Button Content="AUTO" Tag="AUTO" Style="{StaticResource SmallPillButton}" Margin="0,0,6,0" Click="OnDeployPresetFlagClick"/>
-                                <Button Content="NSIS (/S)" Tag="/S" Style="{StaticResource SmallPillButton}" Margin="0,0,6,0" Click="OnDeployPresetFlagClick"/>
-                                <Button Content="Inno (/VERYSILENT)" Tag="/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /SP-" Style="{StaticResource SmallPillButton}" Margin="0,0,6,0" Click="OnDeployPresetFlagClick"/>
-                                <Button Content="MSI (/qn /norestart)" Tag="/qn /norestart" Style="{StaticResource SmallPillButton}" Margin="0,0,6,0" Click="OnDeployPresetFlagClick"/>
-                                <Button Content="WiX (/quiet /norestart)" Tag="/quiet /norestart" Style="{StaticResource SmallPillButton}" Click="OnDeployPresetFlagClick"/>
+                            <WrapPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                <TextBox x:Name="WingetSearchBox" Width="210" Margin="0,0,6,0" ToolTip="Search cached + live Winget catalog" TextChanged="OnWingetSearchChanged"/>
+                                <Button Content="Search Live" Style="{StaticResource GhostButton}" Padding="10,5" Margin="0,0,10,0" Click="OnWingetLiveSearchClick"/>
+                                <ComboBox x:Name="WingetPackCombo" Width="165" SelectedIndex="0" Margin="0,0,6,0" Background="{StaticResource FieldBrush}" Foreground="{StaticResource TextBrush}" BorderBrush="{StaticResource LineBrush}"/>
+                                <Button Content="Load Pack" Style="{StaticResource SmallPillButton}" Margin="0,0,4,0" Click="OnApplyWingetPackClick"/>
+                                <Button Content="Save Pack" Style="{StaticResource SmallPillButton}" Margin="0,0,4,0" Click="OnSaveWingetPackClick"/>
+                                <Button Content="Import IDs" Style="{StaticResource SmallPillButton}" Margin="0,0,10,0" Click="OnImportWingetIdsClick"/>
+                                <CheckBox x:Name="WingetSilentCheck" Content="Silent" IsChecked="True" Margin="0,0,8,0"/>
+                                <CheckBox x:Name="WingetMachineScopeCheck" Content="Machine Scope" IsChecked="True" Margin="0,0,8,0"/>
+                                <CheckBox x:Name="WingetUpgradeCheck" Content="Upgrade if installed" IsChecked="True"/>
                             </WrapPanel>
                         </StackPanel>
                     </Border>
 
-                    <Border DockPanel.Dock="Top" Style="{StaticResource CardStyle}" Padding="14,10" Margin="0,0,0,14">
+                    <!-- Bottom Live Execution Log & Custom File Drop Bar -->
+                    <Border DockPanel.Dock="Bottom" Style="{StaticResource CardStyle}" Padding="10" Margin="0,10,0,0" Height="175">
                         <DockPanel>
-                            <Button DockPanel.Dock="Right" Content="Clear" Style="{StaticResource SmallPillButton}" Click="OnClearDeployLogClick"/>
-                            <WrapPanel VerticalAlignment="Center">
-                                <TextBlock Text="WINGET 1-CLICK:" Style="{StaticResource Caption}" VerticalAlignment="Center" Margin="0,0,10,0"/>
-                                <Button Content="7-Zip" Tag="7zip.7zip" Style="{StaticResource SmallPillButton}" Margin="0,0,6,0" Click="OnWingetQuickInstallClick"/>
-                                <Button Content="Chrome" Tag="Google.Chrome" Style="{StaticResource SmallPillButton}" Margin="0,0,6,0" Click="OnWingetQuickInstallClick"/>
-                                <Button Content="Firefox" Tag="Mozilla.Firefox" Style="{StaticResource SmallPillButton}" Margin="0,0,6,0" Click="OnWingetQuickInstallClick"/>
-                                <Button Content="VLC" Tag="VideoLAN.VLC" Style="{StaticResource SmallPillButton}" Margin="0,0,6,0" Click="OnWingetQuickInstallClick"/>
-                                <Button Content="Notepad++" Tag="Notepad++.Notepad++" Style="{StaticResource SmallPillButton}" Margin="0,0,6,0" Click="OnWingetQuickInstallClick"/>
-                                <Button Content="VS Code" Tag="Microsoft.VisualStudioCode" Style="{StaticResource SmallPillButton}" Click="OnWingetQuickInstallClick"/>
-                            </WrapPanel>
+                            <DockPanel DockPanel.Dock="Top" Margin="0,0,0,6">
+                                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                                    <TextBox x:Name="DeployFilePathBox" Width="200" FontFamily="{StaticResource MonoFont}" FontSize="11" Margin="0,0,6,0" ToolTip="Custom .exe / .msi / .ps1 path"/>
+                                    <TextBox x:Name="DeployArgsBox" Width="90" FontFamily="{StaticResource MonoFont}" FontSize="11" Text="AUTO" Margin="0,0,6,0"/>
+                                    <Button Content="Browse" Style="{StaticResource SmallPillButton}" Margin="0,0,4,0" Click="OnBrowseDeployFileClick"/>
+                                    <Button x:Name="DeployRunBtn" Content="Run File" Style="{StaticResource SmallPillButton}" Margin="0,0,4,0" Click="OnStartDeployClick"/>
+                                    <Button Content="Run Script" Style="{StaticResource SmallPillButton}" Margin="0,0,4,0" Click="OnUploadAndRunScriptClick"/>
+                                    <Button Content="Clear" Style="{StaticResource SmallPillButton}" Click="OnClearDeployLogClick"/>
+                                </StackPanel>
+                                <TextBlock Text="DEPLOYMENT QUEUE &amp; LIVE LOG" Style="{StaticResource Caption}" VerticalAlignment="Center" Margin="0"/>
+                            </DockPanel>
+                            <TextBox x:Name="DeployOutputBox" IsReadOnly="True" Background="{StaticResource FieldBrush}" Foreground="#E2E8F0" BorderBrush="{StaticResource LineBrush}" BorderThickness="1" Padding="10,8"
+                                     FontFamily="{StaticResource MonoFont}" FontSize="11.5" VerticalScrollBarVisibility="Auto" TextWrapping="Wrap" AcceptsReturn="True"/>
                         </DockPanel>
                     </Border>
 
-                    <Border Background="#07090F" BorderBrush="{StaticResource LineBrush}" BorderThickness="1" CornerRadius="14" Padding="4">
-                        <TextBox x:Name="DeployOutputBox" IsReadOnly="True" Background="Transparent" Foreground="#E2E8F0" BorderThickness="0" Padding="14,12"
-                                 FontFamily="Cascadia Mono, Consolas" FontSize="12.5" VerticalScrollBarVisibility="Auto" TextWrapping="Wrap" AcceptsReturn="True"/>
-                    </Border>
+                    <!-- Winstall-Style App Cards Grid -->
+                    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                        <ItemsControl x:Name="WingetCatalogList">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <WrapPanel Orientation="Horizontal"/>
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Border Width="236" Margin="0,0,10,10" Padding="12,10" Background="{StaticResource CardBrush}"
+                                            BorderBrush="{StaticResource LineBrush}" BorderThickness="1" CornerRadius="6">
+                                        <StackPanel>
+                                            <DockPanel Margin="0,0,0,6">
+                                                <CheckBox DockPanel.Dock="Right" IsChecked="{Binding IsSelected, Mode=TwoWay}" VerticalAlignment="Top" Click="OnWingetCardSelectionChanged"/>
+                                                <Border Width="30" Height="30" CornerRadius="5" Background="#111317" BorderBrush="{StaticResource LineBrush}" BorderThickness="1" Margin="0,0,9,0" DockPanel.Dock="Left">
+                                                    <Grid>
+                                                        <TextBlock Text="{Binding Monogram}" FontFamily="{StaticResource MonoFont}" FontSize="10" FontWeight="Bold" Foreground="{StaticResource AccentBrush}" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                                        <Image Source="{Binding IconUrl}" Width="18" Height="18" Stretch="Uniform" RenderOptions.BitmapScalingMode="HighQuality"/>
+                                                    </Grid>
+                                                </Border>
+                                                <StackPanel VerticalAlignment="Center">
+                                                    <TextBlock Text="{Binding Name}" FontSize="12.5" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"/>
+                                                    <TextBlock Text="{Binding Publisher}" FontSize="10.5" Foreground="{StaticResource MutedBrush}" TextTrimming="CharacterEllipsis"/>
+                                                </StackPanel>
+                                            </DockPanel>
+                                            <TextBlock Text="{Binding Description}" FontSize="11" Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" Height="30" TextTrimming="CharacterEllipsis" Margin="0,0,0,8"/>
+                                            <DockPanel>
+                                                <Border DockPanel.Dock="Right" Background="#163B82F6" CornerRadius="3" Padding="6,2">
+                                                    <TextBlock Text="{Binding StatusLabel}" FontFamily="{StaticResource MonoFont}" FontSize="9.5" Foreground="{StaticResource TextBrush}"/>
+                                                </Border>
+                                                <TextBlock FontFamily="{StaticResource MonoFont}" FontSize="10" Foreground="{StaticResource MutedBrush}" VerticalAlignment="Center">
+                                                    <Run Text="{Binding Category, Mode=OneWay}"/>
+                                                    <Run Text=" · "/>
+                                                    <Run Text="{Binding Version, Mode=OneWay}"/>
+                                                </TextBlock>
+                                            </DockPanel>
+                                        </StackPanel>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </ScrollViewer>
                 </DockPanel>
 
                 <!-- ==================== 6. WINDOWS 11 SETTINGS & UPDATES VIEW ==================== -->
                 <Grid x:Name="SystemPanel" Visibility="Collapsed">
                     <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="228"/>
-                        <ColumnDefinition Width="14"/>
+                        <ColumnDefinition Width="216"/>
+                        <ColumnDefinition Width="10"/>
                         <ColumnDefinition Width="*"/>
                     </Grid.ColumnDefinitions>
 
-                    <Border Grid.Column="0" Style="{StaticResource CardStyle}" Padding="12">
+                    <Border Grid.Column="0" Style="{StaticResource CardStyle}" Padding="10">
                         <DockPanel>
-                            <StackPanel DockPanel.Dock="Top" Margin="0,0,0,12">
-                                <TextBlock Text="WINDOWS SETTINGS" Style="{StaticResource Caption}" Margin="2,0,0,6"/>
+                            <StackPanel DockPanel.Dock="Top" Margin="0,0,0,10">
+                                <TextBlock Text="SYSTEM CATEGORIES" Style="{StaticResource Caption}" Margin="2,0,0,6"/>
                                 <TextBox x:Name="SettingsSearchBox" TextChanged="OnSettingsSearchChanged"/>
                             </StackPanel>
                             <ScrollViewer VerticalScrollBarVisibility="Auto">
@@ -772,47 +827,47 @@
                     </Border>
 
                     <DockPanel Grid.Column="2" LastChildFill="True">
-                        <Border DockPanel.Dock="Top" Style="{StaticResource CardStyle}" Padding="16,12" Margin="0,0,0,12">
+                        <Border DockPanel.Dock="Top" Style="{StaticResource CardStyle}" Padding="14,10" Margin="0,0,0,10">
                             <DockPanel>
-                                <Border x:Name="SystemAdminBadge" DockPanel.Dock="Right" Background="#24F59E0B" CornerRadius="6" Padding="10,4" VerticalAlignment="Center">
-                                    <TextBlock x:Name="SystemAdminText" Text="⚠ Agent: Standard User" FontSize="11.5" FontWeight="SemiBold" Foreground="#FBBF24"/>
+                                <Border x:Name="SystemAdminBadge" DockPanel.Dock="Right" Background="#1FF59E0B" CornerRadius="4" Padding="8,3" VerticalAlignment="Center">
+                                    <TextBlock x:Name="SystemAdminText" Text="AGENT: STANDARD USER" FontFamily="{StaticResource MonoFont}" FontSize="10.5" FontWeight="SemiBold" Foreground="#FBBF24"/>
                                 </Border>
                                 <StackPanel>
-                                    <TextBlock x:Name="Win11PageTitle" Text="Home" FontSize="18" FontWeight="Bold"/>
-                                    <TextBlock x:Name="Win11PageSubtitle" Text="Device overview and remote settings" FontSize="12" Foreground="{StaticResource MutedBrush}" Margin="0,2,0,0"/>
+                                    <TextBlock x:Name="Win11PageTitle" Text="Home" FontSize="15" FontWeight="SemiBold"/>
+                                    <TextBlock x:Name="Win11PageSubtitle" Text="Device overview and remote settings" FontSize="11.5" Foreground="{StaticResource MutedBrush}" Margin="0,2,0,0"/>
                                 </StackPanel>
                             </DockPanel>
                         </Border>
 
-                        <Border DockPanel.Dock="Top" Style="{StaticResource CardStyle}" Padding="14,10" Margin="0,0,0,12">
+                        <Border DockPanel.Dock="Top" Style="{StaticResource CardStyle}" Padding="12,8" Margin="0,0,0,10">
                             <Grid>
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="1.4*"/>
-                                    <ColumnDefinition Width="12"/>
+                                    <ColumnDefinition Width="10"/>
                                     <ColumnDefinition Width="1*"/>
                                 </Grid.ColumnDefinitions>
                                 <StackPanel Grid.Column="0">
                                     <TextBlock x:Name="SystemTargetLabel" Text="Target" FontSize="11" Foreground="{StaticResource MutedBrush}" Margin="0,0,0,4"/>
-                                    <TextBox x:Name="SystemTargetBox"/>
+                                    <TextBox x:Name="SystemTargetBox" FontFamily="{StaticResource MonoFont}"/>
                                 </StackPanel>
                                 <StackPanel Grid.Column="2">
                                     <TextBlock x:Name="SystemExtraLabel" Text="Extra" FontSize="11" Foreground="{StaticResource MutedBrush}" Margin="0,0,0,4"/>
-                                    <TextBox x:Name="SystemExtraBox"/>
+                                    <TextBox x:Name="SystemExtraBox" FontFamily="{StaticResource MonoFont}"/>
                                 </StackPanel>
                             </Grid>
                         </Border>
 
-                        <Border DockPanel.Dock="Bottom" Background="#07090F" BorderBrush="{StaticResource LineBrush}" BorderThickness="1" CornerRadius="14" Padding="4" Height="210" Margin="0,12,0,0">
+                        <Border DockPanel.Dock="Bottom" Background="{StaticResource FieldBrush}" BorderBrush="{StaticResource LineBrush}" BorderThickness="1" CornerRadius="6" Padding="4" Height="200" Margin="0,10,0,0">
                             <DockPanel>
-                                <DockPanel DockPanel.Dock="Top" Margin="12,8,12,6">
+                                <DockPanel DockPanel.Dock="Top" Margin="10,6,10,6">
                                     <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
-                                        <TextBlock Text="Filter:" Foreground="{StaticResource MutedBrush}" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                                        <TextBlock Text="FILTER" Style="{StaticResource Caption}" VerticalAlignment="Center" Margin="0,0,8,0"/>
                                         <TextBox x:Name="SystemFilterBox" Width="170" TextChanged="OnSystemFilterChanged"/>
                                     </StackPanel>
-                                    <TextBlock x:Name="SystemMessageText" Text="Click any setting action above to execute on the remote PC." Foreground="{StaticResource MutedBrush}" FontSize="12" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+                                    <TextBlock x:Name="SystemMessageText" Text="Select any operation above to execute on the endpoint." FontFamily="{StaticResource MonoFont}" Foreground="{StaticResource MutedBrush}" FontSize="11.5" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
                                 </DockPanel>
-                                <TextBlock x:Name="SystemHeaderText" DockPanel.Dock="Top" FontFamily="Cascadia Mono, Consolas" FontSize="12" FontWeight="Bold" Foreground="{StaticResource AccentBrush}" Margin="12,0,12,4"/>
-                                <ListBox x:Name="SystemRowsList" Background="Transparent" BorderThickness="0" FontFamily="Cascadia Mono, Consolas" FontSize="12" Foreground="#E2E8F0" SelectionChanged="OnSystemRowSelected"/>
+                                <TextBlock x:Name="SystemHeaderText" DockPanel.Dock="Top" FontFamily="{StaticResource MonoFont}" FontSize="11.5" FontWeight="SemiBold" Foreground="{StaticResource AccentBrush}" Margin="10,0,10,4"/>
+                                <ListBox x:Name="SystemRowsList" Background="Transparent" BorderThickness="0" FontFamily="{StaticResource MonoFont}" FontSize="11.5" Foreground="#E2E8F0" SelectionChanged="OnSystemRowSelected"/>
                             </DockPanel>
                         </Border>
 
@@ -822,84 +877,246 @@
                     </DockPanel>
                 </Grid>
 
+                <!-- ==================== 7. REVERSE-PROXIED WEB UI & APPLIANCE VIEW ==================== -->
+                <DockPanel x:Name="WebUiPanel" Visibility="Collapsed">
+                    <Border DockPanel.Dock="Top" Style="{StaticResource CardStyle}" Padding="14,12" Margin="0,0,0,10">
+                        <DockPanel>
+                            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
+                                <Button Content="Open in Browser (Proxied)" Style="{StaticResource PrimaryButton}" Margin="0,0,8,0" Click="OnOpenProxiedWebUiClick"/>
+                                <Button Content="Refresh Health" Style="{StaticResource GhostButton}" Click="OnRefreshApplianceHealthClick"/>
+                            </StackPanel>
+                            <StackPanel>
+                                <TextBlock x:Name="WebUiTitleText" Text="Appliance Web UI (Central Reverse Proxy)" Style="{StaticResource Caption}" Margin="0,0,0,2"/>
+                                <TextBlock x:Name="WebUiUrlText" Text="http://localhost:7480/proxy/..." FontFamily="{StaticResource MonoFont}" FontSize="12" Foreground="{StaticResource AccentBrush}"/>
+                            </StackPanel>
+                        </DockPanel>
+                    </Border>
+                    <Border Style="{StaticResource CardStyle}" Padding="18">
+                        <StackPanel>
+                            <TextBlock Text="APPLIANCE &amp; SERVICE TELEMETRY" Style="{StaticResource Caption}" Margin="0,0,0,8"/>
+                            <TextBlock x:Name="ApplianceMetricsText" Text="Select an appliance or click Refresh Health to query Ping / HTTP / SSH metrics."
+                                       FontFamily="{StaticResource MonoFont}" FontSize="12" Foreground="{StaticResource TextBrush}" TextWrapping="Wrap" Margin="0,0,0,14"/>
+                            <TextBlock Text="All traffic is reverse-proxied through the Central Home RMS Server so dashboards (Home Assistant, TrueNAS, Synology, Proxmox) remain accessible from both the Desktop Console and Mobile Web App without exposing direct LAN ports."
+                                       FontSize="11.5" Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap"/>
+                        </StackPanel>
+                    </Border>
+                </DockPanel>
+
             </Grid>
         </Grid>
 
         <!-- ==================== ADD / EDIT ENDPOINT SLIDE-OUT DRAWER ==================== -->
-        <Grid x:Name="EndpointDrawerOverlay" Grid.RowSpan="2" Visibility="Collapsed" Background="#9904060A">
-            <Border Width="380" HorizontalAlignment="Right" Background="{StaticResource SurfaceBrush}"
-                    BorderBrush="{StaticResource LineBrush}" BorderThickness="1,0,0,0" Padding="24,22">
+        <Grid x:Name="EndpointDrawerOverlay" Grid.RowSpan="2" Visibility="Collapsed" Background="#B3090A0D">
+            <Border Width="400" HorizontalAlignment="Right" Background="{StaticResource SurfaceBrush}"
+                    BorderBrush="{StaticResource LineBrush}" BorderThickness="1,0,0,0" Padding="20,16">
                 <DockPanel>
-                    <DockPanel DockPanel.Dock="Top" Margin="0,0,0,18">
-                        <Button DockPanel.Dock="Right" Content="✕" Style="{StaticResource SmallPillButton}" Click="OnCloseEndpointDrawerClick"/>
+                    <DockPanel DockPanel.Dock="Top" Margin="0,0,0,12">
+                        <Button DockPanel.Dock="Right" Content="Close" Style="{StaticResource SmallPillButton}" Click="OnCloseEndpointDrawerClick"/>
                         <StackPanel>
                             <TextBlock Text="ENDPOINT CONFIGURATION" Style="{StaticResource Caption}" Margin="0,0,0,2"/>
-                            <TextBlock x:Name="DrawerTitleText" Text="Add or Edit Managed Endpoint" FontSize="16" FontWeight="Bold"/>
+                            <TextBlock x:Name="DrawerTitleText" Text="Add or Edit Managed Endpoint" FontSize="14.5" FontWeight="SemiBold"/>
                         </StackPanel>
                     </DockPanel>
 
-                    <StackPanel DockPanel.Dock="Bottom">
-                        <Button Content="+ Save Endpoint" Style="{StaticResource PrimaryButton}" Margin="0,0,0,8" Click="OnSaveMachineClick"/>
+                    <StackPanel DockPanel.Dock="Bottom" Margin="0,10,0,0">
+                        <Button Content="Save Endpoint" Style="{StaticResource PrimaryButton}" Margin="0,0,0,8" Click="OnSaveMachineClick"/>
                         <Grid>
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*"/>
-                                <ColumnDefinition Width="10"/>
+                                <ColumnDefinition Width="8"/>
                                 <ColumnDefinition Width="*"/>
                             </Grid.ColumnDefinitions>
-                            <Button Grid.Column="0" Content="Remove" Style="{StaticResource DangerButton}" Click="OnRemoveMachineClick"/>
+                            <Button Grid.Column="0" Content="Delete" Style="{StaticResource DangerButton}" Click="OnRemoveMachineClick"/>
                             <Button Grid.Column="2" Content="Cancel" Style="{StaticResource GhostButton}" Click="OnCloseEndpointDrawerClick"/>
                         </Grid>
                     </StackPanel>
 
-                    <StackPanel>
-                        <TextBlock Text="DISPLAY NAME" Style="{StaticResource Caption}"/>
-                        <TextBox x:Name="NameBox" Text="Living Room PC" Margin="0,0,0,16"/>
+                    <ScrollViewer VerticalScrollBarVisibility="Auto">
+                        <StackPanel Margin="0,0,4,0">
+                            <TextBlock Text="ENDPOINT TYPE &amp; CONNECTION MODE" Style="{StaticResource Caption}"/>
+                            <ComboBox x:Name="EndpointKindCombo" SelectedIndex="0" Margin="0,0,0,10" SelectionChanged="OnEndpointKindChanged"
+                                      Background="{StaticResource FieldBrush}" Foreground="{StaticResource TextBrush}" BorderBrush="{StaticResource LineBrush}">
+                                <ComboBoxItem Content="Windows — Agent (mTLS)" Tag="WindowsAgent"/>
+                                <ComboBoxItem Content="Windows — Agentless (WinRM / RDP)" Tag="WindowsAgentless"/>
+                                <ComboBoxItem Content="Home Assistant" Tag="HomeAssistant"/>
+                                <ComboBoxItem Content="NAS / Storage Appliance" Tag="Nas"/>
+                                <ComboBoxItem Content="Linux Server (SSH)" Tag="Linux"/>
+                                <ComboBoxItem Content="Local Web Service" Tag="WebService"/>
+                            </ComboBox>
 
-                        <TextBlock Text="HOST / LAN IP" Style="{StaticResource Caption}"/>
-                        <TextBox x:Name="HostBox" Text="localhost" Margin="0,0,0,16"/>
+                            <TextBlock Text="DISPLAY NAME" Style="{StaticResource Caption}"/>
+                            <TextBox x:Name="NameBox" Text="Living Room PC" Margin="0,0,0,10"/>
 
-                        <TextBlock Text="PORT (DEFAULT 7443)" Style="{StaticResource Caption}"/>
-                        <TextBox x:Name="PortBox" Text="7443" Margin="0,0,0,16"/>
+                            <Grid Margin="0,0,0,10">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="2*"/>
+                                    <ColumnDefinition Width="8"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0">
+                                    <TextBlock Text="HOST / LAN IP" Style="{StaticResource Caption}"/>
+                                    <TextBox x:Name="HostBox" FontFamily="{StaticResource MonoFont}" Text="localhost"/>
+                                </StackPanel>
+                                <StackPanel Grid.Column="2">
+                                    <TextBlock Text="PORT" Style="{StaticResource Caption}"/>
+                                    <TextBox x:Name="PortBox" FontFamily="{StaticResource MonoFont}" Text="7443"/>
+                                </StackPanel>
+                            </Grid>
 
-                        <TextBlock Text="MAC ADDRESS (FOR WAKE-ON-LAN)" Style="{StaticResource Caption}"/>
-                        <TextBox x:Name="MacBox" Text="" Margin="0,0,0,16"/>
+                            <TextBlock Text="MAC ADDRESS (WAKE-ON-LAN)" Style="{StaticResource Caption}"/>
+                            <TextBox x:Name="MacBox" FontFamily="{StaticResource MonoFont}" Text="" Margin="0,0,0,10"/>
 
-                        <Border Background="#0A0E18" BorderBrush="{StaticResource LineBrush}" BorderThickness="1" CornerRadius="10" Padding="14,12">
-                            <TextBlock Text="Endpoints authenticate automatically using your Home RMS Mutual-TLS PKI certificate." FontSize="11.5" Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap"/>
-                        </Border>
-                    </StackPanel>
+                            <!-- Credentials / Agentless / SSH / Web UI Fields -->
+                            <StackPanel x:Name="CredentialsPanel" Visibility="Collapsed">
+                                <TextBlock Text="USERNAME (WINRM / RDP / SSH)" Style="{StaticResource Caption}"/>
+                                <TextBox x:Name="UsernameBox" FontFamily="{StaticResource MonoFont}" Margin="0,0,0,10"/>
+
+                                <TextBlock Text="PASSWORD (STORED DPAPI-ENCRYPTED)" Style="{StaticResource Caption}"/>
+                                <PasswordBox x:Name="EndpointPasswordBox" Background="{StaticResource FieldBrush}" Foreground="{StaticResource TextBrush}" BorderBrush="{StaticResource LineBrush}" BorderThickness="1" Padding="9,6" Margin="0,0,0,10"/>
+
+                                <Grid x:Name="SshFieldsGrid" Margin="0,0,0,10">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="80"/>
+                                        <ColumnDefinition Width="8"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Grid.Column="0">
+                                        <TextBlock Text="SSH PORT" Style="{StaticResource Caption}"/>
+                                        <TextBox x:Name="SshPortBox" FontFamily="{StaticResource MonoFont}" Text="22"/>
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="2">
+                                        <TextBlock Text="SSH PRIVATE KEY PATH (OPTIONAL)" Style="{StaticResource Caption}"/>
+                                        <TextBox x:Name="SshKeyBox" FontFamily="{StaticResource MonoFont}"/>
+                                    </StackPanel>
+                                </Grid>
+
+                                <StackPanel x:Name="WebUrlPanel" Margin="0,0,0,10">
+                                    <TextBlock Text="WEB UI URL (REVERSE PROXY)" Style="{StaticResource Caption}"/>
+                                    <TextBox x:Name="WebUrlBox" FontFamily="{StaticResource MonoFont}" ToolTip="e.g. http://192.168.1.50:8123"/>
+                                </StackPanel>
+
+                                <CheckBox x:Name="UseMultimonCheck" Content="Enable Multi-Monitor RDP (/multimon)" IsChecked="True" Margin="0,0,0,10"/>
+
+                                <Grid x:Name="AgentlessActionsGrid" Margin="0,0,0,10">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="8"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <Button Grid.Column="0" Content="Prep Script" Style="{StaticResource SmallPillButton}" Click="OnCopyPrepScriptClick" ToolTip="Copy path/command for Prepare-AgentlessHost.ps1"/>
+                                    <Button Grid.Column="2" Content="Install Agent" Style="{StaticResource SmallPillButton}" Click="OnInstallAgentRemotelyClick" ToolTip="One-click install Home RMS Agent remotely via WinRM"/>
+                                </Grid>
+                            </StackPanel>
+
+                            <Border Background="{StaticResource FieldBrush}" BorderBrush="{StaticResource LineBrush}" BorderThickness="1" CornerRadius="5" Padding="10,8">
+                                <TextBlock Text="All credentials (DPAPI) and Mutual-TLS X.509 certificates are stored and managed strictly on the Central Home RMS Server." FontSize="11" Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap"/>
+                            </Border>
+                        </StackPanel>
+                    </ScrollViewer>
                 </DockPanel>
             </Border>
         </Grid>
-        <!-- ==================== ABOUT MODAL ==================== -->
-        <Grid x:Name="AboutOverlay" Grid.RowSpan="2" Visibility="Collapsed" Background="#AA04060A">
-            <Border Style="{StaticResource CardStyle}" Width="430" VerticalAlignment="Center" HorizontalAlignment="Center" Padding="26,24">
-                <StackPanel>
-                    <DockPanel Margin="0,0,0,14">
-                        <Button DockPanel.Dock="Right" Content="✕" Style="{StaticResource SmallPillButton}" Click="OnCloseAboutClick"/>
-                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                            <Image Source="Assets/controller.png" Width="34" Height="34" Margin="0,0,12,0" RenderOptions.BitmapScalingMode="HighQuality"/>
-                            <StackPanel>
-                                <TextBlock Text="Home RMS Controller" FontSize="16" FontWeight="Bold"/>
-                                <TextBlock Text="Operations Platform (mTLS / HTTP2)" FontSize="11.5" Foreground="{StaticResource MutedBrush}"/>
-                            </StackPanel>
+
+        <!-- ==================== CLIENT HEALTH & ALERT CENTER DRAWER ==================== -->
+        <Grid x:Name="AlertDrawerOverlay" Grid.RowSpan="2" Visibility="Collapsed" Background="#B3090A0D">
+            <Border Width="430" HorizontalAlignment="Right" Background="{StaticResource SurfaceBrush}"
+                    BorderBrush="{StaticResource LineBrush}" BorderThickness="1,0,0,0" Padding="20,16">
+                <DockPanel>
+                    <DockPanel DockPanel.Dock="Top" Margin="0,0,0,12">
+                        <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                            <Button Content="Ack All" Style="{StaticResource SmallPillButton}" Margin="0,0,6,0" Click="OnAckAllAlertsClick"/>
+                            <Button Content="Clear" Style="{StaticResource SmallPillButton}" Margin="0,0,6,0" Click="OnClearAlertsClick"/>
+                            <Button Content="Close" Style="{StaticResource SmallPillButton}" Click="OnCloseAlertCenterClick"/>
+                        </StackPanel>
+                        <StackPanel>
+                            <TextBlock Text="HEALTH MONITORING &amp; ALERTS" Style="{StaticResource Caption}" Margin="0,0,0,2"/>
+                            <TextBlock Text="Alert Center" FontSize="15" FontWeight="SemiBold"/>
                         </StackPanel>
                     </DockPanel>
 
-                    <Border Background="#0A0E18" BorderBrush="{StaticResource LineBrush}" BorderThickness="1" CornerRadius="10" Padding="14,12" Margin="0,0,0,14">
+                    <Border DockPanel.Dock="Bottom" Background="{StaticResource FieldBrush}" BorderBrush="{StaticResource LineBrush}" BorderThickness="1" CornerRadius="6" Padding="10" Margin="0,10,0,0">
                         <StackPanel>
-                            <DockPanel Margin="0,0,0,8">
-                                <TextBlock DockPanel.Dock="Right" x:Name="AboutVersionText" Text="v1.5.2" FontFamily="Cascadia Mono, Consolas" FontWeight="Bold" Foreground="{StaticResource AccentBrush}"/>
-                                <TextBlock Text="Version" Foreground="{StaticResource MutedBrush}"/>
+                            <TextBlock Text="ALERT THRESHOLDS" Style="{StaticResource Caption}" Margin="0,0,0,6"/>
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="6"/>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="6"/>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="6"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0">
+                                    <TextBlock Text="CPU %" FontSize="10" Foreground="{StaticResource MutedBrush}"/>
+                                    <TextBox x:Name="CpuThresholdBox" FontFamily="{StaticResource MonoFont}" Text="90"/>
+                                </StackPanel>
+                                <StackPanel Grid.Column="2">
+                                    <TextBlock Text="RAM %" FontSize="10" Foreground="{StaticResource MutedBrush}"/>
+                                    <TextBox x:Name="RamThresholdBox" FontFamily="{StaticResource MonoFont}" Text="90"/>
+                                </StackPanel>
+                                <StackPanel Grid.Column="4">
+                                    <TextBlock Text="Disk Min%" FontSize="10" Foreground="{StaticResource MutedBrush}"/>
+                                    <TextBox x:Name="DiskThresholdBox" FontFamily="{StaticResource MonoFont}" Text="10"/>
+                                </StackPanel>
+                                <StackPanel Grid.Column="6">
+                                    <TextBlock Text="Temp °C" FontSize="10" Foreground="{StaticResource MutedBrush}"/>
+                                    <TextBox x:Name="TempThresholdBox" FontFamily="{StaticResource MonoFont}" Text="85"/>
+                                </StackPanel>
+                            </Grid>
+                            <Button Content="Save Thresholds" Style="{StaticResource SmallPillButton}" HorizontalAlignment="Right" Margin="0,8,0,0" Click="OnSaveAlertThresholdsClick"/>
+                        </StackPanel>
+                    </Border>
+
+                    <ListBox x:Name="AlertsListBox" Background="{StaticResource FieldBrush}" BorderBrush="{StaticResource LineBrush}" BorderThickness="1" Padding="4">
+                        <ListBox.ItemTemplate>
+                            <DataTemplate>
+                                <Border Background="{StaticResource CardBrush}" BorderBrush="{StaticResource LineBrush}" BorderThickness="1" CornerRadius="5" Padding="10,8" Margin="0,0,0,6">
+                                    <StackPanel>
+                                        <DockPanel Margin="0,0,0,3">
+                                            <TextBlock DockPanel.Dock="Right" Text="{Binding TimeText}" FontFamily="{StaticResource MonoFont}" FontSize="10" Foreground="{StaticResource MutedBrush}"/>
+                                            <StackPanel Orientation="Horizontal">
+                                                <TextBlock Text="{Binding SeverityText}" FontFamily="{StaticResource MonoFont}" FontSize="10" FontWeight="Bold" Foreground="{Binding SeverityBrush}" Margin="0,0,8,0"/>
+                                                <TextBlock Text="{Binding Title}" FontSize="12" FontWeight="SemiBold"/>
+                                            </StackPanel>
+                                        </DockPanel>
+                                        <TextBlock Text="{Binding EndpointName}" FontFamily="{StaticResource MonoFont}" FontSize="10.5" Foreground="{StaticResource AccentBrush}" Margin="0,0,0,2"/>
+                                        <TextBlock Text="{Binding Detail}" FontSize="11" Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap"/>
+                                    </StackPanel>
+                                </Border>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+                </DockPanel>
+            </Border>
+        </Grid>
+
+        <!-- ==================== SERVER & PKI MODAL ==================== -->
+        <Grid x:Name="AboutOverlay" Grid.RowSpan="2" Visibility="Collapsed" Background="#B3090A0D">
+            <Border Style="{StaticResource CardStyle}" Width="440" VerticalAlignment="Center" HorizontalAlignment="Center" Padding="22,20">
+                <StackPanel>
+                    <DockPanel Margin="0,0,0,14">
+                        <Button DockPanel.Dock="Right" Content="Close" Style="{StaticResource SmallPillButton}" Click="OnCloseAboutClick"/>
+                        <StackPanel VerticalAlignment="Center">
+                            <TextBlock Text="Home RMS Central Server &amp; PKI" FontSize="15" FontWeight="SemiBold"/>
+                            <TextBlock Text="Hub &amp; Relay Architecture (mTLS / HTTP2)" FontFamily="{StaticResource MonoFont}" FontSize="11" Foreground="{StaticResource MutedBrush}"/>
+                        </StackPanel>
+                    </DockPanel>
+
+                    <Border Background="{StaticResource FieldBrush}" BorderBrush="{StaticResource LineBrush}" BorderThickness="1" CornerRadius="5" Padding="12,10" Margin="0,0,0,14">
+                        <StackPanel>
+                            <DockPanel Margin="0,0,0,6">
+                                <TextBlock DockPanel.Dock="Right" x:Name="AboutVersionText" Text="v2.0.0" FontFamily="{StaticResource MonoFont}" FontWeight="SemiBold" Foreground="{StaticResource AccentBrush}"/>
+                                <TextBlock Text="Server Build" Foreground="{StaticResource MutedBrush}"/>
                             </DockPanel>
                             <DockPanel Margin="0,0,0,8">
-                                <TextBlock DockPanel.Dock="Right" Text=".NET 11.0 (WPF Self-Contained)" FontSize="12"/>
+                                <TextBlock DockPanel.Dock="Right" Text=".NET 11.0 (Central Hub &amp; Console)" FontFamily="{StaticResource MonoFont}" FontSize="11.5"/>
                                 <TextBlock Text="Runtime" Foreground="{StaticResource MutedBrush}"/>
                             </DockPanel>
-                            <TextBlock Text="Unique Controller Signature (SHA-256):" FontSize="11" Foreground="{StaticResource MutedBrush}" Margin="0,4,0,2"/>
-                            <TextBox x:Name="AboutFingerprintBox" IsReadOnly="True" FontFamily="Cascadia Mono, Consolas" FontSize="10.5" Padding="8,5" Margin="0,0,0,10"/>
+                            <TextBlock Text="SERVER X.509 SHA-256 FINGERPRINT" Style="{StaticResource Caption}" Margin="0,4,0,4"/>
+                            <TextBox x:Name="AboutFingerprintBox" IsReadOnly="True" FontFamily="{StaticResource MonoFont}" FontSize="10.5" Padding="8,5" Margin="0,0,0,10"/>
 
-                            <CheckBox x:Name="Require2FaStartupCheck" Content="Require 2FA / Windows Hello Passkey on Startup" Margin="0,0,0,8" Checked="OnToggleStartup2Fa" Unchecked="OnToggleStartup2Fa"/>
+                            <CheckBox x:Name="Require2FaStartupCheck" Content="Require TOTP 2FA / Windows Hello Passkey on Console Startup" Margin="0,0,0,8" Checked="OnToggleStartup2Fa" Unchecked="OnToggleStartup2Fa"/>
                             <Grid>
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="*"/>
@@ -907,20 +1124,29 @@
                                     <ColumnDefinition Width="Auto"/>
                                 </Grid.ColumnDefinitions>
                                 <StackPanel Grid.Column="0" VerticalAlignment="Center">
-                                    <TextBlock Text="Controller 2FA Authenticator Secret (Scan QR or Copy):" FontSize="11" Foreground="{StaticResource MutedBrush}" Margin="0,0,0,4"/>
-                                    <TextBox x:Name="AboutTotpSecretBox" IsReadOnly="True" FontFamily="Cascadia Mono, Consolas" FontSize="10.5" Padding="8,5" Margin="0,0,0,8"/>
-                                    <Button Content="Copy Authenticator URI" Style="{StaticResource SmallPillButton}" HorizontalAlignment="Left" Click="OnCopyController2FaUriClick"/>
+                                    <TextBlock Text="TOTP Authenticator Secret:" FontSize="11" Foreground="{StaticResource MutedBrush}" Margin="0,0,0,4"/>
+                                    <TextBox x:Name="AboutTotpSecretBox" IsReadOnly="True" FontFamily="{StaticResource MonoFont}" FontSize="10.5" Padding="8,5" Margin="0,0,0,8"/>
+                                    <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
+                                        <Button Content="Copy URI" Style="{StaticResource SmallPillButton}" Margin="0,0,6,0" Click="OnCopyController2FaUriClick"/>
+                                        <Button Content="Regen Backup" Style="{StaticResource SmallPillButton}" Click="OnRegenerateBackupCodesClick"/>
+                                    </StackPanel>
+                                    <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
+                                        <TextBlock Text="Remember device (days):" FontSize="10.5" Foreground="{StaticResource MutedBrush}" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                                        <TextBox x:Name="RememberDaysBox" FontFamily="{StaticResource MonoFont}" Text="30" Width="44" Padding="5,2"/>
+                                    </StackPanel>
                                 </StackPanel>
-                                <Border Grid.Column="2" Background="White" CornerRadius="8" Padding="6" VerticalAlignment="Center">
-                                    <Image x:Name="AboutQrImage" Width="110" Height="110" RenderOptions.BitmapScalingMode="NearestNeighbor"/>
+                                <Border Grid.Column="2" Background="White" CornerRadius="4" Padding="5" VerticalAlignment="Center">
+                                    <Image x:Name="AboutQrImage" Width="104" Height="104" RenderOptions.BitmapScalingMode="NearestNeighbor"/>
                                 </Border>
                             </Grid>
+                            <TextBlock Text="ONE-TIME BACKUP CODES" Style="{StaticResource Caption}" Margin="0,8,0,3"/>
+                            <TextBox x:Name="AboutBackupCodesBox" IsReadOnly="True" FontFamily="{StaticResource MonoFont}" FontSize="10" Padding="7,4"/>
                         </StackPanel>
                     </Border>
 
-                    <TextBlock Text="Project Repository (GitHub):" FontSize="11.5" Foreground="{StaticResource MutedBrush}" Margin="0,0,0,4"/>
-                    <TextBlock Margin="0,0,0,14">
-                        <Hyperlink NavigateUri="https://github.com/dor2500/home-rms" RequestNavigate="OnOpenProjectLinkClick" Foreground="#38BDF8">
+                    <TextBlock Text="Repository:" FontSize="11" Foreground="{StaticResource MutedBrush}" Margin="0,0,0,4"/>
+                    <TextBlock Margin="0,0,0,14" FontFamily="{StaticResource MonoFont}" FontSize="11.5">
+                        <Hyperlink NavigateUri="https://github.com/dor2500/home-rms" RequestNavigate="OnOpenProjectLinkClick" Foreground="{StaticResource AccentBrush}">
                             https://github.com/dor2500/home-rms
                         </Hyperlink>
                     </TextBlock>
@@ -928,40 +1154,41 @@
                     <Grid>
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*"/>
-                            <ColumnDefinition Width="10"/>
+                            <ColumnDefinition Width="8"/>
                             <ColumnDefinition Width="Auto"/>
                         </Grid.ColumnDefinitions>
-                        <Button Grid.Column="0" Content="📋 Copy --pin Command for Agent" Style="{StaticResource GhostButton}" Click="OnCopyPinCommandClick"/>
-                        <Button Grid.Column="2" Content="Close" Style="{StaticResource PrimaryButton}" Click="OnCloseAboutClick"/>
+                        <Button Grid.Column="0" Content="Copy Agent --pin Command" Style="{StaticResource GhostButton}" Click="OnCopyPinCommandClick"/>
+                        <Button Grid.Column="2" Content="Done" Style="{StaticResource PrimaryButton}" Click="OnCloseAboutClick"/>
                     </Grid>
                 </StackPanel>
             </Border>
         </Grid>
 
         <!-- ==================== 15-MINUTE AUTO-LOCK & 2FA/PASSKEY OVERLAY ==================== -->
-        <Grid x:Name="LockOverlay" Grid.RowSpan="2" Visibility="Collapsed" Background="#F0080B12">
-            <Border Style="{StaticResource CardStyle}" Width="380" VerticalAlignment="Center" HorizontalAlignment="Center" Padding="26,24">
+        <Grid x:Name="LockOverlay" Grid.RowSpan="2" Visibility="Collapsed" Background="#F20E0F12">
+            <Border Style="{StaticResource CardStyle}" Width="370" VerticalAlignment="Center" HorizontalAlignment="Center" Padding="22,20">
                 <StackPanel>
-                    <TextBlock Text="DASHBOARD LOCKED" Style="{StaticResource Caption}" Foreground="{StaticResource AccentBrush}" Margin="0,0,0,4"/>
-                    <TextBlock Text="Enter 6-digit 2FA Code, or use Windows Hello Passkey" FontSize="12.5" FontWeight="SemiBold" TextWrapping="Wrap" Margin="0,0,0,12"/>
-                    <PasswordBox x:Name="UnlockPinBox" Background="#0A0E18" Foreground="#F8FAFC" BorderBrush="{StaticResource LineBrush}" BorderThickness="1" Padding="10,8" Margin="0,0,0,12"/>
-                    <Button Content="🔓 Unlock with 2FA" Style="{StaticResource PrimaryButton}" Margin="0,0,0,8" Click="OnUnlockDashboardClick"/>
-                    <Button Content="🔑 Unlock with Windows Hello / Passkey" Style="{StaticResource GhostButton}" Click="OnUnlockWithPasskeyClick"/>
+                    <TextBlock Text="CONSOLE LOCKED" Style="{StaticResource Caption}" Foreground="{StaticResource AccentBrush}" Margin="0,0,0,4"/>
+                    <TextBlock Text="Enter 6-digit TOTP Code, Backup Code, or authenticate with Windows Hello" FontSize="12.5" FontWeight="SemiBold" TextWrapping="Wrap" Margin="0,0,0,12"/>
+                    <PasswordBox x:Name="UnlockPinBox" Background="{StaticResource FieldBrush}" Foreground="{StaticResource TextBrush}" BorderBrush="{StaticResource LineBrush}" BorderThickness="1" Padding="10,7" Margin="0,0,0,8"/>
+                    <CheckBox x:Name="RememberDeviceCheck" Content="Remember this device" IsChecked="True" Margin="0,0,0,10"/>
+                    <Button Content="Unlock with 2FA / Backup Code" Style="{StaticResource PrimaryButton}" Margin="0,0,0,6" Click="OnUnlockDashboardClick"/>
+                    <Button Content="Unlock with Windows Hello" Style="{StaticResource GhostButton}" Click="OnUnlockWithPasskeyClick"/>
                 </StackPanel>
             </Border>
         </Grid>
 
         <!-- ==================== AGENT INITIAL 2FA PAIRING MODAL ==================== -->
-        <Grid x:Name="AgentPair2FaOverlay" Grid.RowSpan="2" Visibility="Collapsed" Background="#AA04060A">
-            <Border Style="{StaticResource CardStyle}" Width="390" VerticalAlignment="Center" HorizontalAlignment="Center" Padding="26,24">
+        <Grid x:Name="AgentPair2FaOverlay" Grid.RowSpan="2" Visibility="Collapsed" Background="#B3090A0D">
+            <Border Style="{StaticResource CardStyle}" Width="380" VerticalAlignment="Center" HorizontalAlignment="Center" Padding="22,20">
                 <StackPanel>
-                    <TextBlock Text="AGENT 2FA VERIFICATION" Style="{StaticResource Caption}" Foreground="{StaticResource AccentBrush}" Margin="0,0,0,4"/>
-                    <TextBlock x:Name="AgentPairPromptText" Text="Enter the 6-digit 2FA code shown on the remote Agent to pair and permanently pin this Controller." FontSize="12.5" TextWrapping="Wrap" Margin="0,0,0,12"/>
-                    <TextBox x:Name="Agent2FaCodeBox" FontFamily="Cascadia Mono, Consolas" FontSize="18" TextAlignment="Center" Padding="10,8" Margin="0,0,0,14"/>
+                    <TextBlock Text="ENDPOINT 2FA PAIRING" Style="{StaticResource Caption}" Foreground="{StaticResource AccentBrush}" Margin="0,0,0,4"/>
+                    <TextBlock x:Name="AgentPairPromptText" Text="Enter the 6-digit TOTP code displayed on the remote endpoint to pair with the Central Server." FontSize="12" TextWrapping="Wrap" Margin="0,0,0,12"/>
+                    <TextBox x:Name="Agent2FaCodeBox" FontFamily="{StaticResource MonoFont}" FontSize="16" TextAlignment="Center" Padding="10,7" Margin="0,0,0,12"/>
                     <Grid>
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*"/>
-                            <ColumnDefinition Width="10"/>
+                            <ColumnDefinition Width="8"/>
                             <ColumnDefinition Width="*"/>
                         </Grid.ColumnDefinitions>
                         <Button Grid.Column="0" Content="Verify &amp; Pair" Style="{StaticResource PrimaryButton}" Click="OnSubmitAgent2FaClick"/>

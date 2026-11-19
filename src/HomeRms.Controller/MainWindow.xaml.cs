@@ -26,6 +26,7 @@ public partial class MainWindow : Window
     private readonly ObservableCollection<MachineProfile> _machines = new();
     private readonly ObservableCollection<FleetActivityEvent> _activityEvents = new();
     private readonly List<int> _latencyHistory = new() { 14, 16, 12, 15, 11, 13, 12 };
+    private readonly CentralHubService _centralHub;
     private bool _sidebarCollapsed;
     private MachineProfile? _connectedProfile;
     private RmsConnection? _conn;
@@ -72,7 +73,15 @@ public partial class MainWindow : Window
         if (_machines.Count > 0)
             MachinesList.SelectedIndex = 0;
 
-        AddActivity("mTLS", "Operations Platform initialized. Mutual-TLS X.509 PKI ready.");
+        _centralHub = new CentralHubService(() => _machines, ProbeAllMachinesAsync, AddActivity, _agentless, _ssh, _alerts);
+        _centralHub.Start();
+        if (HubRelayStatusText is not null)
+            HubRelayStatusText.Text = _centralHub.IsRunning ? $"HUB RELAY :{_centralHub.Port}" : "HUB STANDBY";
+
+        InitializeOverhaulServices();
+        UpdateDynamicTabVisibility(SelectedMachine);
+
+        AddActivity("mTLS", "Central Hub & Operations Console initialized. Mutual-TLS X.509 PKI ready.");
         UpdateOverviewMetrics();
         StartInactivityTimer();
 
@@ -126,7 +135,7 @@ public partial class MainWindow : Window
             if (update is not null)
             {
                 _pendingUpdate = update;
-                UpdateBtn.Content = $"⬇ Update {update.Tag}";
+                UpdateBtn.Content = $"Update {update.Tag}";
                 UpdateBtn.Background = new SolidColorBrush(Color.FromRgb(16, 185, 129));
                 UpdateBtn.BorderBrush = new SolidColorBrush(Color.FromRgb(52, 211, 153));
                 UpdateBtn.Foreground = Brushes.White;
@@ -134,7 +143,7 @@ public partial class MainWindow : Window
             }
             else
             {
-                UpdateBtn.Content = $"v{ControllerUpdater.CurrentVersion.Major}.{ControllerUpdater.CurrentVersion.Minor}.{ControllerUpdater.CurrentVersion.Build} ✓";
+                UpdateBtn.Content = $"v{ControllerUpdater.CurrentVersion.Major}.{ControllerUpdater.CurrentVersion.Minor}.{ControllerUpdater.CurrentVersion.Build}";
             }
         }
         catch { /* offline or rate-limited; ignore silently */ }
@@ -147,16 +156,16 @@ public partial class MainWindow : Window
             UpdateBtn.IsEnabled = false;
             if (_pendingUpdate is null)
             {
-                UpdateBtn.Content = "Checking GitHub…";
+                UpdateBtn.Content = "Checking…";
                 _pendingUpdate = await ControllerUpdater.CheckForUpdateAsync();
                 if (_pendingUpdate is null)
                 {
-                    UpdateBtn.Content = $"v{ControllerUpdater.CurrentVersion.Major}.{ControllerUpdater.CurrentVersion.Minor}.{ControllerUpdater.CurrentVersion.Build} ✓";
+                    UpdateBtn.Content = $"v{ControllerUpdater.CurrentVersion.Major}.{ControllerUpdater.CurrentVersion.Minor}.{ControllerUpdater.CurrentVersion.Build}";
                     MessageBox.Show($"You are running the latest version (v{ControllerUpdater.CurrentVersion}).",
                         "Home RMS — Up to Date", MessageBoxButton.OK, MessageBoxImage.Information);
                     return;
                 }
-                UpdateBtn.Content = $"⬇ Update {_pendingUpdate.Tag}";
+                UpdateBtn.Content = $"Update {_pendingUpdate.Tag}";
                 UpdateBtn.Background = new SolidColorBrush(Color.FromRgb(16, 185, 129));
                 UpdateBtn.BorderBrush = new SolidColorBrush(Color.FromRgb(52, 211, 153));
                 UpdateBtn.Foreground = Brushes.White;
@@ -202,6 +211,7 @@ public partial class MainWindow : Window
         DesktopPanel.Visibility = NavDesktop.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
         ShellPanel.Visibility = NavShell.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
         DeployPanel.Visibility = NavDeploy.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
+        WebUiPanel.Visibility = NavWebUi.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
 
         var showSettings = NavUpdates.IsChecked == true || NavSystem.IsChecked == true;
         SystemPanel.Visibility = showSettings ? Visibility.Visible : Visibility.Collapsed;
@@ -219,7 +229,7 @@ public partial class MainWindow : Window
     private void OnToggleSidebarClick(object sender, RoutedEventArgs e)
     {
         _sidebarCollapsed = !_sidebarCollapsed;
-        RailColumn.Width = new GridLength(_sidebarCollapsed ? 64 : 204);
+        RailColumn.Width = new GridLength(_sidebarCollapsed ? 52 : 192);
         var labelVis = _sidebarCollapsed ? Visibility.Collapsed : Visibility.Visible;
 
         SidebarSectionLabel.Visibility = labelVis;
@@ -246,6 +256,8 @@ public partial class MainWindow : Window
         var cfg = TwoFactorStore.LoadController();
         Require2FaStartupCheck.IsChecked = cfg.RequireOnStartupOrPair;
         AboutTotpSecretBox.Text = cfg.TotpSecret;
+        RememberDaysBox.Text = (cfg.RememberDays <= 0 ? 30 : cfg.RememberDays).ToString();
+        AboutBackupCodesBox.Text = string.Join("   ", cfg.BackupCodes ?? []);
         var uri = TotpHelper.BuildOtpAuthUri("HomeRMS-Controller", Environment.MachineName, cfg.TotpSecret);
         var qrBytes = TotpHelper.GenerateQrPng(uri, 5);
         using (var ms = new MemoryStream(qrBytes))
@@ -271,14 +283,14 @@ public partial class MainWindow : Window
     {
         var cfg = TwoFactorStore.LoadController();
         Clipboard.SetText(TotpHelper.BuildOtpAuthUri("HomeRMS-Controller", Environment.MachineName, cfg.TotpSecret));
-        StatusText.Text = "Copied Controller 2FA Authenticator URI to clipboard!";
+        StatusText.Text = "Copied Controller 2FA Authenticator URI to clipboard.";
     }
 
     private void OnCopyPinCommandClick(object sender, RoutedEventArgs e)
     {
         var fp = ControllerIdentity.NormalizeFingerprint(AboutFingerprintBox.Text);
         Clipboard.SetText($"HomeRmsAgent.exe --install --silent --pin {fp}");
-        StatusText.Text = "Copied Agent --pin command to clipboard!";
+        StatusText.Text = "Copied Agent --pin command to clipboard.";
     }
 
     private void OnCloseAboutClick(object sender, RoutedEventArgs e)
@@ -294,54 +306,42 @@ public partial class MainWindow : Window
         catch { }
     }
 
-    // ---------------- Windows 11 Style Settings & Updates ----------------
+    // ---------------- System & Settings Operations ----------------
     private SystemCatalog.Win11SettingsPage? _win11Page;
     private string _win11LastArea = "system";
     private SystemCatalog.Table _sysTable = SystemCatalog.Table.Empty;
     private List<Dictionary<string, string>> _sysVisible = new();
-
-    // Segoe Fluent Icons glyphs for the settings categories and setting rows
-    private static string PageGlyph(string pageId) => pageId switch
-    {
-        "home" => "",
-        "system" => "",
-        "devices" => "",
-        "network" => "",
-        "personalization" => "",
-        "apps" => "",
-        "accounts" => "",
-        "time" => "",
-        "gaming" => "",
-        "privacy" => "",
-        "updates" => "",
-        _ => ""
-    };
-
-    private static string AreaGlyph(string area) => area switch
-    {
-        "updates" => "",
-        "services" => "",
-        "power" => "",
-        "startup" => "",
-        "tasks" => "",
-        "registry" => "",
-        "firewall" => "",
-        "system" => "",
-        _ => ""
-    };
 
     private void InitWin11Settings()
     {
         Win11SidebarPanel.Children.Clear();
         foreach (var page in SystemCatalog.Win11Pages)
         {
+            var row = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
+            row.Children.Add(new TextBlock
+            {
+                Text = page.Icon,
+                FontFamily = (FontFamily)FindResource("MonoFont"),
+                FontSize = 9.5,
+                FontWeight = FontWeights.SemiBold,
+                Foreground = (Brush)FindResource("AccentBrush"),
+                Width = 34,
+                VerticalAlignment = VerticalAlignment.Center
+            });
+            row.Children.Add(new TextBlock
+            {
+                Text = page.Title,
+                FontSize = 12,
+                VerticalAlignment = VerticalAlignment.Center
+            });
+
             var item = new Button
             {
-                Content = $"{page.Icon}  {page.Title}",
+                Content = row,
                 Tag = page,
                 HorizontalContentAlignment = HorizontalAlignment.Left,
-                Margin = new Thickness(0, 0, 0, 4),
-                Padding = new Thickness(12, 8, 12, 8),
+                Margin = new Thickness(0, 0, 0, 2),
+                Padding = new Thickness(10, 7, 10, 7),
                 Style = (Style)FindResource("GhostButton"),
                 BorderThickness = new Thickness(0)
             };
@@ -357,14 +357,14 @@ public partial class MainWindow : Window
         foreach (Button item in Win11SidebarPanel.Children)
         {
             var active = ReferenceEquals(item.Tag, page);
-            item.Background = new SolidColorBrush(active ? Color.FromArgb(45, 56, 189, 248) : Colors.Transparent);
+            item.Background = new SolidColorBrush(active ? Color.FromArgb(40, 59, 130, 246) : Colors.Transparent);
             item.Foreground = new SolidColorBrush(active ? Colors.White : Color.FromRgb(203, 213, 225));
         }
 
         if (!string.IsNullOrEmpty(SettingsSearchBox.Text))
             SettingsSearchBox.Text = "";
 
-        Win11PageTitle.Text = $"{page.Icon}  {page.Title}";
+        Win11PageTitle.Text = $"{page.Icon} // {page.Title}";
         Win11PageSubtitle.Text = page.Subtitle;
         SystemTargetLabel.Text = "Target — " + page.TargetHint;
         SystemExtraLabel.Text = "Extra — " + (page.Items.FirstOrDefault(i => i.ExtraHint is not null)?.ExtraHint ?? "(optional)");
@@ -377,7 +377,7 @@ public partial class MainWindow : Window
         var q = SettingsSearchBox.Text.Trim();
         if (string.IsNullOrEmpty(q))
         {
-            Win11PageTitle.Text = _win11Page.Title;
+            Win11PageTitle.Text = $"{_win11Page.Icon} // {_win11Page.Title}";
             Win11PageSubtitle.Text = _win11Page.Subtitle;
             RenderWin11Cards(_win11Page.Items);
             return;
@@ -388,8 +388,8 @@ public partial class MainWindow : Window
             .Where(i => i.Title.Contains(q, StringComparison.OrdinalIgnoreCase) ||
                         i.Subtitle.Contains(q, StringComparison.OrdinalIgnoreCase))
             .ToList();
-        Win11PageTitle.Text = $"Results for \"{q}\"";
-        Win11PageSubtitle.Text = matches.Count == 1 ? "1 matching setting" : $"{matches.Count} matching settings";
+        Win11PageTitle.Text = $"SEARCH // \"{q}\"";
+        Win11PageSubtitle.Text = matches.Count == 1 ? "1 matching operation" : $"{matches.Count} matching operations";
         RenderWin11Cards(matches);
     }
 
@@ -401,8 +401,8 @@ public partial class MainWindow : Window
             var card = new Border
             {
                 Style = (Style)FindResource("CardStyle"),
-                Padding = new Thickness(16, 12, 16, 12),
-                Margin = new Thickness(0, 0, 0, 8)
+                Padding = new Thickness(14, 10, 14, 10),
+                Margin = new Thickness(0, 0, 0, 6)
             };
 
             var dock = new DockPanel();
@@ -410,33 +410,41 @@ public partial class MainWindow : Window
             {
                 Content = item.ButtonLabel,
                 Style = (Style)FindResource(item.Dangerous ? "DangerButton" : "PrimaryButton"),
-                MinWidth = 110,
-                Padding = new Thickness(14, 7, 14, 7),
-                FontSize = 12,
+                MinWidth = 104,
+                Padding = new Thickness(12, 6, 12, 6),
+                FontSize = 11.5,
                 VerticalAlignment = VerticalAlignment.Center
             };
-            if (item.Dangerous) btn.ToolTip = "Changes the remote PC — you will be asked to confirm";
+            if (item.Dangerous) btn.ToolTip = "Modifies remote endpoint configuration — confirmation required";
             DockPanel.SetDock(btn, Dock.Right);
             btn.Click += async (_, _) => await RunWin11ItemAsync(item);
 
-            var glyph = new TextBlock
+            var tagBorder = new Border
             {
-                Text = AreaGlyph(item.Area),
-                FontFamily = new FontFamily("Segoe Fluent Icons, Segoe MDL2 Assets"),
-                Foreground = (Brush)FindResource("AccentBrush"),
+                Background = new SolidColorBrush(Color.FromArgb(24, 59, 130, 246)),
+                BorderBrush = (Brush)FindResource("LineBrush"),
+                BorderThickness = new Thickness(1),
+                CornerRadius = new CornerRadius(4),
+                Padding = new Thickness(6, 3, 6, 3),
+                Margin = new Thickness(0, 0, 12, 0),
                 VerticalAlignment = VerticalAlignment.Center,
-                FontSize = 18,
-                Width = 22,
-                Margin = new Thickness(2, 0, 14, 0)
+                Child = new TextBlock
+                {
+                    Text = item.Area.ToUpperInvariant(),
+                    FontFamily = (FontFamily)FindResource("MonoFont"),
+                    FontSize = 9.5,
+                    FontWeight = FontWeights.SemiBold,
+                    Foreground = (Brush)FindResource("AccentBrush")
+                }
             };
-            DockPanel.SetDock(glyph, Dock.Left);
+            DockPanel.SetDock(tagBorder, Dock.Left);
 
-            var textStack = new StackPanel { VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 16, 0) };
-            textStack.Children.Add(new TextBlock { Text = item.Title, FontSize = 13.5, FontWeight = FontWeights.SemiBold });
+            var textStack = new StackPanel { VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 14, 0) };
+            textStack.Children.Add(new TextBlock { Text = item.Title, FontSize = 12.5, FontWeight = FontWeights.SemiBold });
             var sub = new TextBlock
             {
                 Text = item.Subtitle,
-                FontSize = 11.5,
+                FontSize = 11,
                 Foreground = (Brush)FindResource("MutedBrush"),
                 Margin = new Thickness(0, 2, 0, 0),
                 TextWrapping = TextWrapping.Wrap
@@ -444,7 +452,7 @@ public partial class MainWindow : Window
             textStack.Children.Add(sub);
 
             dock.Children.Add(btn);
-            dock.Children.Add(glyph);
+            dock.Children.Add(tagBorder);
             dock.Children.Add(textStack);
             card.Child = dock;
             Win11CardsPanel.Children.Add(card);
@@ -464,35 +472,35 @@ public partial class MainWindow : Window
 
         if (item.NeedsTarget && target.Length == 0)
         {
-            SystemMessageText.Text = $"'{item.Title}' needs a Target ({_win11Page?.TargetHint}).";
+            SystemMessageText.Text = $"[WARN] '{item.Title}' requires a Target ({_win11Page?.TargetHint}).";
             SystemMessageText.Foreground = ConsoleWarnBrush;
             return;
         }
 
         if (item.Dangerous && MessageBox.Show(
                 $"{item.Title}\nTarget: {(target.Length == 0 ? "(none)" : target)}\n\nApply this on {_agentInfo?.MachineName ?? "the remote PC"}?",
-                "Home RMS — Confirm Setting Change", MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes)
+                "Home RMS — Confirm Operation", MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes)
             return;
 
         _win11LastArea = item.Area;
         try
         {
-            SystemMessageText.Text = $"Running {item.Area}/{item.Action}…";
+            SystemMessageText.Text = $"Executing {item.Area}/{item.Action}…";
             SystemMessageText.Foreground = ConsoleMutedBrush;
             var res = await _conn!.Client.SystemOpAsync(
                 new SystemOpRequest { Area = item.Area, Action = item.Action, Target = target, Extra = extra },
                 deadline: DateTime.UtcNow.AddMinutes(item.LongRunning ? 50 : 2.2));
 
-            SystemAdminText.Text = res.IsElevated ? "Agent: administrator" : "Agent: standard user (run with --elevate)";
+            SystemAdminText.Text = res.IsElevated ? "AGENT: ADMINISTRATOR" : "AGENT: STANDARD USER";
             SetPill(SystemAdminBadge, SystemAdminText, res.IsElevated ? Tone.Success : Tone.Caution);
 
             SetSystemTable(SystemCatalog.ParseTable(res.JsonData));
-            SystemMessageText.Text = (res.Success ? "✔ " : "✖ ") + res.Message;
+            SystemMessageText.Text = (res.Success ? "[OK] " : "[ERR] ") + res.Message;
             SystemMessageText.Foreground = res.Success ? ConsoleOkBrush : ConsoleErrorBrush;
         }
         catch (Exception ex)
         {
-            SystemMessageText.Text = "✖ " + Short(ex);
+            SystemMessageText.Text = "[ERR] " + Short(ex);
             SystemMessageText.Foreground = ConsoleErrorBrush;
         }
     }
@@ -554,15 +562,20 @@ public partial class MainWindow : Window
     {
         var input = UnlockPinBox.Password;
         var cfg = TwoFactorStore.LoadController();
-        if (TotpHelper.VerifyCode(cfg.TotpSecret, input))
+        if (TwoFactorStore.VerifyCodeOrBackup(cfg, input, out var updated, out var usedBackup))
         {
+            if (RememberDeviceCheck.IsChecked == true)
+                updated = TwoFactorStore.TrustDevice(updated, Environment.MachineName);
+            if (usedBackup || RememberDeviceCheck.IsChecked == true)
+                TwoFactorStore.SaveController(updated);
+
             UnlockPinBox.Clear();
             _lastActivityUtc = DateTime.UtcNow;
             LockOverlay.Visibility = Visibility.Collapsed;
         }
         else
         {
-            MessageBox.Show("Invalid 6-digit 2FA code.", "Home RMS — Locked", MessageBoxButton.OK, MessageBoxImage.Warning);
+            MessageBox.Show("Invalid 6-digit 2FA or backup code.", "Home RMS — Locked", MessageBoxButton.OK, MessageBoxImage.Warning);
             UnlockPinBox.Clear();
             UnlockPinBox.Focus();
         }
@@ -707,11 +720,19 @@ public partial class MainWindow : Window
         HostBox.Text = m.Host;
         PortBox.Text = m.Port.ToString();
         MacBox.Text = m.MacAddress;
+        EndpointKindCombo.SelectedIndex = (int)m.Kind;
+        UsernameBox.Text = m.Username;
+        EndpointPasswordBox.Password = "";
+        SshPortBox.Text = m.SshPort.ToString();
+        SshKeyBox.Text = m.SshKeyPath;
+        WebUrlBox.Text = m.WebUrl;
+        UseMultimonCheck.IsChecked = m.UseRdpMultimon;
+        UpdateDynamicTabVisibility(m);
 
         if (_conn is null)
         {
             TargetTitleText.Text = m.DisplayTitle;
-            StatusText.Text = $"{m.Address}  ·  Hover card or double-click to open mutual-TLS session.";
+            StatusText.Text = $"{m.Address}  ·  {m.ModeBadge}";
         }
     }
 
@@ -723,27 +744,36 @@ public partial class MainWindow : Window
 
     private void OnSaveMachineClick(object sender, RoutedEventArgs e)
     {
-        var host = HostBox.Text.Trim();
-        if (string.IsNullOrWhiteSpace(host)) return;
-        if (!int.TryParse(PortBox.Text, out var port)) port = 7443;
-        var name = string.IsNullOrWhiteSpace(NameBox.Text) ? host : NameBox.Text.Trim();
+        var draft = BuildProfileFromDrawer();
+        if (string.IsNullOrWhiteSpace(draft.Host)) return;
+        if (string.IsNullOrWhiteSpace(draft.Name)) draft.Name = draft.Host;
 
         var existing = _machines.FirstOrDefault(m =>
-            string.Equals(m.Host, host, StringComparison.OrdinalIgnoreCase) && m.Port == port);
+            string.Equals(m.Host, draft.Host, StringComparison.OrdinalIgnoreCase) && m.Port == draft.Port);
 
         if (existing is not null)
         {
-            existing.Name = name;
-            existing.MacAddress = MacBox.Text.Trim();
+            existing.Name = draft.Name;
+            existing.MacAddress = draft.MacAddress;
+            existing.Kind = draft.Kind;
+            existing.Username = draft.Username;
+            if (!string.IsNullOrEmpty(draft.EncryptedPassword))
+                existing.EncryptedPassword = draft.EncryptedPassword;
+            existing.SshPort = draft.SshPort;
+            existing.SshKeyPath = draft.SshKeyPath;
+            existing.WebUrl = draft.WebUrl;
+            existing.UseRdpMultimon = draft.UseRdpMultimon;
             MachinesList.SelectedItem = existing;
-            AddActivity("FLEET", $"Updated endpoint '{name}' ({host}:{port}).");
+            UpdateDynamicTabVisibility(existing);
+            AddActivity("FLEET", $"Updated endpoint '{existing.Name}' ({existing.ModeBadge}).");
         }
         else
         {
-            var created = new MachineProfile { Name = name, Host = host, Port = port, MacAddress = MacBox.Text.Trim(), StatusLabel = "Saved" };
-            _machines.Add(created);
-            MachinesList.SelectedItem = created;
-            AddActivity("FLEET", $"Added new endpoint '{name}' ({host}:{port}).");
+            draft.StatusLabel = "Saved";
+            _machines.Add(draft);
+            MachinesList.SelectedItem = draft;
+            UpdateDynamicTabVisibility(draft);
+            AddActivity("FLEET", $"Added new endpoint '{draft.Name}' ({draft.ModeBadge}).");
         }
 
         MachineStore.Save(_machines);
@@ -784,6 +814,35 @@ public partial class MainWindow : Window
                     return;
                 }
 
+                if (m.IsAgentless)
+                {
+                    var res = await _agentless.ProbeAsync(m);
+                    m.IsOnline = res.Ok;
+                    m.IsConnected = false;
+                    m.StatusLabel = res.Ok ? "WinRM Ready" : "Offline";
+                    m.LatencyMs = res.LatencyMs;
+                    m.CpuPercent = res.Cpu;
+                    m.RamPercent = res.Ram;
+                    m.OsName = res.Os;
+                    m.UserAndOs = $"{res.User} • Agentless";
+                    _alerts.EvaluateSample(m.DisplayTitle, m.Host, res.Ok, res.Cpu, res.Ram);
+                    return;
+                }
+
+                if (m.IsAppliance)
+                {
+                    var res = await _ssh.ProbeAsync(m);
+                    m.IsOnline = res.Online;
+                    m.IsConnected = false;
+                    m.StatusLabel = res.StatusText;
+                    m.LatencyMs = res.LatencyMs;
+                    m.CpuPercent = res.CpuPercent;
+                    m.RamPercent = res.RamPercent;
+                    m.UserAndOs = res.ServicesSummary;
+                    _alerts.EvaluateSample(m.DisplayTitle, m.Host, res.Online, res.CpuPercent, res.RamPercent);
+                    return;
+                }
+
                 try
                 {
                     var sw = Stopwatch.StartNew();
@@ -799,6 +858,7 @@ public partial class MainWindow : Window
                     m.UserAndOs = $"{info.LoggedInUser} • {info.PrimaryScreenWidth}×{info.PrimaryScreenHeight}";
                     if (m.CpuPercent <= 0) m.CpuPercent = 12 + (m.LatencyMs % 18);
                     if (m.RamPercent <= 0) m.RamPercent = 34 + (m.Port % 25);
+                    _alerts.EvaluateSample(m.DisplayTitle, m.Host, true, m.CpuPercent, m.RamPercent);
                 }
                 catch
                 {
@@ -806,6 +866,7 @@ public partial class MainWindow : Window
                     m.IsConnected = false;
                     m.StatusLabel = "Offline";
                     m.LatencyMs = 0;
+                    _alerts.EvaluateSample(m.DisplayTitle, m.Host, false, 0, 0);
                 }
             });
             await Task.WhenAll(tasks);
@@ -1224,18 +1285,17 @@ public partial class MainWindow : Window
         return brush;
     }
 
-    /// <summary>Colours a status pill with Fluent theme tokens so it follows light/dark mode.</summary>
     private static void SetPill(Border pill, TextBlock text, Tone tone)
     {
         var (bg, fg) = tone switch
         {
-            Tone.Success => ("SystemFillColorSuccessBackgroundBrush", "SystemFillColorSuccessBrush"),
-            Tone.Caution => ("SystemFillColorCautionBackgroundBrush", "SystemFillColorCautionBrush"),
-            Tone.Critical => ("SystemFillColorCriticalBackgroundBrush", "SystemFillColorCriticalBrush"),
-            _ => ("SystemFillColorSolidNeutralBackgroundBrush", "TextFillColorSecondaryBrush")
+            Tone.Success => (Color.FromArgb(30, 16, 185, 129), Color.FromRgb(16, 185, 129)),
+            Tone.Caution => (Color.FromArgb(30, 245, 158, 11), Color.FromRgb(245, 158, 11)),
+            Tone.Critical => (Color.FromArgb(30, 239, 68, 68), Color.FromRgb(239, 68, 68)),
+            _ => (Color.FromArgb(24, 59, 130, 246), Color.FromRgb(138, 144, 158))
         };
-        pill.SetResourceReference(Border.BackgroundProperty, bg);
-        text.SetResourceReference(TextBlock.ForegroundProperty, fg);
+        pill.Background = new SolidColorBrush(bg);
+        text.Foreground = new SolidColorBrush(fg);
     }
 
     private void SetBadge(string text, Tone tone)
@@ -1449,13 +1509,37 @@ public partial class MainWindow : Window
 
     private async Task SendShellLineAsync()
     {
+        var line = ShellInputBox.Text.Trim();
+        if (string.IsNullOrEmpty(line)) return;
+
+        if (SelectedMachine is { IsAgentless: true } agentlessHost)
+        {
+            _shellHistory.Add(line);
+            _historyIndex = _shellHistory.Count;
+            ShellInputBox.Clear();
+            ShellOutput.AppendText($"\r\n[WinRM] {agentlessHost.Host}> {line}\r\n");
+            var (_, outText) = await _agentless.RunShellAsync(agentlessHost, line);
+            ShellOutput.AppendText(outText + "\r\n");
+            ShellOutput.ScrollToEnd();
+            return;
+        }
+
+        if (SelectedMachine is { IsAppliance: true } sshHost)
+        {
+            _shellHistory.Add(line);
+            _historyIndex = _shellHistory.Count;
+            ShellInputBox.Clear();
+            ShellOutput.AppendText($"\r\n[SSH] {sshHost.Username}@{sshHost.Host}> {line}\r\n");
+            var (_, outText) = await _ssh.ExecuteSshAsync(sshHost, line);
+            ShellOutput.AppendText(outText + "\r\n");
+            ShellOutput.ScrollToEnd();
+            return;
+        }
+
         if (_conn is null)
         {
             if (!await ConnectToCurrentFieldsAsync()) return;
         }
-
-        var line = ShellInputBox.Text.Trim();
-        if (string.IsNullOrEmpty(line)) return;
 
         _shellHistory.Add(line);
         _historyIndex = _shellHistory.Count;
@@ -1497,7 +1581,7 @@ public partial class MainWindow : Window
         var fps = int.TryParse(FpsBox.Text, out var f) ? Math.Clamp(f, 1, 60) : 30;
         var quality = int.TryParse(QualityBox.Text, out var q) ? Math.Clamp(q, 20, 95) : 88;
         var maxWidth = ScaleBox.SelectedItem is ComboBoxItem { Tag: string ts } && int.TryParse(ts, out var mw) ? mw : 0;
-        var monitorIndex = Math.Max(0, MonitorCombo?.SelectedIndex ?? 0);
+        var monitorIndex = _selectedMonitorIndex == -1 ? -1 : Math.Max(0, MonitorCombo?.SelectedIndex ?? 0);
 
         var stats = new StreamStats();
         var statsTimer = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
@@ -2129,8 +2213,10 @@ public partial class MainWindow : Window
             });
         }
 
-        await ConnectToCurrentFieldsAsync();
-        await Task.Delay(500);
+        try { await ConnectToCurrentFieldsAsync().WaitAsync(TimeSpan.FromSeconds(5)); } catch { }
+        AgentPair2FaOverlay.Visibility = Visibility.Collapsed;
+        LockOverlay.Visibility = Visibility.Collapsed;
+        await Task.Delay(400);
         NavOverview.IsChecked = true;
         await Task.Delay(350);
         SaveWindowPng(Path.Combine(outDir, "controller-overview.png"));
@@ -2146,8 +2232,8 @@ public partial class MainWindow : Window
         // Switch to Shell tab, run a real PowerShell command, capture screenshot
         NavShell.IsChecked = true;
         ShellInputBox.Text = "Get-Process | Sort-Object WorkingSet64 -Descending | Select-Object -First 8 Id, ProcessName, @{N='RAM_MB';E={[math]::Round($_.WorkingSet64/1MB,1)}} | Format-Table -AutoSize";
-        await SendShellLineAsync();
-        await Task.Delay(1400);
+        try { await SendShellLineAsync().WaitAsync(TimeSpan.FromSeconds(3)); } catch { }
+        await Task.Delay(1200);
         SaveWindowPng(Path.Combine(outDir, "controller-shell.png"));
 
         // Switch to Remote Desktop tab, capture live frame, capture screenshot
@@ -2158,12 +2244,18 @@ public partial class MainWindow : Window
         SaveWindowPng(Path.Combine(outDir, "controller-desktop.png"));
         StopStream();
 
+        // Switch to Deploy (Winstall-Style Visual Software Catalog)
+        NavDeploy.IsChecked = true;
+        await Task.Delay(450);
+        SaveWindowPng(Path.Combine(outDir, "controller-deploy.png"));
+
         // Switch to Settings (Windows 11 Settings UI)
         NavSystem.IsChecked = true;
         await Task.Delay(400);
         SaveWindowPng(Path.Combine(outDir, "controller-settings.png"));
 
         Application.Current.Shutdown(0);
+        Environment.Exit(0);
     }
 
     private void SaveWindowPng(string filePath)
@@ -2190,6 +2282,7 @@ public partial class MainWindow : Window
     protected override void OnClosed(EventArgs e)
     {
         Disconnect();
+        try { _centralHub.Dispose(); } catch { }
         base.OnClosed(e);
     }
 }

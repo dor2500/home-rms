@@ -112,12 +112,18 @@ public static class TotpHelper
     }
 }
 
-public sealed record TwoFactorConfig(string TotpSecret, bool RequireOnStartupOrPair, bool AllowPasskey);
+public sealed record TwoFactorConfig(
+    string TotpSecret,
+    bool RequireOnStartupOrPair,
+    bool AllowPasskey,
+    List<string>? BackupCodes = null,
+    int RememberDays = 30,
+    Dictionary<string, DateTimeOffset>? TrustedDevices = null);
 
 public static class TwoFactorStore
 {
     public static TwoFactorConfig LoadAgent() =>
-        LoadOrCreate(Path.Combine(ControllerIdentity.SecurityDir, "agent-2fa.dpapi"), defaultRequired: true);
+        LoadOrCreate(Path.Combine(ControllerIdentity.SecurityDir, "agent-2fa.dpapi"), defaultRequired: false);
 
     public static void SaveAgent(TwoFactorConfig cfg) =>
         Save(Path.Combine(ControllerIdentity.SecurityDir, "agent-2fa.dpapi"), cfg);
@@ -127,6 +133,53 @@ public static class TwoFactorStore
 
     public static void SaveController(TwoFactorConfig cfg) =>
         Save(Path.Combine(ControllerIdentity.SecurityDir, "controller-2fa.dpapi"), cfg);
+
+    public static List<string> GenerateBackupCodes(int count = 8)
+    {
+        var list = new List<string>(count);
+        for (var i = 0; i < count; i++)
+        {
+            var bytes = RandomNumberGenerator.GetBytes(4);
+            var hex = Convert.ToHexString(bytes);
+            list.Add($"{hex[..4]}-{hex[4..]}");
+        }
+        return list;
+    }
+
+    public static bool VerifyCodeOrBackup(TwoFactorConfig cfg, string input, out TwoFactorConfig updated, out bool usedBackup)
+    {
+        usedBackup = false;
+        updated = cfg;
+        var clean = (input ?? "").Trim().ToUpperInvariant();
+        if (TotpHelper.VerifyCode(cfg.TotpSecret, clean))
+            return true;
+
+        var codes = cfg.BackupCodes ?? [];
+        var idx = codes.FindIndex(c => string.Equals(c.Trim(), clean, StringComparison.OrdinalIgnoreCase));
+        if (idx >= 0)
+        {
+            var next = new List<string>(codes);
+            next.RemoveAt(idx);
+            updated = cfg with { BackupCodes = next };
+            usedBackup = true;
+            return true;
+        }
+        return false;
+    }
+
+    public static bool IsDeviceRemembered(TwoFactorConfig cfg, string deviceId)
+    {
+        if (cfg.RememberDays <= 0 || cfg.TrustedDevices is null) return false;
+        return cfg.TrustedDevices.TryGetValue(deviceId, out var expires) && expires > DateTimeOffset.UtcNow;
+    }
+
+    public static TwoFactorConfig TrustDevice(TwoFactorConfig cfg, string deviceId)
+    {
+        var days = Math.Clamp(cfg.RememberDays <= 0 ? 30 : cfg.RememberDays, 1, 365);
+        var map = new Dictionary<string, DateTimeOffset>(cfg.TrustedDevices ?? []);
+        map[deviceId] = DateTimeOffset.UtcNow.AddDays(days);
+        return cfg with { TrustedDevices = map };
+    }
 
     private static TwoFactorConfig LoadOrCreate(string path, bool defaultRequired)
     {
@@ -141,12 +194,19 @@ public static class TwoFactorStore
                     : blob;
                 var cfg = JsonSerializer.Deserialize<TwoFactorConfig>(raw);
                 if (cfg is not null && !string.IsNullOrWhiteSpace(cfg.TotpSecret))
+                {
+                    if (cfg.BackupCodes is null)
+                    {
+                        cfg = cfg with { BackupCodes = GenerateBackupCodes(), RememberDays = cfg.RememberDays <= 0 ? 30 : cfg.RememberDays };
+                        Save(path, cfg);
+                    }
                     return cfg;
+                }
             }
             catch { }
         }
 
-        var created = new TwoFactorConfig(TotpHelper.GenerateSecretBase32(), defaultRequired, true);
+        var created = new TwoFactorConfig(TotpHelper.GenerateSecretBase32(), defaultRequired, true, GenerateBackupCodes(), 30, new());
         Save(path, created);
         return created;
     }

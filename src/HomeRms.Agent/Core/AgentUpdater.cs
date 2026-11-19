@@ -81,16 +81,16 @@ public sealed class AgentUpdater(ActivityLog log, string[] launchArgs) : IDispos
             return;
 
         string? downloadUrl = null;
+        string? checksumUrl = null;
         if (root.TryGetProperty("assets", out var assetsEl) && assetsEl.ValueKind == JsonValueKind.Array)
         {
             foreach (var asset in assetsEl.EnumerateArray())
             {
                 var name = asset.TryGetProperty("name", out var nEl) ? nEl.GetString() : null;
                 if (string.Equals(name, AssetName, StringComparison.OrdinalIgnoreCase))
-                {
                     downloadUrl = asset.TryGetProperty("browser_download_url", out var uEl) ? uEl.GetString() : null;
-                    break;
-                }
+                else if (string.Equals(name, "checksums.sha256", StringComparison.OrdinalIgnoreCase))
+                    checksumUrl = asset.TryGetProperty("browser_download_url", out var cEl) ? cEl.GetString() : null;
             }
         }
 
@@ -112,6 +112,24 @@ public sealed class AgentUpdater(ActivityLog log, string[] launchArgs) : IDispos
         {
             log.Write("[updater] downloaded file failed PE header check — aborting update");
             return;
+        }
+
+        if (!string.IsNullOrWhiteSpace(checksumUrl))
+        {
+            var checksums = await http.GetStringAsync(checksumUrl, ct);
+            var expectedLine = checksums.Split('\n', StringSplitOptions.RemoveEmptyEntries)
+                .FirstOrDefault(l => l.Contains(AssetName, StringComparison.OrdinalIgnoreCase));
+            if (expectedLine is not null)
+            {
+                var expectedHash = expectedLine.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries).FirstOrDefault();
+                var actualHash = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(bytes));
+                if (!string.IsNullOrWhiteSpace(expectedHash) &&
+                    !string.Equals(expectedHash, actualHash, StringComparison.OrdinalIgnoreCase))
+                {
+                    log.Write($"[updater] SHA-256 mismatch (expected {expectedHash}, got {actualHash}) — aborting update");
+                    return;
+                }
+            }
         }
 
         await File.WriteAllBytesAsync(stagedExe, bytes, ct);

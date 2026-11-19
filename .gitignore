@@ -10,3 +10,6 @@ dist/
 *.p12
 *.key
 certs/
+
+artifacts/
+

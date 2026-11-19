@@ -17,6 +17,8 @@ namespace HomeRms.Agent.Server;
 public sealed class RemoteManagementService(ConsentCoordinator consent, ActivityLog log)
     : RemoteManagement.RemoteManagementBase
 {
+    private volatile int _activeMonitorIndex;
+
     private static string OperatorOf(ServerCallContext ctx)
     {
         var cert = ctx.GetHttpContext().Connection.ClientCertificate;
@@ -79,8 +81,9 @@ public sealed class RemoteManagementService(ConsentCoordinator consent, Activity
         var quality = request.Quality <= 0 ? 88 : request.Quality;
         var maxWidth = request.MaxWidth;
 
+        _activeMonitorIndex = request.MonitorIndex;
         using var _ = consent.BeginViewing(op);
-        using var cap = new ScreenCapturer { MonitorIndex = Math.Max(0, request.MonitorIndex) };
+        using var cap = new ScreenCapturer { MonitorIndex = request.MonitorIndex };
         var sw = new Stopwatch();
         long seq = 0;
 
@@ -197,7 +200,7 @@ public sealed class RemoteManagementService(ConsentCoordinator consent, Activity
         await foreach (var ev in requestStream.ReadAllAsync(context.CancellationToken))
         {
             if (!consent.HasActiveGrant(op)) break;
-            InputInjector.Apply(ev);
+            InputInjector.Apply(ev, _activeMonitorIndex);
             applied++;
         }
         log.Write($"[input] applied {applied} input events from '{op}'");

@@ -5,13 +5,39 @@ using System.Windows.Media;
 
 namespace HomeRms.Controller.Models;
 
-/// <summary>A saved agent endpoint the controller can monitor and connect to.</summary>
+public enum EndpointKind
+{
+    WindowsAgent = 0,
+    WindowsAgentless = 1,
+    HomeAssistant = 2,
+    Nas = 3,
+    Linux = 4,
+    WebService = 5,
+}
+
+public enum ConnectionMode
+{
+    Agent = 0,
+    Agentless = 1,
+}
+
+/// <summary>A saved endpoint (Windows Agent, Agentless WinRM/RDP, or Server/Appliance) managed by Home RMS Server.</summary>
 public sealed class MachineProfile : INotifyPropertyChanged
 {
     private string _name = "";
     private string _host = "";
     private int _port = 7443;
     private string _macAddress = "";
+    private EndpointKind _kind = EndpointKind.WindowsAgent;
+    private ConnectionMode _connectionMode = ConnectionMode.Agent;
+    private string _username = "";
+    private string _encryptedPassword = "";
+    private int _sshPort = 22;
+    private string _sshKeyPath = "";
+    private string _webUrl = "";
+    private bool _useRdpMultimon = true;
+    private bool? _twoFactorOverride;
+    private int _unreadAlerts;
     private bool _isOnline;
     private bool _isConnected;
     private string _statusLabel = "Unknown";
@@ -43,6 +69,153 @@ public sealed class MachineProfile : INotifyPropertyChanged
     {
         get => _macAddress;
         set { _macAddress = value; OnPropertyChanged(); }
+    }
+
+    public EndpointKind Kind
+    {
+        get => _kind;
+        set
+        {
+            _kind = value;
+            if (value == EndpointKind.WindowsAgentless) _connectionMode = ConnectionMode.Agentless;
+            else if (value == EndpointKind.WindowsAgent) _connectionMode = ConnectionMode.Agent;
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(ConnectionMode));
+            OnPropertyChanged(nameof(ModeBadge));
+            OnPropertyChanged(nameof(CategoryLabel));
+            OnPropertyChanged(nameof(IsWindows));
+            OnPropertyChanged(nameof(IsAppliance));
+            OnPropertyChanged(nameof(IsAgentless));
+            OnPropertyChanged(nameof(OsGlyph));
+            OnPropertyChanged(nameof(OsTag));
+        }
+    }
+
+    public ConnectionMode ConnectionMode
+    {
+        get => _connectionMode;
+        set
+        {
+            _connectionMode = value;
+            if (_kind == EndpointKind.WindowsAgent && value == ConnectionMode.Agentless) _kind = EndpointKind.WindowsAgentless;
+            else if (_kind == EndpointKind.WindowsAgentless && value == ConnectionMode.Agent) _kind = EndpointKind.WindowsAgent;
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(Kind));
+            OnPropertyChanged(nameof(ModeBadge));
+            OnPropertyChanged(nameof(IsAgentless));
+        }
+    }
+
+    public string Username
+    {
+        get => _username;
+        set { _username = value; OnPropertyChanged(); }
+    }
+
+    /// <summary>DPAPI-encrypted password (CurrentUser scope, Base64).</summary>
+    public string EncryptedPassword
+    {
+        get => _encryptedPassword;
+        set { _encryptedPassword = value; OnPropertyChanged(); }
+    }
+
+    public int SshPort
+    {
+        get => _sshPort;
+        set { _sshPort = value <= 0 ? 22 : value; OnPropertyChanged(); }
+    }
+
+    public string SshKeyPath
+    {
+        get => _sshKeyPath;
+        set { _sshKeyPath = value; OnPropertyChanged(); }
+    }
+
+    public string WebUrl
+    {
+        get => _webUrl;
+        set { _webUrl = value; OnPropertyChanged(); }
+    }
+
+    public bool UseRdpMultimon
+    {
+        get => _useRdpMultimon;
+        set { _useRdpMultimon = value; OnPropertyChanged(); }
+    }
+
+    /// <summary>Optional per-endpoint 2FA override (null = inherit global setting).</summary>
+    public bool? TwoFactorOverride
+    {
+        get => _twoFactorOverride;
+        set { _twoFactorOverride = value; OnPropertyChanged(); }
+    }
+
+    [JsonIgnore]
+    public int UnreadAlerts
+    {
+        get => _unreadAlerts;
+        set { _unreadAlerts = Math.Max(0, value); OnPropertyChanged(); }
+    }
+
+    [JsonIgnore]
+    public bool IsWindows => _kind is EndpointKind.WindowsAgent or EndpointKind.WindowsAgentless;
+
+    [JsonIgnore]
+    public bool IsAppliance => _kind is EndpointKind.HomeAssistant or EndpointKind.Nas or EndpointKind.Linux or EndpointKind.WebService;
+
+    [JsonIgnore]
+    public bool IsAgentless => _connectionMode == ConnectionMode.Agentless && IsWindows;
+
+    [JsonIgnore]
+    public string ModeBadge => _kind switch
+    {
+        EndpointKind.WindowsAgent => "Agent: mTLS",
+        EndpointKind.WindowsAgentless => "Agentless: WinRM / RDP",
+        EndpointKind.HomeAssistant => "Home Assistant",
+        EndpointKind.Nas => "NAS / Storage",
+        EndpointKind.Linux => "Linux / SSH",
+        EndpointKind.WebService => "Web Service",
+        _ => "Endpoint",
+    };
+
+    [JsonIgnore]
+    public string CategoryLabel => _kind switch
+    {
+        EndpointKind.WindowsAgent or EndpointKind.WindowsAgentless => "WINDOWS",
+        EndpointKind.HomeAssistant => "HOME ASSISTANT",
+        EndpointKind.Nas => "NAS",
+        EndpointKind.Linux => "LINUX",
+        EndpointKind.WebService => "WEB SERVICE",
+        _ => "OTHER",
+    };
+
+    public void SetPlainPassword(string? plain)
+    {
+        if (string.IsNullOrEmpty(plain))
+        {
+            EncryptedPassword = "";
+            return;
+        }
+        var bytes = System.Text.Encoding.UTF8.GetBytes(plain);
+        var protectedBytes = System.Security.Cryptography.ProtectedData.Protect(
+            bytes, null, System.Security.Cryptography.DataProtectionScope.CurrentUser);
+        EncryptedPassword = Convert.ToBase64String(protectedBytes);
+    }
+
+    public string GetPlainPassword()
+    {
+        if (string.IsNullOrWhiteSpace(EncryptedPassword)) return "";
+        try
+        {
+            var protectedBytes = Convert.FromBase64String(EncryptedPassword);
+            var bytes = System.Security.Cryptography.ProtectedData.Unprotect(
+                protectedBytes, null, System.Security.Cryptography.DataProtectionScope.CurrentUser);
+            return System.Text.Encoding.UTF8.GetString(bytes);
+        }
+        catch
+        {
+            return "";
+        }
     }
 
     [JsonIgnore]
@@ -108,13 +281,26 @@ public sealed class MachineProfile : INotifyPropertyChanged
     }
 
     [JsonIgnore]
-    public string OsGlyph => _osName.Contains("Linux", StringComparison.OrdinalIgnoreCase) ? "🐧" : "⊞";
+    public string OsGlyph => _kind switch
+    {
+        EndpointKind.HomeAssistant => "HA",
+        EndpointKind.Nas => "NAS",
+        EndpointKind.Linux => "LNX",
+        EndpointKind.WebService => "WEB",
+        EndpointKind.WindowsAgentless => "RDP",
+        _ => _osName.Contains("Linux", StringComparison.OrdinalIgnoreCase) ? "LNX" : "WIN",
+    };
 
     [JsonIgnore]
     public string OsTag
     {
         get
         {
+            if (_kind == EndpointKind.HomeAssistant) return "Home Assistant";
+            if (_kind == EndpointKind.Nas) return "NAS";
+            if (_kind == EndpointKind.Linux) return "Linux";
+            if (_kind == EndpointKind.WebService) return "Web UI";
+            if (_kind == EndpointKind.WindowsAgentless) return "WinRM / RDP";
             if (_osName.Contains("WinFlex", StringComparison.OrdinalIgnoreCase)) return "WinFlexOS";
             if (_osName.Contains("Linux", StringComparison.OrdinalIgnoreCase)) return "Linux";
             if (_osName.Contains("11", StringComparison.OrdinalIgnoreCase) || _osName.Contains("26", StringComparison.OrdinalIgnoreCase)) return "Windows 11";

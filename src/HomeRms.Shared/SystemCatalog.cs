@@ -129,7 +129,7 @@ public static class SystemCatalog
     /// </summary>
     public static readonly IReadOnlyList<Win11SettingsPage> Win11Pages =
     [
-        new("home", "🏠", "Home", "Device overview, quick settings, and remote status", "Optional target",
+        new("home", "HOME", "Home", "Device overview, quick settings, and remote status", "Optional target",
         [
             new("system", "info", "Device Specifications", "View computer name, Windows edition, build, RAM, and uptime", "View Info"),
             new("updates", "status", "Windows Update Status", "Check update service state, pending reboot, and pause status", "Check Status"),
@@ -138,7 +138,7 @@ public static class SystemCatalog
             new("system", "theme-light", "Personalization — Light Mode", "Switch Windows apps and taskbar to Light theme", "Set Light"),
             new("power", "lock", "Lock Workstation", "Immediately lock the remote Windows session", "Lock Screen"),
         ]),
-        new("system", "💻", "System", "Display, Power & battery, Remote Desktop, About & Rename", "Computer name or Power Plan GUID",
+        new("system", "SYS", "System", "Display, Power & battery, Remote Desktop, About & Rename", "Computer name or Power Plan GUID",
         [
             new("system", "info", "About This PC", "OS version, hardware summary, domain, and last boot time", "Refresh Info"),
             new("system", "hotfixes", "Installed Updates (Hotfixes)", "List all installed Windows KB hotfixes and dates", "List Hotfixes"),
@@ -153,13 +153,13 @@ public static class SystemCatalog
             new("power", "sleep", "Sleep", "Put the remote computer into sleep mode", "Sleep", Dangerous: true),
             new("power", "logoff", "Sign Out Current User", "Sign out the active Windows user session", "Sign Out", Dangerous: true),
         ]),
-        new("devices", "🔵", "Bluetooth & devices", "Connected hardware, Bluetooth service, and Printers", "Service name (bthserv / Spooler)",
+        new("devices", "DEV", "Bluetooth & devices", "Connected hardware, Bluetooth service, and Printers", "Service name (bthserv / Spooler)",
         [
             new("system", "devices-list", "Connected Devices (PnP)", "List present hardware, Bluetooth, USB, audio, and display devices", "List Devices"),
             new("services", "restart", "Restart Bluetooth Support Service", "Restart Windows Bluetooth service (bthserv)", "Restart Bluetooth", DefaultTarget: "bthserv", Dangerous: true),
             new("services", "restart", "Restart Print Spooler", "Restart Windows printing queue service (Spooler)", "Restart Spooler", DefaultTarget: "Spooler", Dangerous: true),
         ]),
-        new("network", "🌐", "Network & internet", "Adapters, DNS cache, and Windows Firewall profiles", "Optional",
+        new("network", "NET", "Network & internet", "Adapters, DNS cache, and Windows Firewall profiles", "Optional",
         [
             new("system", "network-list", "Network Adapters", "Show Ethernet/Wi-Fi adapters, link speeds, and connection status", "List Adapters"),
             new("system", "dns-flush", "Flush DNS Resolver Cache", "Clear the local Windows DNS cache (ipconfig /flushdns)", "Flush DNS"),
@@ -167,7 +167,7 @@ public static class SystemCatalog
             new("firewall", "enable-all", "Enable All Firewall Profiles", "Turn on Windows Defender Firewall for all network profiles", "Enable All"),
             new("firewall", "disable-all", "Disable All Firewall Profiles", "Turn off Windows Defender Firewall on all profiles", "Disable All", Dangerous: true),
         ]),
-        new("personalization", "🎨", "Personalization", "Colors, Dark/Light mode, Taskbar alignment, Explorer", "Optional",
+        new("personalization", "UI", "Personalization", "Colors, Dark/Light mode, Taskbar alignment, Explorer", "Optional",
         [
             new("system", "theme-dark", "App & System Mode: Dark", "Apply Windows 11 Dark theme to apps and shell", "Enable Dark"),
             new("system", "theme-light", "App & System Mode: Light", "Apply Windows 11 Light theme to apps and shell", "Enable Light"),
@@ -176,7 +176,7 @@ public static class SystemCatalog
             new("system", "file-ext-on", "Show File Extensions", "Always show known file extensions in File Explorer", "Show Extensions"),
             new("system", "file-ext-off", "Hide Known File Extensions", "Hide known file extensions in File Explorer", "Hide Extensions"),
         ]),
-        new("apps", "📦", "Apps & Services", "Startup apps, Windows Services, and Scheduled Tasks", "Service / Startup / Task name",
+        new("apps", "SVC", "Apps & Services", "Startup apps, Windows Services, and Scheduled Tasks", "Service / Startup / Task name",
         [
             new("startup", "list", "Startup Apps", "List programs configured to run at Windows sign-in", "List Startup"),
             new("startup", "remove", "Remove Startup App", "Remove an entry by Name from Windows Run keys", "Remove Entry", NeedsTarget: true, Dangerous: true),
@@ -190,22 +190,22 @@ public static class SystemCatalog
             new("tasks", "enable", "Enable Scheduled Task", "Enable a disabled scheduled task", "Enable", NeedsTarget: true),
             new("tasks", "disable", "Disable Scheduled Task", "Disable a scheduled task", "Disable", NeedsTarget: true, Dangerous: true),
         ]),
-        new("accounts", "👤", "Accounts", "Local Windows user accounts and sign-in status", "Optional",
+        new("accounts", "USR", "Accounts", "Local Windows user accounts and sign-in status", "Optional",
         [
             new("system", "users", "Local User Accounts", "List local Windows accounts, enabled state, and last logon", "List Users"),
         ]),
-        new("time", "🕒", "Time & language", "Time zone, clock synchronization, and available zones", "Time Zone ID (e.g. Israel Standard Time)",
+        new("time", "CLK", "Time & language", "Time zone, clock synchronization, and available zones", "Time Zone ID (e.g. Israel Standard Time)",
         [
             new("system", "timezones", "Available Time Zones", "List all valid Windows Time Zone IDs", "List Time Zones"),
             new("system", "timezone", "Set Time Zone", "Change the Windows time zone using a valid Time Zone ID", "Set Time Zone", NeedsTarget: true),
             new("system", "time-sync", "Sync Clock Now", "Force Windows Time service (w32tm) to synchronize immediately", "Sync Clock"),
         ]),
-        new("gaming", "🎮", "Gaming", "Windows Game Mode optimization", "Optional",
+        new("gaming", "PERF", "Gaming", "Windows Game Mode optimization", "Optional",
         [
             new("system", "gamemode-on", "Game Mode — On", "Optimize Windows for gaming performance", "Turn On"),
             new("system", "gamemode-off", "Game Mode — Off", "Disable Windows Game Mode", "Turn Off"),
         ]),
-        new("privacy", "🛡️", "Privacy & security", "Windows Defender Antivirus, Firewall, and Registry Editor", "Registry Path (HKLM:\\... or HKCU:\\...)",
+        new("privacy", "SEC", "Privacy & security", "Windows Defender Antivirus, Firewall, and Registry Editor", "Registry Path (HKLM:\\... or HKCU:\\...)",
         [
             new("system", "defender-status", "Windows Defender Status", "Check real-time protection, signature version, and last scan", "Check Status"),
             new("system", "defender-update", "Update Defender Signatures", "Download latest Microsoft Defender virus definitions", "Update Signatures"),
@@ -214,8 +214,11 @@ public static class SystemCatalog
             new("registry", "get", "Registry: Read Values", "Read all values (or Extra = specific value name)", "Read Values", NeedsTarget: true, DefaultTarget: @"HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion"),
             new("registry", "set", "Registry: Write Value", "Extra format: name|type|value (String, DWord, QWord, ExpandString)", "Write Value", NeedsTarget: true, ExtraHint: "name|type|value", Dangerous: true),
             new("registry", "delete", "Registry: Delete Value", "Extra = value name to delete from Target key", "Delete Value", NeedsTarget: true, ExtraHint: "value name", Dangerous: true),
+            new("agent", "autostart-status", "Agent Auto-Start Status", "Check if Home RMS Agent is registered to start automatically with Windows", "Check Status"),
+            new("agent", "autostart-enable", "Enable Agent Auto-Start (Startup / Logon)", "Register elevated Task Scheduler auto-start at logon/startup without UAC prompts", "Enable Auto-Start"),
+            new("agent", "autostart-disable", "Disable Agent Auto-Start", "Remove Home RMS Agent auto-start task and registry entry", "Disable Auto-Start", Dangerous: true),
         ]),
-        new("updates", "🔄", "Windows Update", "Check, install, pause, and manage Windows Updates", "KB number (e.g. KB5030211)",
+        new("updates", "UPD", "Windows Update", "Check, install, pause, and manage Windows Updates", "KB number (e.g. KB5030211)",
         [
             new("updates", "status", "Update Status", "Reboot required, service status, policy, and pause expiry", "Status"),
             new("updates", "list-pending", "Check for Updates", "Search Microsoft Update for pending updates", "Check Pending", LongRunning: true),

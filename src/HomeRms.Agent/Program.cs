@@ -23,12 +23,12 @@ internal static class Program
         {
             TrustedControllerStore.AddPinned(pinFp, "Pinned Controller");
         }
-        if (args.Any(a => string.Equals(a, "--install", StringComparison.OrdinalIgnoreCase)))
+        if (args.Any(a => a.Equals("--install", StringComparison.OrdinalIgnoreCase) || a.Equals("--install-service", StringComparison.OrdinalIgnoreCase)))
         {
             InstallAgent(args);
             return;
         }
-        if (args.Any(a => string.Equals(a, "--uninstall", StringComparison.OrdinalIgnoreCase)))
+        if (args.Any(a => a.Equals("--uninstall", StringComparison.OrdinalIgnoreCase) || a.Equals("--uninstall-service", StringComparison.OrdinalIgnoreCase)))
         {
             UninstallAgent();
             return;
@@ -173,16 +173,21 @@ internal static class Program
         // Register Windows Startup: when installed as Administrator, use an elevated Scheduled Task
         // (RL HIGHEST) so SendInput can control elevated windows (Task Manager, Admin PowerShell, Settings)
         // without being blocked by Windows UIPI.
-        if (SystemOps.IsElevated())
+        var noAutoStart = args.Any(a => string.Equals(a, "--no-autostart", StringComparison.OrdinalIgnoreCase));
+        if (!noAutoStart)
         {
-            RunCommand("schtasks.exe", $"/Create /TN \"HomeRmsAgent\" /TR \"\\\"{targetExe}\\\"\" /SC ONLOGON /RL HIGHEST /F");
-            using var runKey = Registry.CurrentUser.OpenSubKey(@"Software\Microsoft\Windows\CurrentVersion\Run", writable: true);
-            runKey?.DeleteValue("HomeRmsAgent", throwOnMissingValue: false);
-        }
-        else
-        {
-            using var runKey = Registry.CurrentUser.CreateSubKey(@"Software\Microsoft\Windows\CurrentVersion\Run");
-            runKey.SetValue("HomeRmsAgent", $"\"{targetExe}\"");
+            if (SystemOps.IsElevated())
+            {
+                RunCommand("schtasks.exe", $"/Create /TN \"HomeRmsAgent\" /TR \"\\\"{targetExe}\\\"\" /SC ONLOGON /RL HIGHEST /F");
+                RunCommand("schtasks.exe", $"/Create /TN \"HomeRmsAgentBoot\" /TR \"\\\"{targetExe}\\\"\" /SC ONSTART /RU SYSTEM /RL HIGHEST /F");
+                using var runKey = Registry.CurrentUser.OpenSubKey(@"Software\Microsoft\Windows\CurrentVersion\Run", writable: true);
+                runKey?.DeleteValue("HomeRmsAgent", throwOnMissingValue: false);
+            }
+            else
+            {
+                using var runKey = Registry.CurrentUser.CreateSubKey(@"Software\Microsoft\Windows\CurrentVersion\Run");
+                runKey.SetValue("HomeRmsAgent", $"\"{targetExe}\"");
+            }
         }
 
         // Register in Apps & Features
@@ -216,6 +221,7 @@ internal static class Program
                 try { p.Kill(); p.WaitForExit(3000); } catch { }
         }
         RunCommand("schtasks.exe", "/Delete /TN \"HomeRmsAgent\" /F");
+        RunCommand("schtasks.exe", "/Delete /TN \"HomeRmsAgentBoot\" /F");
         using (var runKey = Registry.CurrentUser.OpenSubKey(@"Software\Microsoft\Windows\CurrentVersion\Run", writable: true))
             runKey?.DeleteValue("HomeRmsAgent", throwOnMissingValue: false);
         Registry.CurrentUser.DeleteSubKeyTree(@"Software\Microsoft\Windows\CurrentVersion\Uninstall\HomeRmsAgent", throwOnMissingSubKey: false);

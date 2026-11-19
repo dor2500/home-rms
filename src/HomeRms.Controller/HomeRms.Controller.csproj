@@ -29,4 +29,8 @@
     <ProjectReference Include="..\HomeRms.Shared\HomeRms.Shared.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <PackageReference Include="SSH.NET" Version="2026.0.1" />
+  </ItemGroup>
+
 </Project>

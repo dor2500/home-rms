@@ -109,6 +109,24 @@ public sealed class ScreenCapturer : IDisposable
     private Bitmap CaptureBitmap(int maxWidth)
     {
         var screens = System.Windows.Forms.Screen.AllScreens;
+        if (MonitorIndex == -1 && screens.Length > 1)
+        {
+            var vs = System.Windows.Forms.SystemInformation.VirtualScreen;
+            var allBmp = new Bitmap(vs.Width, vs.Height, PixelFormat.Format24bppRgb);
+            using (var g = Graphics.FromImage(allBmp))
+                g.CopyFromScreen(vs.Location, Point.Empty, vs.Size);
+            if (maxWidth > 0 && allBmp.Width > maxWidth)
+            {
+                var targetH = Math.Max(1, (int)Math.Round(allBmp.Height * (maxWidth / (double)allBmp.Width)));
+                var allScaled = new Bitmap(maxWidth, targetH, PixelFormat.Format24bppRgb);
+                using var sg = Graphics.FromImage(allScaled);
+                sg.InterpolationMode = InterpolationMode.HighQualityBicubic;
+                sg.DrawImage(allBmp, 0, 0, maxWidth, targetH);
+                allBmp.Dispose();
+                return allScaled;
+            }
+            return allBmp;
+        }
         if (MonitorIndex > 0 && MonitorIndex < screens.Length)
         {
             var b = screens[MonitorIndex].Bounds;
