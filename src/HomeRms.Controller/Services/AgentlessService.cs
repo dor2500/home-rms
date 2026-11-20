@@ -309,6 +309,9 @@ public sealed class AgentlessService
             UseShellExecute = false,
             CreateNoWindow = true,
         };
+        // If the Controller was started from a PowerShell 7 terminal, the inherited PSModulePath points
+        // at PS7 modules and Windows PowerShell fails to load its own (e.g. ConvertTo-SecureString).
+        psi.Environment.Remove("PSModulePath");
 
         using var proc = Process.Start(psi);
         if (proc is null) return (false, "", "Failed to start PowerShell.");

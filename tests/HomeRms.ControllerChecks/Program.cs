@@ -60,7 +60,8 @@ try
                   "\n[Console]::Out.Write([Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($cred.UserName + '|' + $cred.GetNetworkCredential().Password)))";
     var (_, credOut) = RunPowerShell(work, prelude);
     var decoded = TryDecode(credOut.Trim());
-    Check(decoded == "DOMAIN\\o'brien|" + hostile, "user name and password with quotes / '@ / $ / backticks / newlines round-trip unchanged");
+    Check(decoded == "DOMAIN\\o'brien|" + hostile, "user name and password with quotes / '@ / $ / backticks / newlines round-trip unchanged"
+        + (decoded == "DOMAIN\\o'brien|" + hostile ? "" : $" -> got: {credOut.Trim()}"));
 
     // ---------------- 3. Script Library wrappers execute ----------------
     Console.WriteLine("[checks] Script Library wrappers");
@@ -119,7 +120,9 @@ static string? TryDecode(string b64)
 static (int Exit, string Output) RunPowerShell(string work, string script)
 {
     var file = Path.Combine(work, $"run-{Guid.NewGuid():N}.ps1");
-    File.WriteAllText(file, script, new UTF8Encoding(true));
+    // Windows PowerShell can emit progress records (CLIXML) on stderr when it auto-loads a module,
+    // which would corrupt checks that decode the combined output.
+    File.WriteAllText(file, "$ProgressPreference = 'SilentlyContinue'\n" + script, new UTF8Encoding(true));
     var psi = new ProcessStartInfo("powershell.exe", $"-NoProfile -NonInteractive -ExecutionPolicy Bypass -File \"{file}\"")
     {
         RedirectStandardOutput = true,
@@ -127,6 +130,7 @@ static (int Exit, string Output) RunPowerShell(string work, string script)
         UseShellExecute = false,
         CreateNoWindow = true,
     };
+    psi.Environment.Remove("PSModulePath"); // same as AgentlessService: don't inherit PS7's module path
     using var p = Process.Start(psi)!;
     var stdout = p.StandardOutput.ReadToEndAsync();
     var stderr = p.StandardError.ReadToEndAsync();
