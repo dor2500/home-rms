@@ -1,6 +1,8 @@
 using System.IO;
 using System.Text.Json;
 using HomeRms.Controller.Models;
+using HomeRms.Controller.Themes;
+using HomeRms.Shared;
 
 namespace HomeRms.Controller.Services;
 
@@ -23,9 +25,13 @@ public static class MachineStore
                 if (list is { Count: > 0 }) return list;
             }
         }
-        catch
+        catch (Exception ex)
         {
-            // Fall through to default seed on missing/corrupt file.
+            // Corrupt file: keep a copy before the default seed below overwrites it.
+            var backup = AtomicFile.PreserveCorrupt(FilePath);
+            LogBus.Publish(LogBus.Activity, "Settings",
+                $"machines.json could not be read ({ex.Message}); starting with the default endpoint." +
+                (backup is null ? "" : $" The unreadable file was kept as {Path.GetFileName(backup)}."), PaletteTone.Warning);
         }
 
         var defaults = new List<MachineProfile>
@@ -46,12 +52,12 @@ public static class MachineStore
     {
         try
         {
-            Directory.CreateDirectory(Path.GetDirectoryName(FilePath)!);
-            File.WriteAllText(FilePath, JsonSerializer.Serialize(machines.ToList(), Options));
+            AtomicFile.WriteAllText(FilePath, JsonSerializer.Serialize(machines.ToList(), Options));
         }
-        catch
+        catch (Exception ex)
         {
-            // Saving is best-effort; the in-memory list stays usable.
+            // The in-memory list stays usable; tell the operator their changes are not persisted.
+            LogBus.Publish(LogBus.Activity, "Settings", $"Could not save machines.json: {ex.Message}", PaletteTone.Warning);
         }
     }
 }

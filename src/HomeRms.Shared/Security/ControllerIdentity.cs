@@ -47,7 +47,7 @@ public static class ControllerIdentity
 
             var secretBytes = RandomNumberGenerator.GetBytes(32);
             var secret = Convert.ToBase64String(secretBytes);
-            File.WriteAllBytes(keyPath, ProtectSecret(secret));
+            AtomicFile.WriteAllBytes(keyPath, ProtectSecret(secret));
 
             using var ecdsa = ECDsa.Create(ECCurve.NamedCurves.nistP256);
             var req = new CertificateRequest(
@@ -62,7 +62,7 @@ public static class ControllerIdentity
 
             var now = DateTimeOffset.UtcNow;
             using var cert = req.CreateSelfSigned(now.AddDays(-1), now.AddYears(10));
-            File.WriteAllBytes(pfxPath, cert.Export(X509ContentType.Pfx, secret));
+            AtomicFile.WriteAllBytes(pfxPath, cert.Export(X509ContentType.Pfx, secret));
 
             _cachedControllerCert = X509CertificateLoader.LoadPkcs12FromFile(
                 pfxPath, secret, X509KeyStorageFlags.Exportable);
@@ -106,7 +106,17 @@ public static class TrustedControllerStore
 {
     public sealed record PinnedEntry(string Sha256, string Label, DateTimeOffset PinnedAt);
 
+    /// <summary>
+    /// Placeholder returned by <see cref="Load"/> when the pin store exists but cannot be read.
+    /// It matches no certificate, so a damaged store fails CLOSED (every controller is refused)
+    /// instead of silently reopening first-come pairing. Clearing the pins on the agent recovers.
+    /// </summary>
+    public const string UnreadableStoreMarker = "UNREADABLE-PIN-STORE";
+
     private static readonly object StoreLock = new();
+
+    /// <summary>Last read error of the pin store (null when the last read succeeded).</summary>
+    public static string? LastLoadError { get; private set; }
 
     public static string DefaultStorePath => Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
@@ -117,12 +127,23 @@ public static class TrustedControllerStore
         path ??= DefaultStorePath;
         lock (StoreLock)
         {
-            if (!File.Exists(path)) return [];
+            if (!File.Exists(path))
+            {
+                LastLoadError = null;
+                return [];
+            }
             try
             {
-                return JsonSerializer.Deserialize<List<PinnedEntry>>(File.ReadAllText(path)) ?? [];
+                var list = JsonSerializer.Deserialize<List<PinnedEntry>>(File.ReadAllText(path)) ?? [];
+                LastLoadError = null;
+                return list;
             }
-            catch { return []; }
+            catch (Exception ex)
+            {
+                // Fail closed: an unreadable store must never look like "nothing pinned yet".
+                LastLoadError = $"{Path.GetFileName(path)} could not be read: {ex.Message}";
+                return [new PinnedEntry(UnreadableStoreMarker, "unreadable pin store", DateTimeOffset.UtcNow)];
+            }
         }
     }
 
@@ -145,12 +166,13 @@ public static class TrustedControllerStore
         lock (StoreLock)
         {
             var list = Load(path);
+            if (list.RemoveAll(e => e.Sha256 == UnreadableStoreMarker) > 0)
+                AtomicFile.PreserveCorrupt(path); // explicit (2FA) re-pairing replaces the damaged store; keep a copy
             if (list.All(e => !string.Equals(
                 ControllerIdentity.NormalizeFingerprint(e.Sha256), norm, StringComparison.OrdinalIgnoreCase)))
             {
                 list.Add(new PinnedEntry(norm, label, DateTimeOffset.UtcNow));
-                Directory.CreateDirectory(Path.GetDirectoryName(path)!);
-                File.WriteAllText(path, JsonSerializer.Serialize(list, new JsonSerializerOptions { WriteIndented = true }));
+                AtomicFile.WriteAllText(path, JsonSerializer.Serialize(list, new JsonSerializerOptions { WriteIndented = true }));
             }
         }
     }

@@ -55,9 +55,13 @@ public static class ScriptLibraryStore
             if (File.Exists(FilePath))
                 list = JsonSerializer.Deserialize<List<ScriptSnippet>>(File.ReadAllText(FilePath), Options) ?? new();
         }
-        catch
+        catch (Exception ex)
         {
-            // Corrupt file: start from the built-ins (the bad file is overwritten on the next save).
+            // Corrupt file: start from the built-ins; keep a copy because the next save overwrites it.
+            var backup = HomeRms.Shared.AtomicFile.PreserveCorrupt(FilePath);
+            LogBus.Publish(LogBus.Scripts, "Library",
+                $"script-library.json could not be read ({ex.Message}); only built-in snippets are loaded." +
+                (backup is null ? "" : $" The unreadable file was kept as {Path.GetFileName(backup)}."), Themes.PaletteTone.Warning);
         }
 
         // Built-ins always reflect the shipped version; user snippets are kept as-is.
@@ -70,14 +74,12 @@ public static class ScriptLibraryStore
     {
         try
         {
-            Directory.CreateDirectory(Path.GetDirectoryName(FilePath)!);
-            var tmp = FilePath + ".tmp";
-            File.WriteAllText(tmp, JsonSerializer.Serialize(snippets.ToList(), Options));
-            File.Move(tmp, FilePath, overwrite: true);
+            HomeRms.Shared.AtomicFile.WriteAllText(FilePath, JsonSerializer.Serialize(snippets.ToList(), Options));
         }
-        catch
+        catch (Exception ex)
         {
-            // Best effort; the in-memory library stays usable.
+            // The in-memory library stays usable; surface the failure instead of losing edits silently.
+            LogBus.Publish(LogBus.Scripts, "Library", $"Could not save script-library.json: {ex.Message}", Themes.PaletteTone.Warning);
         }
     }
 

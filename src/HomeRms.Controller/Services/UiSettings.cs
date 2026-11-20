@@ -1,5 +1,6 @@
 using System.IO;
 using System.Text.Json;
+using HomeRms.Shared;
 
 namespace HomeRms.Controller.Services;
 
@@ -21,7 +22,11 @@ public sealed class UiSettings
             if (File.Exists(FilePath))
                 return JsonSerializer.Deserialize<UiSettings>(File.ReadAllText(FilePath)) ?? new UiSettings();
         }
-        catch { /* corrupt or unreadable: fall back to defaults */ }
+        catch (Exception ex)
+        {
+            // Corrupt or unreadable: fall back to defaults (the file is rewritten on the next save).
+            LogBus.Publish(LogBus.Activity, "Settings", $"ui-settings.json could not be read ({ex.Message}); using default layout.");
+        }
         return new UiSettings();
     }
 
@@ -29,9 +34,12 @@ public sealed class UiSettings
     {
         try
         {
-            Directory.CreateDirectory(Path.GetDirectoryName(FilePath)!);
-            File.WriteAllText(FilePath, JsonSerializer.Serialize(this, new JsonSerializerOptions { WriteIndented = true }));
+            AtomicFile.WriteAllText(FilePath, JsonSerializer.Serialize(this, new JsonSerializerOptions { WriteIndented = true }));
         }
-        catch { /* preferences are best-effort */ }
+        catch (Exception ex)
+        {
+            // Preferences are best-effort, but say so instead of failing silently.
+            LogBus.Publish(LogBus.Activity, "Settings", $"Could not save ui-settings.json: {ex.Message}");
+        }
     }
 }

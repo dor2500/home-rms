@@ -81,17 +81,22 @@ public sealed class AlertCenterService
                 if (loaded is not null) Thresholds = loaded;
             }
         }
-        catch { }
+        catch (Exception ex)
+        {
+            LogBus.Publish(LogBus.Alerts, "Settings", $"Alert thresholds could not be read ({ex.Message}); using defaults.");
+        }
     }
 
     public void SaveThresholds()
     {
         try
         {
-            Directory.CreateDirectory(Path.GetDirectoryName(ThresholdsPath)!);
-            File.WriteAllText(ThresholdsPath, JsonSerializer.Serialize(Thresholds, new JsonSerializerOptions { WriteIndented = true }));
+            HomeRms.Shared.AtomicFile.WriteAllText(ThresholdsPath, JsonSerializer.Serialize(Thresholds, new JsonSerializerOptions { WriteIndented = true }));
         }
-        catch { }
+        catch (Exception ex)
+        {
+            LogBus.Publish(LogBus.Alerts, "Settings", $"Could not save alert thresholds: {ex.Message}");
+        }
     }
 
     public void EvaluateSample(string endpointName, string host, bool isOnline, double cpuPercent, double ramPercent, double? minDiskFreePercent = null, double? maxTempC = null)

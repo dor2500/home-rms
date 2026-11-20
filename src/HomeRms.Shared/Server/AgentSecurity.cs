@@ -82,6 +82,8 @@ public sealed class PinnedControllerAuthorizer(AgentSecurityOptions options, Act
             var set = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             foreach (var e in TrustedControllerStore.Load(path))
                 set.Add(ControllerIdentity.NormalizeFingerprint(e.Sha256));
+            if (TrustedControllerStore.LastLoadError is { } error)
+                log($"[security] {error}. Refusing every controller until the pins are reset from the tray menu.");
             _cache = (stamp, length, set);
             return set;
         }

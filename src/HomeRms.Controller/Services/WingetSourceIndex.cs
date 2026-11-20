@@ -213,7 +213,7 @@ public sealed class WingetSourceIndex
 
     private void SaveMeta()
     {
-        File.WriteAllText(MetaPath, JsonSerializer.Serialize(_meta));
+        HomeRms.Shared.AtomicFile.WriteAllText(MetaPath, JsonSerializer.Serialize(_meta));
     }
 
     private static void TryDelete(string path)

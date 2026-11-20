@@ -275,7 +275,16 @@ internal sealed class TrayApplicationContext : ApplicationContext, IConsentUi
 
     private static void ResetPinning()
     {
-        var count = TrustedControllerStore.Load().Count;
+        var pins = TrustedControllerStore.Load();
+        var count = pins.Count;
+        if (pins.Any(p => p.Sha256 == TrustedControllerStore.UnreadableStoreMarker))
+        {
+            if (MessageBox.Show($"The pinned-Controller store is damaged ({TrustedControllerStore.LastLoadError}).\n" +
+                                "Every Controller is refused until it is reset. Reset it now? You will need to re-pair your Controller.",
+                    "Home RMS Security", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) == DialogResult.Yes)
+                TrustedControllerStore.ClearAll();
+            return;
+        }
         if (count == 0)
         {
             MessageBox.Show("No Controller is currently pinned (any valid Home RMS Controller can pair).",

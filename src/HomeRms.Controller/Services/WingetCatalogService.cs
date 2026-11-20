@@ -300,11 +300,8 @@ public sealed partial class WingetCatalogService
 
     private static void WriteCustomPacks(List<WingetPack> packs)
     {
-        Directory.CreateDirectory(CacheDir);
         var stored = packs.Select(p => new StoredPack { Name = p.Name, Description = p.Description, PackageIds = p.PackageIds }).ToList();
-        var tmp = CustomPacksPath + ".tmp";
-        File.WriteAllText(tmp, JsonSerializer.Serialize(stored, new JsonSerializerOptions { WriteIndented = true }));
-        File.Move(tmp, CustomPacksPath, overwrite: true);
+        HomeRms.Shared.AtomicFile.WriteAllText(CustomPacksPath, JsonSerializer.Serialize(stored, new JsonSerializerOptions { WriteIndented = true }));
     }
 
     private sealed class StoredPack
