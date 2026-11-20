@@ -132,7 +132,7 @@
         </Border>
 
         <!-- ==================== BODY: SIDEBAR + WORKSPACE + LIVE CONSOLE ==================== -->
-        <Grid Grid.Row="1">
+        <Grid x:Name="ShellBodyGrid" Grid.Row="1">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition x:Name="RailColumn" Width="Auto"/>
                 <ColumnDefinition Width="*"/>

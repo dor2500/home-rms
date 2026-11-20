@@ -1100,6 +1100,7 @@ public partial class MainWindow : Window
             }
             catch (RpcException rpcEx) when (rpcEx.StatusCode == StatusCode.Unauthenticated)
             {
+                _agent2FaTcs?.TrySetResult(null); // a superseded prompt must not hang its caller
                 _agent2FaTcs = new TaskCompletionSource<string?>();
                 Agent2FaCodeBox.Text = "";
                 AgentPairPromptText.Text = $"Enter the 6-digit 2FA code shown on {host}:{port} to pair and pin this Controller:";

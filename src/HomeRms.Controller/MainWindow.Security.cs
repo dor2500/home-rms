@@ -72,6 +72,11 @@ public partial class MainWindow
         ClearAboutSecretInputs();
         AboutOverlay.Visibility = Visibility.Collapsed;
         AgentPair2FaOverlay.Visibility = Visibility.Collapsed;
+        // A pending pairing prompt would otherwise wait forever (and block every later prompt).
+        _agent2FaTcs?.TrySetResult(null);
+        CloseWindowsOutsideLock();
+        // The scrim is translucent: do not leave the remote screen / shell output readable behind it.
+        ShellBodyGrid.Visibility = Visibility.Hidden;
 
         UnlockPinBox.Clear();
         UnlockPasswordBox.Clear();
@@ -82,6 +87,25 @@ public partial class MainWindow
         _helloAutoPromptPending = true;
         _ = RefreshLockOverlayAsync(autoPrompt: true);
         FocusLockInput();
+    }
+
+    /// <summary>
+    /// Windows outside the main window are not covered by the lock overlay: close the detached
+    /// "Screen 2" viewer (live remote screen) and any open dialog owned by this window.
+    /// </summary>
+    private void CloseWindowsOutsideLock()
+    {
+        if (_detachedMonitorWindow is { } detached)
+        {
+            _detachedMonitorCts?.Cancel();
+            detached.Close();
+            _detachedMonitorWindow = null;
+        }
+        foreach (var owned in OwnedWindows.Cast<Window>().ToList())
+        {
+            try { owned.Close(); }
+            catch (InvalidOperationException) { /* already closing */ }
+        }
     }
 
     private async Task RefreshLockOverlayAsync(bool autoPrompt)
@@ -334,6 +358,7 @@ public partial class MainWindow
         SetLockStatus(null, warn: false);
         _lastActivityUtc = DateTime.UtcNow;
         LockOverlay.Visibility = Visibility.Collapsed;
+        ShellBodyGrid.Visibility = Visibility.Visible;
         AddActivity("Auth", $"Console unlocked with {method}.");
     }
 

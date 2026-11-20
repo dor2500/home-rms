@@ -122,6 +122,8 @@ public partial class MainWindow
     private Task<string?> PromptAgent2FaAsync(string target) =>
         Dispatcher.InvokeAsync(async () =>
         {
+            if (IsConsoleLocked) return null; // never prompt over the lock screen
+            _agent2FaTcs?.TrySetResult(null); // a superseded prompt must not hang its caller
             _agent2FaTcs = new TaskCompletionSource<string?>();
             Agent2FaCodeBox.Text = "";
             AgentPairPromptText.Text = $"Enter the 6-digit 2FA code shown on {target} to pair and pin this Controller:";
