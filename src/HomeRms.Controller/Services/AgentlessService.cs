@@ -215,7 +215,8 @@ public sealed class AgentlessService
         MachineProfile profile, string controllerFingerprint, Action<string> onLog, CancellationToken ct = default)
     {
         onLog($"Preparing remote Agent deployment on {profile.Host} via WinRM...");
-        var pinArg = string.IsNullOrWhiteSpace(controllerFingerprint) ? "" : $" --pin {controllerFingerprint}";
+        var pin = HomeRms.Shared.Security.ControllerIdentity.NormalizeFingerprint(controllerFingerprint ?? ""); // hex only: nothing else reaches the script
+        var pinArg = pin.Length == 64 ? $" --pin {pin}" : "";
         var script = $$"""
             $ErrorActionPreference = 'Stop'
             $dir = 'C:\ProgramData\HomeRmsAgent'
@@ -262,34 +263,45 @@ public sealed class AgentlessService
         }
     }
 
+    /// <summary>
+    /// PowerShell that defines <c>$cred</c> for the given account. User name and password travel as
+    /// Base64 (UTF-8) literals, so no character in them (quotes, <c>'@</c>, <c>$</c>, backticks, line
+    /// breaks) can end a string early or inject code.
+    /// </summary>
+    public static string BuildCredentialPrelude(string? user, string? password) => $$"""
+        $secPass = ConvertTo-SecureString ([Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('{{B64(password)}}'))) -AsPlainText -Force
+        $cred = New-Object System.Management.Automation.PSCredential(([Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('{{B64(user)}}'))), $secPass)
+        """;
+
+    /// <summary>
+    /// The local PowerShell that runs <paramref name="scriptBody"/> on <paramref name="host"/> via
+    /// Invoke-Command. The body is decoded from Base64 into a script block, so an unbalanced brace in
+    /// it can never close the block early and run the remainder on THIS (controller) machine.
+    /// </summary>
+    public static string BuildWinRmWrapper(string? user, string? password, string host, string scriptBody) => $$"""
+        $ErrorActionPreference = 'Continue'
+        {{BuildCredentialPrelude(user, password)}}
+        $opt = New-PSSessionOption -SkipCACheck -SkipCNCheck -SkipRevocationCheck
+        $sb = [ScriptBlock]::Create([Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('{{B64(scriptBody)}}')))
+        $target = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('{{B64(host)}}'))
+        try {
+            Invoke-Command -ComputerName $target -Credential $cred -SessionOption $opt -ScriptBlock $sb
+        } catch {
+            Write-Error $_
+            exit 1
+        }
+        """;
+
+    private static string B64(string? value) => Convert.ToBase64String(Encoding.UTF8.GetBytes(value ?? ""));
+
     public async Task<(bool Ok, string Stdout, string Stderr)> InvokeWinRmAsync(
         MachineProfile profile, string scriptBody, CancellationToken ct, int timeoutMs = 30000)
     {
-        var user = profile.Username;
-        var pass = profile.GetPlainPassword();
-        var host = profile.Host;
-
-        // Encode script as UTF-16LE Base64 so quoting/newlines never break
-        var wrapper = $$"""
-            $ErrorActionPreference = 'Continue'
-            $secPass = ConvertTo-SecureString @'
-            {{pass.Replace("'", "''")}}
-            '@ -AsPlainText -Force
-            $cred = New-Object System.Management.Automation.PSCredential('{{user.Replace("'", "''")}}', $secPass)
-            $opt = New-PSSessionOption -SkipCACheck -SkipCNCheck -SkipRevocationCheck
-            $sb = {
-            {{scriptBody}}
-            }
-            try {
-                Invoke-Command -ComputerName '{{host.Replace("'", "''")}}' -Credential $cred -SessionOption $opt -ScriptBlock $sb
-            } catch {
-                # Fallback to WinRM SSL or TrustedHosts prompt if needed
-                Write-Error $_
-                exit 1
-            }
-            """;
-
+        var wrapper = BuildWinRmWrapper(profile.Username, profile.GetPlainPassword(), profile.Host, scriptBody);
         var encoded = Convert.ToBase64String(Encoding.Unicode.GetBytes(wrapper));
+        if (encoded.Length > 32000)
+            return (false, "", $"The script is too large to send over WinRM ({scriptBody.Length:N0} characters; the limit is about 9,000).");
+
         var psi = new ProcessStartInfo("powershell.exe", $"-NoProfile -NonInteractive -ExecutionPolicy Bypass -EncodedCommand {encoded}")
         {
             RedirectStandardOutput = true,

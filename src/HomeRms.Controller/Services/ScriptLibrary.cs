@@ -184,7 +184,7 @@ public sealed class ScriptRun : INotifyPropertyChanged
 /// </summary>
 public sealed class ScriptExecutor(AgentConnectionPool pool, AgentlessService agentless, Dispatcher dispatcher)
 {
-    private const string DoneMarker = "__HRMS_DONE__|";
+    public const string DoneMarker = "__HRMS_DONE__|";
 
     public int MaxParallel { get; set; } = 4;
 
@@ -344,8 +344,9 @@ public sealed class ScriptExecutor(AgentConnectionPool pool, AgentlessService ag
     public static string BuildPowerShell(ScriptShell shell, string body, string title)
     {
         var normalized = body.Replace("\r\n", "\n").TrimEnd().Replace("\n", "\r\n");
-        // A line starting with '@ would end the here-string early: fall back to Base64 in that case.
-        var hereStringSafe = !normalized.Split("\r\n").Any(l => l.StartsWith("'@", StringComparison.Ordinal));
+        // A line starting with '@ (PowerShell 7 also accepts leading whitespace) would end the here-string
+        // early: fall back to Base64 in that case.
+        var hereStringSafe = !normalized.Split("\r\n").Any(l => l.TrimStart().StartsWith("'@", StringComparison.Ordinal));
         var load = hereStringSafe
             ? "$__hrmsBody = @'\r\n" + normalized + "\r\n'@\r\n"
             : "$__hrmsBody = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('" +
