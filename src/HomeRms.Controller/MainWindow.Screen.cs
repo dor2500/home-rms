@@ -247,9 +247,9 @@ public partial class MainWindow
             var hwnd = new System.Windows.Interop.WindowInteropHelper(this).Handle;
             int dark = 1;
             DwmSetWindowAttribute(hwnd, 20 /* DWMWA_USE_IMMERSIVE_DARK_MODE */, ref dark, sizeof(int));
-            int caption = 0x000D0807;   // COLORREF 0x00BBGGRR = #07080D
-            int text = 0x00FAF5F4;      // #F4F5FA
-            int border = 0x00F65C8B;    // #8B5CF6
+            int caption = Themes.Palette.ColorRef("SurfaceLayerBrush"); // title bar matches the header surface
+            int text = Themes.Palette.ColorRef("TextPrimaryBrush");
+            int border = Themes.Palette.ColorRef("BorderSubtleBrush");
             DwmSetWindowAttribute(hwnd, 35 /* DWMWA_CAPTION_COLOR */, ref caption, sizeof(int));
             DwmSetWindowAttribute(hwnd, 36 /* DWMWA_TEXT_COLOR */, ref text, sizeof(int));
             DwmSetWindowAttribute(hwnd, 34 /* DWMWA_BORDER_COLOR */, ref border, sizeof(int));

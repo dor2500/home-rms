@@ -2,6 +2,7 @@ using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using System.Text.Json.Serialization;
 using System.Windows.Media;
+using HomeRms.Controller.Themes;
 
 namespace HomeRms.Controller.Models;
 
@@ -248,6 +249,7 @@ public sealed class MachineProfile : INotifyPropertyChanged
             OnPropertyChanged(nameof(CpuLabel));
             OnPropertyChanged(nameof(RamLabel));
             OnPropertyChanged(nameof(LatencyLabel));
+            OnPropertyChanged(nameof(HealthLine));
         }
     }
 
@@ -330,8 +332,57 @@ public sealed class MachineProfile : INotifyPropertyChanged
         set { _latencyMs = Math.Max(0, value); OnPropertyChanged(); OnPropertyChanged(nameof(LatencyLabel)); }
     }
 
+    private DateTime? _lastSeenUtc;
+    private long _uptimeSeconds;
+
+    /// <summary>Last time the endpoint answered a probe or streamed telemetry (persisted).</summary>
+    public DateTime? LastSeenUtc
+    {
+        get => _lastSeenUtc;
+        set { _lastSeenUtc = value; OnPropertyChanged(); OnPropertyChanged(nameof(HealthLine)); }
+    }
+
+    /// <summary>Uptime reported by the agent's telemetry stream (0 = unknown).</summary>
     [JsonIgnore]
-    public string CpuLabel => IsOnline || IsConnected ? $"{_cpuPercent:0}%" : "--";
+    public long UptimeSeconds
+    {
+        get => _uptimeSeconds;
+        set
+        {
+            if (_uptimeSeconds / 60 == value / 60) { _uptimeSeconds = value; return; }
+            _uptimeSeconds = value;
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(HealthLine));
+        }
+    }
+
+    /// <summary>"up 3d 4h · seen 14:02" style line for the endpoint cards.</summary>
+    [JsonIgnore]
+    public string HealthLine
+    {
+        get
+        {
+            var parts = new List<string>();
+            if (_uptimeSeconds > 0 && (IsOnline || IsConnected))
+            {
+                var ts = TimeSpan.FromSeconds(_uptimeSeconds);
+                parts.Add(ts.TotalDays >= 1 ? $"up {(int)ts.TotalDays}d {ts.Hours}h" : $"up {ts.Hours}h {ts.Minutes}m");
+            }
+            if (_lastSeenUtc is { } seen)
+            {
+                var local = seen.ToLocalTime();
+                parts.Add(local.Date == DateTime.Today ? $"seen {local:HH:mm}" : $"seen {local:yyyy-MM-dd HH:mm}");
+            }
+            else
+            {
+                parts.Add("never seen");
+            }
+            return string.Join("  ·  ", parts);
+        }
+    }
+
+    [JsonIgnore]
+    public string CpuLabel =>IsOnline || IsConnected ? $"{_cpuPercent:0}%" : "--";
 
     [JsonIgnore]
     public string RamLabel => IsOnline || IsConnected ? $"{_ramPercent:0}%" : "--";
@@ -343,25 +394,18 @@ public sealed class MachineProfile : INotifyPropertyChanged
     public string ConnectActionText => IsConnected ? "Disconnect" : "Connect";
 
     [JsonIgnore]
-    public Brush DotBrush => IsConnected
-        ? new SolidColorBrush(Color.FromRgb(14, 165, 233))   // #0EA5E9 Connected Cyan
-        : IsOnline
-            ? new SolidColorBrush(Color.FromRgb(16, 185, 129)) // #10B981 Glowing Emerald
-            : new SolidColorBrush(Color.FromRgb(100, 116, 139)); // Muted Slate
+    public Brush DotBrush => Palette.Fg(StatusTone); // connected = info, online = success, offline = neutral
 
     [JsonIgnore]
-    public Color DotGlowColor => IsConnected
-        ? Color.FromRgb(14, 165, 233)
-        : IsOnline
-            ? Color.FromRgb(16, 185, 129)
-            : Color.FromArgb(0, 0, 0, 0);
+    public Color DotGlowColor => IsConnected || IsOnline
+        ? (Palette.Fg(StatusTone) as SolidColorBrush)?.Color ?? Colors.Transparent
+        : Colors.Transparent;
 
     [JsonIgnore]
-    public Brush BadgeBackground => IsConnected
-        ? new SolidColorBrush(Color.FromArgb(45, 14, 165, 233))
-        : IsOnline
-            ? new SolidColorBrush(Color.FromArgb(40, 16, 185, 129))
-            : new SolidColorBrush(Color.FromArgb(30, 100, 116, 139));
+    public Brush BadgeBackground => Palette.Soft(StatusTone);
+
+    [JsonIgnore]
+    private PaletteTone StatusTone => IsConnected ? PaletteTone.Info : IsOnline ? PaletteTone.Success : PaletteTone.Neutral;
 
     public event PropertyChangedEventHandler? PropertyChanged;
     private void OnPropertyChanged([CallerMemberName] string? prop = null)

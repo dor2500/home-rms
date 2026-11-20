@@ -14,6 +14,7 @@ using System.Windows.Media.Imaging;
 using Grpc.Core;
 using HomeRms.Controller.Models;
 using HomeRms.Controller.Services;
+using HomeRms.Controller.Themes;
 using HomeRms.Shared;
 using HomeRms.Shared.Network;
 using HomeRms.Shared.Protocol;
@@ -24,6 +25,7 @@ namespace HomeRms.Controller;
 public partial class MainWindow : Window
 {
     private readonly ObservableCollection<MachineProfile> _machines = new();
+    private System.Windows.Data.ListCollectionView? _fleetView;
     private readonly ObservableCollection<FleetActivityEvent> _activityEvents = new();
     private readonly List<int> _latencyHistory = new() { 14, 16, 12, 15, 11, 13, 12 };
     private readonly CentralHubService _centralHub;
@@ -66,7 +68,9 @@ public partial class MainWindow : Window
         foreach (var m in MachineStore.Load())
             _machines.Add(m);
 
-        MachinesList.ItemsSource = _machines;
+        // Endpoint cards get their own view so the fleet filter never touches the Overview list.
+        _fleetView = new System.Windows.Data.ListCollectionView(_machines);
+        MachinesList.ItemsSource = _fleetView;
         OverviewFleetList.ItemsSource = _machines;
         OverviewEventsList.ItemsSource = _activityEvents;
         FleetActivityList.ItemsSource = _activityEvents;
@@ -76,9 +80,13 @@ public partial class MainWindow : Window
         _centralHub = new CentralHubService(() => _machines, ProbeAllMachinesAsync, AddActivity, _agentless, _ssh, _alerts);
         _centralHub.Start();
         if (HubRelayStatusText is not null)
-            HubRelayStatusText.Text = _centralHub.IsRunning ? $"HUB RELAY :{_centralHub.Port}" : "HUB STANDBY";
+            HubRelayStatusText.Text = _centralHub.IsRunning ? $"Hub relay :{_centralHub.Port}" : "Hub standby";
+        if (HubRelayDot is not null)
+            HubRelayDot.Fill = (Brush)FindResource(_centralHub.IsRunning ? "OkBrush" : "WarnBrush");
 
         InitializeOverhaulServices();
+        InitializeFeatureViews();
+        InitializeShell(); // MainWindow.Shell.cs: live console, sidebar state, nav badges, transitions
         UpdateDynamicTabVisibility(SelectedMachine);
 
         AddActivity("mTLS", "Central Hub & Operations Console initialized. Mutual-TLS X.509 PKI ready.");
@@ -112,8 +120,7 @@ public partial class MainWindow : Window
                 return;
             }
 
-            if (TwoFactorStore.LoadController().RequireOnStartupOrPair)
-                LockOverlay.Visibility = Visibility.Visible;
+            ApplyStartupLock();
 
             await ProbeAllMachinesAsync();
             _ = CheckGitHubUpdateInBackgroundAsync();
@@ -126,6 +133,13 @@ public partial class MainWindow : Window
 
     private AvailableUpdate? _pendingUpdate;
 
+    private void StyleUpdateAvailable()
+    {
+        UpdateBtn.Background = Palette.Success;
+        UpdateBtn.BorderBrush = Palette.SuccessLine;
+        UpdateBtn.Foreground = Palette.TextOnAccent;
+    }
+
     private async Task CheckGitHubUpdateInBackgroundAsync()
     {
         try
@@ -136,9 +150,7 @@ public partial class MainWindow : Window
             {
                 _pendingUpdate = update;
                 UpdateBtn.Content = $"Update {update.Tag}";
-                UpdateBtn.Background = new SolidColorBrush(Color.FromRgb(16, 185, 129));
-                UpdateBtn.BorderBrush = new SolidColorBrush(Color.FromRgb(52, 211, 153));
-                UpdateBtn.Foreground = Brushes.White;
+                StyleUpdateAvailable();
                 UpdateBtn.ToolTip = $"New version {update.Tag} available on GitHub. Click to update & restart.";
             }
             else
@@ -166,9 +178,7 @@ public partial class MainWindow : Window
                     return;
                 }
                 UpdateBtn.Content = $"Update {_pendingUpdate.Tag}";
-                UpdateBtn.Background = new SolidColorBrush(Color.FromRgb(16, 185, 129));
-                UpdateBtn.BorderBrush = new SolidColorBrush(Color.FromRgb(52, 211, 153));
-                UpdateBtn.Foreground = Brushes.White;
+                StyleUpdateAvailable();
                 return;
             }
 
@@ -224,25 +234,17 @@ public partial class MainWindow : Window
             else if (NavSystem.IsChecked == true && _win11Page?.Id == "updates")
                 SelectWin11Page(SystemCatalog.Win11Pages[0]);
         }
+
+        UpdateFeatureViewVisibility();
+        AnimateActivePanel(); // MainWindow.Shell.cs
     }
 
     private void OnToggleSidebarClick(object sender, RoutedEventArgs e)
     {
         _sidebarCollapsed = !_sidebarCollapsed;
-        RailColumn.Width = new GridLength(_sidebarCollapsed ? 52 : 192);
-        var labelVis = _sidebarCollapsed ? Visibility.Collapsed : Visibility.Visible;
-
-        SidebarSectionLabel.Visibility = labelVis;
-        SidebarFooterText.Visibility = labelVis;
-        NavLabelOverview.Visibility = labelVis;
-        NavLabelFleet.Visibility = labelVis;
-        NavLabelDesktop.Visibility = labelVis;
-        NavLabelMonitor.Visibility = labelVis;
-        NavLabelShell.Visibility = labelVis;
-        NavLabelDeploy.Visibility = labelVis;
-        NavLabelUpdates.Visibility = labelVis;
-        NavLabelSettings.Visibility = labelVis;
-        NavLabelAbout.Visibility = labelVis;
+        ApplySidebarState(animate: true); // MainWindow.Shell.cs
+        _ui.SidebarCollapsed = _sidebarCollapsed;
+        _ui.Save();
     }
 
     private void OnGoToFleetClick(object sender, RoutedEventArgs e) => NavFleet.IsChecked = true;
@@ -255,6 +257,7 @@ public partial class MainWindow : Window
         AboutFingerprintBox.Text = ControllerIdentity.GetSha256Fingerprint(cert);
         var cfg = TwoFactorStore.LoadController();
         Require2FaStartupCheck.IsChecked = cfg.RequireOnStartupOrPair;
+        AllowPasskeyCheck.IsChecked = cfg.AllowPasskey;
         AboutTotpSecretBox.Text = cfg.TotpSecret;
         RememberDaysBox.Text = (cfg.RememberDays <= 0 ? 30 : cfg.RememberDays).ToString();
         AboutBackupCodesBox.Text = string.Join("   ", cfg.BackupCodes ?? []);
@@ -270,6 +273,7 @@ public partial class MainWindow : Window
             AboutQrImage.Source = bmp;
         }
         AboutOverlay.Visibility = Visibility.Visible;
+        _ = RefreshSecuritySectionAsync();
     }
 
     private void OnToggleStartup2Fa(object sender, RoutedEventArgs e)
@@ -294,7 +298,10 @@ public partial class MainWindow : Window
     }
 
     private void OnCloseAboutClick(object sender, RoutedEventArgs e)
-        => AboutOverlay.Visibility = Visibility.Collapsed;
+    {
+        ClearAboutSecretInputs();
+        AboutOverlay.Visibility = Visibility.Collapsed;
+    }
 
     private void OnOpenProjectLinkClick(object sender, System.Windows.Navigation.RequestNavigateEventArgs e)
     {
@@ -324,7 +331,7 @@ public partial class MainWindow : Window
                 FontFamily = (FontFamily)FindResource("MonoFont"),
                 FontSize = 9.5,
                 FontWeight = FontWeights.SemiBold,
-                Foreground = (Brush)FindResource("AccentBrush"),
+                Foreground = (Brush)FindResource("TextMutedBrush"),
                 Width = 34,
                 VerticalAlignment = VerticalAlignment.Center
             });
@@ -342,8 +349,9 @@ public partial class MainWindow : Window
                 HorizontalContentAlignment = HorizontalAlignment.Left,
                 Margin = new Thickness(0, 0, 0, 2),
                 Padding = new Thickness(10, 7, 10, 7),
-                Style = (Style)FindResource("GhostButton"),
-                BorderThickness = new Thickness(0)
+                Style = (Style)FindResource("SubtleButton"),
+                BorderThickness = new Thickness(0),
+                MinHeight = 32
             };
             item.Click += (_, _) => { if (!ReferenceEquals(_win11Page, page)) SelectWin11Page(page); };
             Win11SidebarPanel.Children.Add(item);
@@ -357,14 +365,15 @@ public partial class MainWindow : Window
         foreach (Button item in Win11SidebarPanel.Children)
         {
             var active = ReferenceEquals(item.Tag, page);
-            item.Background = new SolidColorBrush(active ? Color.FromArgb(40, 59, 130, 246) : Colors.Transparent);
-            item.Foreground = new SolidColorBrush(active ? Colors.White : Color.FromRgb(203, 213, 225));
+            item.Background = active ? Palette.AccentSoft : Brushes.Transparent;
+            item.Foreground = active ? Palette.TextPrimary : Palette.TextSecondary;
+            item.FontWeight = active ? FontWeights.SemiBold : FontWeights.Normal;
         }
 
         if (!string.IsNullOrEmpty(SettingsSearchBox.Text))
             SettingsSearchBox.Text = "";
 
-        Win11PageTitle.Text = $"{page.Icon} // {page.Title}";
+        Win11PageTitle.Text = page.Title;
         Win11PageSubtitle.Text = page.Subtitle;
         SystemTargetLabel.Text = "Target — " + page.TargetHint;
         SystemExtraLabel.Text = "Extra — " + (page.Items.FirstOrDefault(i => i.ExtraHint is not null)?.ExtraHint ?? "(optional)");
@@ -377,7 +386,7 @@ public partial class MainWindow : Window
         var q = SettingsSearchBox.Text.Trim();
         if (string.IsNullOrEmpty(q))
         {
-            Win11PageTitle.Text = $"{_win11Page.Icon} // {_win11Page.Title}";
+            Win11PageTitle.Text = _win11Page.Title;
             Win11PageSubtitle.Text = _win11Page.Subtitle;
             RenderWin11Cards(_win11Page.Items);
             return;
@@ -388,7 +397,7 @@ public partial class MainWindow : Window
             .Where(i => i.Title.Contains(q, StringComparison.OrdinalIgnoreCase) ||
                         i.Subtitle.Contains(q, StringComparison.OrdinalIgnoreCase))
             .ToList();
-        Win11PageTitle.Text = $"SEARCH // \"{q}\"";
+        Win11PageTitle.Text = $"Search: \u201c{q}\u201d";
         Win11PageSubtitle.Text = matches.Count == 1 ? "1 matching operation" : $"{matches.Count} matching operations";
         RenderWin11Cards(matches);
     }
@@ -401,8 +410,8 @@ public partial class MainWindow : Window
             var card = new Border
             {
                 Style = (Style)FindResource("CardStyle"),
-                Padding = new Thickness(14, 10, 14, 10),
-                Margin = new Thickness(0, 0, 0, 6)
+                Padding = new Thickness(16, 12, 16, 12),
+                Margin = new Thickness(0, 0, 0, 8)
             };
 
             var dock = new DockPanel();
@@ -411,8 +420,7 @@ public partial class MainWindow : Window
                 Content = item.ButtonLabel,
                 Style = (Style)FindResource(item.Dangerous ? "DangerButton" : "PrimaryButton"),
                 MinWidth = 104,
-                Padding = new Thickness(12, 6, 12, 6),
-                FontSize = 11.5,
+                Padding = new Thickness(12, 4, 12, 4),
                 VerticalAlignment = VerticalAlignment.Center
             };
             if (item.Dangerous) btn.ToolTip = "Modifies remote endpoint configuration — confirmation required";
@@ -421,18 +429,15 @@ public partial class MainWindow : Window
 
             var tagBorder = new Border
             {
-                Background = new SolidColorBrush(Color.FromArgb(24, 59, 130, 246)),
-                BorderBrush = (Brush)FindResource("LineBrush"),
-                BorderThickness = new Thickness(1),
-                CornerRadius = new CornerRadius(4),
-                Padding = new Thickness(6, 3, 6, 3),
-                Margin = new Thickness(0, 0, 12, 0),
+                Background = Palette.AccentSoft,
+                CornerRadius = new CornerRadius(10),
+                Padding = new Thickness(8, 2, 8, 2),
+                Margin = new Thickness(0, 0, 14, 0),
                 VerticalAlignment = VerticalAlignment.Center,
                 Child = new TextBlock
                 {
-                    Text = item.Area.ToUpperInvariant(),
-                    FontFamily = (FontFamily)FindResource("MonoFont"),
-                    FontSize = 9.5,
+                    Text = item.Area,
+                    FontSize = 10.5,
                     FontWeight = FontWeights.SemiBold,
                     Foreground = (Brush)FindResource("AccentBrush")
                 }
@@ -440,11 +445,11 @@ public partial class MainWindow : Window
             DockPanel.SetDock(tagBorder, Dock.Left);
 
             var textStack = new StackPanel { VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 14, 0) };
-            textStack.Children.Add(new TextBlock { Text = item.Title, FontSize = 12.5, FontWeight = FontWeights.SemiBold });
+            textStack.Children.Add(new TextBlock { Text = item.Title, FontSize = 13, FontWeight = FontWeights.SemiBold });
             var sub = new TextBlock
             {
                 Text = item.Subtitle,
-                FontSize = 11,
+                FontSize = 12,
                 Foreground = (Brush)FindResource("MutedBrush"),
                 Margin = new Thickness(0, 2, 0, 0),
                 TextWrapping = TextWrapping.Wrap
@@ -540,10 +545,10 @@ public partial class MainWindow : Window
         _inactivityTimer = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromSeconds(15) };
         _inactivityTimer.Tick += (_, _) =>
         {
-            if (LockOverlay.Visibility != Visibility.Visible &&
+            if (!IsConsoleLocked &&
                 DateTime.UtcNow - _lastActivityUtc >= TimeSpan.FromMinutes(15))
             {
-                LockOverlay.Visibility = Visibility.Visible;
+                ShowLockOverlay("Locked after 15 minutes of inactivity.");
             }
         };
         _inactivityTimer.Start();
@@ -551,49 +556,28 @@ public partial class MainWindow : Window
 
     private void OnDashboardActivity(object sender, MouseButtonEventArgs e) => _lastActivityUtc = DateTime.UtcNow;
 
-    private void OnLockDashboardClick(object sender, RoutedEventArgs e)
-    {
-        UnlockPinBox.Clear();
-        LockOverlay.Visibility = Visibility.Visible;
-        UnlockPinBox.Focus();
-    }
-
-    private void OnUnlockDashboardClick(object sender, RoutedEventArgs e)
-    {
-        var input = UnlockPinBox.Password;
-        var cfg = TwoFactorStore.LoadController();
-        if (TwoFactorStore.VerifyCodeOrBackup(cfg, input, out var updated, out var usedBackup))
-        {
-            if (RememberDeviceCheck.IsChecked == true)
-                updated = TwoFactorStore.TrustDevice(updated, Environment.MachineName);
-            if (usedBackup || RememberDeviceCheck.IsChecked == true)
-                TwoFactorStore.SaveController(updated);
-
-            UnlockPinBox.Clear();
-            _lastActivityUtc = DateTime.UtcNow;
-            LockOverlay.Visibility = Visibility.Collapsed;
-        }
-        else
-        {
-            MessageBox.Show("Invalid 6-digit 2FA or backup code.", "Home RMS — Locked", MessageBoxButton.OK, MessageBoxImage.Warning);
-            UnlockPinBox.Clear();
-            UnlockPinBox.Focus();
-        }
-    }
-
-    private void OnUnlockWithPasskeyClick(object sender, RoutedEventArgs e)
-    {
-        if (WindowsHelloPasskey.Verify(this, "Verify Windows Hello / Passkey to unlock Home RMS"))
-        {
-            UnlockPinBox.Clear();
-            _lastActivityUtc = DateTime.UtcNow;
-            LockOverlay.Visibility = Visibility.Collapsed;
-        }
-    }
+    private void OnLockDashboardClick(object sender, RoutedEventArgs e) => ShowLockOverlay(null);
 
     private void OnWindowPreviewKeyDown(object sender, KeyEventArgs e)
     {
         _lastActivityUtc = DateTime.UtcNow;
+        // While locked, keyboard input may only reach the lock overlay (no shortcuts, no remote input).
+        if (IsConsoleLocked)
+        {
+            var isAltF4 = e.Key == Key.System && e.SystemKey == Key.F4;
+            if (!isAltF4 && !IsInsideLockOverlay(Keyboard.FocusedElement))
+            {
+                e.Handled = true;
+                FocusLockInput();
+            }
+            return;
+        }
+        if (e.Key == Key.Oem3 && Keyboard.Modifiers == ModifierKeys.Control)
+        {
+            e.Handled = true;
+            SetConsoleOpen(ConsoleDrawer.Visibility != Visibility.Visible, persist: true);
+            return;
+        }
         if (e.Key == Key.F11)
         {
             e.Handled = true;
@@ -612,7 +596,7 @@ public partial class MainWindow : Window
         // Forward all keyboard input to the remote PC when Remote Desktop control is active
         // and the user is not typing into a toolbar TextBox (FPS / Quality).
         if (NavDesktop.IsChecked == true && _inputCall is not null &&
-            Keyboard.FocusedElement is not TextBox)
+            Keyboard.FocusedElement is not (TextBox or PasswordBox))
         {
             OnScreenKeyDown(sender, e);
         }
@@ -620,8 +604,9 @@ public partial class MainWindow : Window
 
     private void OnWindowPreviewKeyUp(object sender, KeyEventArgs e)
     {
+        if (IsConsoleLocked) return;
         if (NavDesktop.IsChecked == true && _inputCall is not null &&
-            Keyboard.FocusedElement is not TextBox)
+            Keyboard.FocusedElement is not (TextBox or PasswordBox))
         {
             OnScreenKeyUp(sender, e);
         }
@@ -641,6 +626,7 @@ public partial class MainWindow : Window
             RailBorder.Visibility = Visibility.Collapsed;
             TopBarBorder.Visibility = Visibility.Collapsed;
             DesktopToolbarBorder.Visibility = Visibility.Collapsed;
+            SetConsoleChromeHidden(true); // MainWindow.Shell.cs
             WorkspaceGrid.Margin = new Thickness(0);
             ScreenCanvasBorder.CornerRadius = new CornerRadius(0);
             ScreenCanvasBorder.BorderThickness = new Thickness(0);
@@ -658,12 +644,13 @@ public partial class MainWindow : Window
             ResizeMode = ResizeMode.CanResize;
             WindowState = _prevWindowState == WindowState.Minimized ? WindowState.Normal : _prevWindowState;
 
-            RailColumn.Width = new GridLength(76);
+            RailColumn.Width = GridLength.Auto;
             RailBorder.Visibility = Visibility.Visible;
             TopBarBorder.Visibility = Visibility.Visible;
             DesktopToolbarBorder.Visibility = Visibility.Visible;
-            WorkspaceGrid.Margin = new Thickness(20, 16, 20, 18);
-            ScreenCanvasBorder.CornerRadius = new CornerRadius(14);
+            SetConsoleChromeHidden(false);
+            WorkspaceGrid.Margin = (Thickness)FindResource("PageMargin");
+            ScreenCanvasBorder.CornerRadius = (CornerRadius)FindResource("RadiusCard");
             ScreenCanvasBorder.BorderThickness = new Thickness(1);
             FullscreenHud.Visibility = Visibility.Collapsed;
         }
@@ -699,16 +686,14 @@ public partial class MainWindow : Window
 
     private void OnFleetFilterChanged(object sender, TextChangedEventArgs e)
     {
+        if (_fleetView is null) return;
         var q = FleetFilterBox?.Text?.Trim() ?? "";
-        if (q.Length == 0)
-        {
-            MachinesList.ItemsSource = _machines;
-            return;
-        }
-        MachinesList.ItemsSource = _machines.Where(m =>
-            m.DisplayTitle.Contains(q, StringComparison.OrdinalIgnoreCase) ||
-            m.Host.Contains(q, StringComparison.OrdinalIgnoreCase) ||
-            m.OsTag.Contains(q, StringComparison.OrdinalIgnoreCase)).ToList();
+        _fleetView.Filter = q.Length == 0
+            ? null
+            : o => o is MachineProfile m &&
+                   (m.DisplayTitle.Contains(q, StringComparison.OrdinalIgnoreCase) ||
+                    m.Host.Contains(q, StringComparison.OrdinalIgnoreCase) ||
+                    m.OsTag.Contains(q, StringComparison.OrdinalIgnoreCase));
     }
 
     private void OnClearActivityLogClick(object sender, RoutedEventArgs e) => _activityEvents.Clear();
@@ -856,8 +841,9 @@ public partial class MainWindow : Window
                     m.LatencyMs = (int)Math.Max(1, sw.ElapsedMilliseconds);
                     m.OsName = info.OsVersion;
                     m.UserAndOs = $"{info.LoggedInUser} • {info.PrimaryScreenWidth}×{info.PrimaryScreenHeight}";
-                    if (m.CpuPercent <= 0) m.CpuPercent = 12 + (m.LatencyMs % 18);
-                    if (m.RamPercent <= 0) m.RamPercent = 34 + (m.Port % 25);
+                    m.LastSeenUtc = DateTime.UtcNow;
+                    // Real CPU / RAM / disk values come from the live telemetry stream (TelemetryHub);
+                    // the probe only tracks reachability for the offline alert.
                     _alerts.EvaluateSample(m.DisplayTitle, m.Host, true, m.CpuPercent, m.RamPercent);
                 }
                 catch
@@ -962,11 +948,14 @@ public partial class MainWindow : Window
     private async void OnCardWakeClick(object sender, RoutedEventArgs e)
     {
         if (sender is not Button { Tag: MachineProfile m }) return;
-        if (string.IsNullOrWhiteSpace(m.MacAddress))
+        if (PowerActions.NormalizeMac(m.MacAddress) is null)
         {
-            MessageBox.Show($"No MAC address saved for '{m.DisplayTitle}'. Click Edit to enter its MAC address.",
-                "Home RMS — Wake-on-LAN", MessageBoxButton.OK, MessageBoxImage.Information);
-            return;
+            var mac = Views.InputDialog.Prompt(this, "Wake-on-LAN",
+                $"No MAC address saved for '{m.DisplayTitle}'. Enter it (e.g. 00-11-22-33-44-55):", m.MacAddress,
+                v => PowerActions.NormalizeMac(v) is null ? "Enter 12 hex digits (separators optional)." : null);
+            if (mac is null) return;
+            m.MacAddress = PowerActions.NormalizeMac(mac)!;
+            MachineStore.Save(_machines);
         }
         try
         {
@@ -985,33 +974,9 @@ public partial class MainWindow : Window
         var cmd = MassCommandBox.Text.Trim();
         if (string.IsNullOrWhiteSpace(cmd)) return;
 
-        var targets = _machines.Where(m => m.IsOnline || m.IsConnected).ToList();
-        if (targets.Count == 0)
-        {
-            AddActivity("MASS RUN", "No online endpoints found. Run Scan LAN first.");
-            return;
-        }
-
-        AddActivity("MASS RUN", $"Executing on {targets.Count} online endpoint(s): {cmd}");
-        await Task.WhenAll(targets.Select(async m =>
-        {
-            try
-            {
-                using var temp = new RmsConnection(m.Host, m.Port);
-                using var shell = temp.Client.Shell(deadline: DateTime.UtcNow.AddSeconds(20));
-                await shell.RequestStream.WriteAsync(new ShellInput { Data = cmd + "\r\nexit\r\n" });
-                await shell.RequestStream.CompleteAsync();
-                var sb = new StringBuilder();
-                await foreach (var o in shell.ResponseStream.ReadAllAsync())
-                    sb.Append(o.Data);
-                var firstLine = sb.ToString().Trim().Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries).LastOrDefault() ?? "OK";
-                AddActivity("MASS RUN", $"[{m.DisplayTitle}] -> {firstLine}");
-            }
-            catch (Exception ex)
-            {
-                AddActivity("ALERT", $"[{m.DisplayTitle}] Mass Run failed: {Short(ex)}");
-            }
-        }));
+        // Reuses the Script Library executor: pairs each agent via GetAgentInfo first and reports
+        // PERMISSION_DENIED / 2FA_REQUIRED clearly instead of failing with a raw RPC error.
+        await MassRunAsync(cmd);
     }
 
     private async void OnCardRestartClick(object sender, RoutedEventArgs e)
@@ -1186,13 +1151,12 @@ public partial class MainWindow : Window
 
     private void AddActivity(string category, string message)
     {
-        var (bg, fg) = category switch
-        {
-            "CONNECT" or "mTLS" => (Color.FromArgb(40, 16, 185, 129), Color.FromRgb(52, 211, 153)),
-            "ALERT" => (Color.FromArgb(45, 244, 63, 94), Color.FromRgb(251, 113, 133)),
-            "LAN SCAN" or "FLEET" => (Color.FromArgb(40, 14, 165, 233), Color.FromRgb(56, 189, 248)),
-            _ => (Color.FromArgb(40, 99, 102, 241), Color.FromRgb(165, 180, 252))
-        };
+        // Badge tone comes from the semantic palette; every line is mirrored to the Live Console.
+        var (source, tone) = LogBus.Classify(category);
+        if (tone == PaletteTone.Neutral) tone = PaletteTone.Accent;
+        var bg = Palette.Soft(tone);
+        var fg = Palette.Fg(tone);
+        LogBus.Publish(source, category, message, tone);
 
         void Append()
         {
@@ -1201,8 +1165,8 @@ public partial class MainWindow : Window
                 Timestamp = DateTime.Now.ToString("HH:mm:ss"),
                 Category = category,
                 Message = message,
-                BadgeBackground = new SolidColorBrush(bg),
-                BadgeForeground = new SolidColorBrush(fg)
+                BadgeBackground = bg,
+                BadgeForeground = fg
             });
             while (_activityEvents.Count > 60)
                 _activityEvents.RemoveAt(_activityEvents.Count - 1);
@@ -1238,7 +1202,7 @@ public partial class MainWindow : Window
         var avgRam = onlineHosts.Count > 0 ? onlineHosts.Average(m => m.RamPercent) : 0;
         var avgRtt = onlineHosts.Count > 0 ? (int)onlineHosts.Average(m => m.LatencyMs) : 0;
 
-        if (KpiFleetLoad is not null) KpiFleetLoad.Text = onlineHosts.Count > 0 ? $"{avgCpu:0}% CPU • {avgRam:0}% RAM" : "--% CPU • --% RAM";
+        if (KpiFleetLoad is not null) KpiFleetLoad.Text = onlineHosts.Count > 0 ? $"{avgCpu:0}% CPU · {avgRam:0}% RAM" : "--% CPU · --% RAM";
         if (KpiLoadBar is not null) KpiLoadBar.Value = avgCpu;
         if (KpiAvgLatency is not null) KpiAvgLatency.Text = onlineHosts.Count > 0 ? $"{avgRtt} ms" : "-- ms";
         if (TrafficPeakText is not null) TrafficPeakText.Text = _latencyHistory.Count > 0 ? $"Peak: {_latencyHistory.Max()} ms" : "Peak: -- ms";
@@ -1268,6 +1232,8 @@ public partial class MainWindow : Window
             }
             TrafficSparkline.Points = pts;
         }
+
+        UpdateNavBadges(); // MainWindow.Shell.cs
     }
 
     private enum Tone { Neutral, Success, Caution, Critical }
@@ -1287,15 +1253,16 @@ public partial class MainWindow : Window
 
     private static void SetPill(Border pill, TextBlock text, Tone tone)
     {
-        var (bg, fg) = tone switch
+        var t = tone switch
         {
-            Tone.Success => (Color.FromArgb(30, 16, 185, 129), Color.FromRgb(16, 185, 129)),
-            Tone.Caution => (Color.FromArgb(30, 245, 158, 11), Color.FromRgb(245, 158, 11)),
-            Tone.Critical => (Color.FromArgb(30, 239, 68, 68), Color.FromRgb(239, 68, 68)),
-            _ => (Color.FromArgb(24, 59, 130, 246), Color.FromRgb(138, 144, 158))
+            Tone.Success => PaletteTone.Success,
+            Tone.Caution => PaletteTone.Warning,
+            Tone.Critical => PaletteTone.Danger,
+            _ => PaletteTone.Neutral
         };
-        pill.Background = new SolidColorBrush(bg);
-        text.Foreground = new SolidColorBrush(fg);
+        pill.Background = Palette.Soft(t);
+        pill.BorderBrush = Palette.Line(t);
+        text.Foreground = Palette.Fg(t);
     }
 
     private void SetBadge(string text, Tone tone)
@@ -1361,15 +1328,6 @@ public partial class MainWindow : Window
                 .Select(p => new ProcRow(p.Pid, p.Name, p.WorkingSetBytes / (1024 * 1024)))
                 .ToList();
 
-            if (_connectedProfile is not null && hw.TotalRamBytes > 0)
-            {
-                var usedMb = _allProcs.Sum(p => p.MemoryMb);
-                var totalMb = hw.TotalRamBytes / (1024.0 * 1024.0);
-                _connectedProfile.RamPercent = Math.Clamp(usedMb / totalMb * 100.0, 5, 98);
-                _connectedProfile.CpuPercent = Math.Clamp(inv.Processes.Count / 14.0, 4, 95);
-                UpdateOverviewMetrics();
-            }
-
             ApplyInventoryFilter();
         }
         catch (Exception ex)
@@ -1386,28 +1344,17 @@ public partial class MainWindow : Window
 
     private void ApplyInventoryFilter()
     {
+        // ICollectionView filtering: the user's column sort survives both filtering and refreshes.
         var q = SearchBox?.Text?.Trim() ?? "";
-        if (string.IsNullOrEmpty(q))
-        {
-            AppsGrid.ItemsSource = _allApps;
-            ProcGrid.ItemsSource = _allProcs;
-            AppsCountText.Text = $"{_allApps.Count} apps";
-            ProcsCountText.Text = $"{_allProcs.Count} processes";
-            return;
-        }
+        var apps = BindPreservingSort(AppsGrid, _allApps, q.Length == 0 ? null : o => o is AppRow a &&
+            (a.Name.Contains(q, StringComparison.OrdinalIgnoreCase) ||
+             a.Publisher.Contains(q, StringComparison.OrdinalIgnoreCase)));
+        var procs = BindPreservingSort(ProcGrid, _allProcs, q.Length == 0 ? null : o => o is ProcRow p &&
+            (p.Name.Contains(q, StringComparison.OrdinalIgnoreCase) ||
+             p.Pid.ToString().Contains(q, StringComparison.OrdinalIgnoreCase)));
 
-        var filteredApps = _allApps.Where(a =>
-            a.Name.Contains(q, StringComparison.OrdinalIgnoreCase) ||
-            a.Publisher.Contains(q, StringComparison.OrdinalIgnoreCase)).ToList();
-
-        var filteredProcs = _allProcs.Where(p =>
-            p.Name.Contains(q, StringComparison.OrdinalIgnoreCase) ||
-            p.Pid.ToString().Contains(q, StringComparison.OrdinalIgnoreCase)).ToList();
-
-        AppsGrid.ItemsSource = filteredApps;
-        ProcGrid.ItemsSource = filteredProcs;
-        AppsCountText.Text = $"{filteredApps.Count} / {_allApps.Count} apps";
-        ProcsCountText.Text = $"{filteredProcs.Count} / {_allProcs.Count} procs";
+        AppsCountText.Text = q.Length == 0 ? $"{_allApps.Count} apps" : $"{apps} / {_allApps.Count} apps";
+        ProcsCountText.Text = q.Length == 0 ? $"{_allProcs.Count} processes" : $"{procs} / {_allProcs.Count} procs";
     }
 
     private async void OnKillSelectedProcessClick(object sender, RoutedEventArgs e)
@@ -2009,12 +1956,15 @@ public partial class MainWindow : Window
     {
         var dlg = new Microsoft.Win32.OpenFileDialog
         {
-            Title = "Select Installer or Script (.exe, .msi, .msp, .ps1, .cmd, .bat)",
-            Filter = "Packages & Scripts (*.exe;*.msi;*.msp;*.ps1;*.cmd;*.bat)|*.exe;*.msi;*.msp;*.ps1;*.cmd;*.bat|Scripts (*.ps1;*.cmd;*.bat)|*.ps1;*.cmd;*.bat|Installers (*.exe;*.msi;*.msp)|*.exe;*.msi;*.msp|All Files (*.*)|*.*"
+            Title = "Select Installers or Scripts (.exe, .msi, .msp, .ps1, .cmd, .bat)",
+            Filter = "Packages & Scripts (*.exe;*.msi;*.msp;*.ps1;*.cmd;*.bat)|*.exe;*.msi;*.msp;*.ps1;*.cmd;*.bat|Scripts (*.ps1;*.cmd;*.bat)|*.ps1;*.cmd;*.bat|Installers (*.exe;*.msi;*.msp)|*.exe;*.msi;*.msp|All Files (*.*)|*.*",
+            Multiselect = true,
         };
         if (dlg.ShowDialog(this) == true)
         {
-            DeployFilePathBox.Text = dlg.FileName;
+            foreach (var file in dlg.FileNames)
+                AddDeployFile(file);
+            DeployFilePathBox.Text = dlg.FileNames.LastOrDefault() ?? "";
         }
     }
 
@@ -2030,7 +1980,8 @@ public partial class MainWindow : Window
             if (dlg.ShowDialog(this) != true) return;
 
             DeployFilePathBox.Text = dlg.FileName;
-            await DeployLocalFileCoreAsync(dlg.FileName, DeployArgsBox.Text.Trim());
+            if (AddDeployFile(dlg.FileName) is { IsBusy: false } item)
+                await DeployLocalFileCoreAsync(item, DeployArgsBox.Text.Trim());
         }
         catch (Exception ex)
         {
@@ -2046,9 +1997,22 @@ public partial class MainWindow : Window
 
     private void OnDeployFileDrop(object sender, DragEventArgs e)
     {
-        if (e.Data.GetData(DataFormats.FileDrop) is string[] { Length: > 0 } files)
+        if (e.Data.GetData(DataFormats.FileDrop) is not string[] { Length: > 0 } files) return;
+        e.Handled = true;
+        var added = 0;
+        foreach (var file in files)
         {
-            DeployFilePathBox.Text = files[0];
+            if (System.IO.Directory.Exists(file))
+            {
+                AppendDeployLog($"[{DateTime.Now:HH:mm:ss}] [file] Skipped folder '{file}': drop the installer files themselves.");
+                continue;
+            }
+            if (AddDeployFile(file) is not null) added++;
+        }
+        if (added > 0)
+        {
+            DeployFilePathBox.Text = files[^1];
+            StatusText.Text = $"Added {added} file(s) to the deploy list. Click Run Files to upload and run them on the connected agent.";
         }
     }
 
@@ -2063,35 +2027,50 @@ public partial class MainWindow : Window
     private async void OnStartDeployClick(object sender, RoutedEventArgs e)
     {
         var path = DeployFilePathBox.Text.Trim().Trim('"');
-        if (string.IsNullOrWhiteSpace(path) || !File.Exists(path))
+        if (!string.IsNullOrWhiteSpace(path) && File.Exists(path))
+            AddDeployFile(path);
+
+        if (!_deployFiles.Any(f => f.DeployStatus == DeployItemStatus.Pending))
         {
-            MessageBox.Show("Please select a valid local installer or script (.exe, .msi, .msp, .ps1, .cmd, or .bat) to upload.",
+            MessageBox.Show("Drop or browse to one or more local installers or scripts (.exe, .msi, .msp, .ps1, .cmd, or .bat) to upload.",
                 "Home RMS — Software Deploy", MessageBoxButton.OK, MessageBoxImage.Information);
             return;
         }
 
-        await DeployLocalFileCoreAsync(path, DeployArgsBox.Text.Trim());
+        await RunPendingDeployFilesAsync();
     }
 
-    private async Task DeployLocalFileCoreAsync(string filePath, string args)
+    /// <summary>Streams one file to the connected agent via DeployPackage and reports upload %, exit code and output.</summary>
+    private async Task<bool> DeployLocalFileCoreAsync(DeployFileItem item, string args)
     {
         if (_conn is null && !await ConnectToCurrentFieldsAsync())
-            return;
+        {
+            item.Detail = "Not connected to an agent.";
+            return false;
+        }
 
-        var fileInfo = new FileInfo(filePath);
-        var fileName = fileInfo.Name;
-        var totalBytes = fileInfo.Length;
+        var filePath = item.FullPath;
+        var fileName = item.FileName;
+        var target = _agentInfo?.MachineName ?? _conn!.Host;
+        var prefix = $"[{target}] [{fileName}]";
 
         try
         {
+            var fileInfo = new FileInfo(filePath);
+            var totalBytes = fileInfo.Length;
+
             DeployRunBtn.IsEnabled = false;
+            item.Percent = 0;
+            item.DeployStatus = DeployItemStatus.Downloading;
+            item.Detail = "Uploading...";
             DeployStatusBadge.Text = "Uploading…";
-            AppendDeployLog($"\r\n[{DateTime.Now:HH:mm:ss}] Preparing to deploy '{fileName}' ({totalBytes / 1024.0 / 1024.0:F2} MB) to {_agentInfo?.MachineName}…");
+            AppendDeployLog($"[{DateTime.Now:HH:mm:ss}] {prefix} Uploading {totalBytes / 1024.0 / 1024.0:F2} MB…");
 
             using var call = _conn!.Client.DeployPackage(deadline: DateTime.UtcNow.AddMinutes(10));
             var buffer = new byte[256 * 1024]; // 256 KB chunks
             long sent = 0;
             var first = true;
+            var lastLoggedPct = -1;
 
             await using (var fs = File.OpenRead(filePath))
             {
@@ -2113,7 +2092,13 @@ public partial class MainWindow : Window
                     await call.RequestStream.WriteAsync(chunk);
                     sent += read;
                     var pct = totalBytes > 0 ? (int)(sent * 100 / totalBytes) : 100;
+                    item.Percent = pct;
                     DeployStatusBadge.Text = $"Uploading {pct}%";
+                    if (pct / 25 != lastLoggedPct / 25 && pct < 100)
+                    {
+                        lastLoggedPct = pct;
+                        AppendDeployLog($"[{DateTime.Now:HH:mm:ss}] {prefix} Upload {pct}%");
+                    }
                 }
             }
 
@@ -2123,25 +2108,47 @@ public partial class MainWindow : Window
                         || ext.Equals(".bat", StringComparison.OrdinalIgnoreCase);
 
             await call.RequestStream.CompleteAsync();
+            item.Percent = -1;
+            item.DeployStatus = DeployItemStatus.Installing;
+            item.Detail = isScript ? "Running script..." : "Running installer...";
             DeployStatusBadge.Text = isScript ? "Running Script Silently…" : "Installing Silently…";
-            AppendDeployLog($"[{DateTime.Now:HH:mm:ss}] Upload complete (100%). {(isScript ? "Running silent script" : "Running silent installer")} on {_agentInfo?.MachineName}…");
+            AppendDeployLog($"[{DateTime.Now:HH:mm:ss}] {prefix} Upload complete (100%). {(isScript ? "Running silent script" : "Running silent installer")}…");
 
             var result = await call.ResponseAsync;
             DeployStatusBadge.Text = result.Success
                 ? (isScript ? $"Script Done (Exit {result.ExitCode})" : $"Installed (Exit {result.ExitCode})")
                 : $"Failed (Exit {result.ExitCode})";
-            AppendDeployLog($"[{DateTime.Now:HH:mm:ss}] Command: {result.CommandLine}");
-            AppendDeployLog($"[{DateTime.Now:HH:mm:ss}] Result : {(result.Success ? "SUCCESS" : "FAILED")} (Exit Code {result.ExitCode})");
+            item.DeployStatus = result.Success ? DeployItemStatus.Success : DeployItemStatus.Failed;
+            item.Detail = $"Exit code {result.ExitCode} (0x{unchecked((uint)result.ExitCode):X8})";
+            AppendDeployLog($"[{DateTime.Now:HH:mm:ss}] {prefix} Command: {result.CommandLine}");
+            AppendDeployLog($"[{DateTime.Now:HH:mm:ss}] {prefix} Result : {(result.Success ? "SUCCESS" : "FAILED")} (exit code {result.ExitCode})");
             if (!string.IsNullOrWhiteSpace(result.Output))
-                AppendDeployLog(result.Output);
+            {
+                foreach (var line in result.Output.Split('\n'))
+                    if (line.Trim().Length > 0)
+                        AppendDeployLog($"[{DateTime.Now:HH:mm:ss}] {prefix} {line.TrimEnd('\r')}");
+            }
 
             if (result.Success)
                 await RefreshInventoryCoreAsync();
+            return result.Success;
+        }
+        catch (RpcException ex) when (ex.StatusCode is StatusCode.PermissionDenied or StatusCode.Unauthenticated)
+        {
+            const string msg = "Endpoint refused the upload: pair this endpoint first (connect from Fleet and enter the agent's 2FA code).";
+            item.DeployStatus = DeployItemStatus.Failed;
+            item.Detail = msg;
+            DeployStatusBadge.Text = "Deploy Failed";
+            AppendDeployLog($"[{DateTime.Now:HH:mm:ss}] {prefix} ERROR: {msg}");
+            return false;
         }
         catch (Exception ex)
         {
+            item.DeployStatus = DeployItemStatus.Failed;
+            item.Detail = ex is RpcException rpc ? $"{rpc.StatusCode}: {rpc.Status.Detail}" : ex.Message;
             DeployStatusBadge.Text = "Deploy Failed";
-            AppendDeployLog($"[{DateTime.Now:HH:mm:ss}] ERROR: {ex.Message}");
+            AppendDeployLog($"[{DateTime.Now:HH:mm:ss}] {prefix} ERROR: {item.Detail}");
+            return false;
         }
         finally
         {
@@ -2149,35 +2156,18 @@ public partial class MainWindow : Window
         }
     }
 
-    private async void OnWingetQuickInstallClick(object sender, RoutedEventArgs e)
-    {
-        if (sender is not Button { Tag: string packageId }) return;
-        if (!System.Text.RegularExpressions.Regex.IsMatch(packageId, @"^[a-zA-Z0-9._\-]+$")) return;
-
-        // Create a tiny temporary .ps1 script that runs winget silently and deploy it via DeployPackage
-        var tempScript = Path.Combine(Path.GetTempPath(), $"winget_{packageId}_{Guid.NewGuid():N}.ps1");
-        try
-        {
-            if (_conn is null && !await ConnectToCurrentFieldsAsync()) return;
-
-            var scriptBody = $"winget install --id '{packageId}' -e --silent --accept-package-agreements --accept-source-agreements --disable-interactivity";
-            await File.WriteAllTextAsync(tempScript, scriptBody);
-            await DeployLocalFileCoreAsync(tempScript, "AUTO");
-        }
-        catch (Exception ex)
-        {
-            AppendDeployLog($"[{DateTime.Now:HH:mm:ss}] ERROR: {ex.Message}");
-        }
-        finally
-        {
-            try { if (File.Exists(tempScript)) File.Delete(tempScript); } catch { }
-        }
-    }
-
     private void AppendDeployLog(string line)
     {
+        // Keep the live log bounded (RunWinget can stream a lot of lines).
+        if (DeployOutputBox.Text.Length > 400_000)
+        {
+            var text = DeployOutputBox.Text;
+            var cut = text.IndexOf('\n', text.Length - 300_000);
+            DeployOutputBox.Text = "… (older log lines trimmed)\r\n" + (cut >= 0 ? text[(cut + 1)..] : text[^300_000..]);
+        }
         DeployOutputBox.AppendText(line + "\r\n");
         DeployOutputBox.ScrollToEnd();
+        MirrorDeployLineToConsole(line); // MainWindow.Shell.cs
     }
 
     // ---------------- Automated Screenshot Generation ----------------
@@ -2277,7 +2267,8 @@ public partial class MainWindow : Window
 
     // ---------------- Helpers ----------------
     private static long Gb(long bytes) => bytes / (1024 * 1024 * 1024);
-    private static string Short(Exception ex) => ex.Message.Split('\n')[0];
+    private static string Short(Exception ex) =>
+        ex is RpcException or AgentPairingException ? AgentErrors.Describe(ex) : ex.Message.Split('\n')[0];
 
     protected override void OnClosed(EventArgs e)
     {

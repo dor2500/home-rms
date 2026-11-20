@@ -1,0 +1,121 @@
+<UserControl x:Class="HomeRms.Controller.Views.ServicesTasksView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:v="clr-namespace:HomeRms.Controller.Views">
+    <DockPanel>
+        <!-- Header -->
+        <DockPanel DockPanel.Dock="Top" Margin="0,0,0,10">
+            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
+                <TextBlock Text="ENDPOINT" Style="{StaticResource Caption}" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                <ComboBox x:Name="EndpointCombo" Width="230" Margin="0,0,6,0" DisplayMemberPath="DisplayTitle"/>
+                <Button Content="Load" Style="{StaticResource PrimaryButton}" Padding="12,5" Click="OnLoadClick"/>
+            </StackPanel>
+            <StackPanel VerticalAlignment="Center">
+                <TextBlock Text="Services &amp; scheduled tasks" Style="{StaticResource PageTitle}"/>
+                <TextBlock x:Name="SubtitleText" Text="Manage Windows services and scheduled tasks on a paired agent (allowlisted SystemOp actions, audited on the agent)."
+                           Style="{StaticResource PageSubtitle}" TextTrimming="CharacterEllipsis"/>
+            </StackPanel>
+        </DockPanel>
+
+        <Border DockPanel.Dock="Top" Style="{StaticResource CardStyle}" Padding="12,7" Margin="0,0,0,10">
+            <v:EndpointActionBar x:Name="ActionBar"/>
+        </Border>
+
+        <!-- Status line -->
+        <TextBlock x:Name="StatusLine" DockPanel.Dock="Bottom" Margin="0,8,0,0" FontFamily="{StaticResource MonoFont}" FontSize="11.5"
+                   Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap"/>
+
+        <TabControl x:Name="Tabs" Background="Transparent" BorderThickness="0" SelectionChanged="OnTabChanged">
+            <!-- ===== Services ===== -->
+            <TabItem Header="Services">
+                <Grid Margin="0,8,0,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="300"/>
+                    </Grid.ColumnDefinitions>
+                    <DockPanel Grid.Column="0">
+                        <DockPanel DockPanel.Dock="Top" Margin="0,0,0,8">
+                            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                                <Button Content="Start" Style="{StaticResource SmallPillButton}" Margin="0,0,4,0" Tag="start" Click="OnServiceActionClick"/>
+                                <Button Content="Stop" Style="{StaticResource SmallPillButton}" Margin="0,0,4,0" Tag="stop" Click="OnServiceActionClick"/>
+                                <Button Content="Restart" Style="{StaticResource SmallPillButton}" Margin="0,0,10,0" Tag="restart" Click="OnServiceActionClick"/>
+                                <ComboBox x:Name="StartupTypeCombo" Width="140" Margin="0,0,4,0" SelectedIndex="2">
+                                    <ComboBoxItem Content="Automatic"/>
+                                    <ComboBoxItem Content="AutomaticDelayed"/>
+                                    <ComboBoxItem Content="Manual"/>
+                                    <ComboBoxItem Content="Disabled"/>
+                                </ComboBox>
+                                <Button Content="Set startup" Style="{StaticResource SmallPillButton}" Margin="0,0,10,0" Click="OnSetStartupClick"/>
+                                <Button Content="Refresh" Style="{StaticResource SmallPillButton}" Click="OnRefreshServicesClick"/>
+                            </StackPanel>
+                            <TextBox x:Name="ServiceFilterBox" Style="{StaticResource SearchBox}" Tag="Filter services..." Margin="0,0,10,0" TextChanged="OnServiceFilterChanged" ToolTip="Filter by name, display name, state or start mode"/>
+                        </DockPanel>
+                        <DataGrid x:Name="ServicesGrid" AutoGenerateColumns="False" IsReadOnly="True" CanUserSortColumns="True"
+                                  SelectionMode="Extended" HeadersVisibility="Column" GridLinesVisibility="None"
+                                  Background="{StaticResource FieldBrush}" BorderBrush="{StaticResource LineBrush}"
+                                  SelectionChanged="OnServiceSelectionChanged">
+                            <DataGrid.Columns>
+                                <DataGridTextColumn Header="Name" Binding="{Binding Name}" Width="170"/>
+                                <DataGridTextColumn Header="Display name" Binding="{Binding DisplayName}" Width="*"/>
+                                <DataGridTextColumn Header="State" Binding="{Binding State}" Width="90"/>
+                                <DataGridTextColumn Header="Startup" Binding="{Binding StartMode}" Width="90"/>
+                                <DataGridTextColumn Header="Log on as" Binding="{Binding StartName}" Width="150"/>
+                            </DataGrid.Columns>
+                        </DataGrid>
+                    </DockPanel>
+                    <Border Grid.Column="1" Style="{StaticResource CardStyle}" Margin="10,0,0,0">
+                        <DockPanel>
+                            <TextBlock DockPanel.Dock="Top" Text="DETAILS" Style="{StaticResource Caption}"/>
+                            <ScrollViewer VerticalScrollBarVisibility="Auto">
+                                <TextBox x:Name="ServiceDetails" IsReadOnly="True" TextWrapping="Wrap" BorderThickness="0" Background="Transparent"
+                                         FontFamily="{StaticResource MonoFont}" FontSize="11.5" Text="Select a service."/>
+                            </ScrollViewer>
+                        </DockPanel>
+                    </Border>
+                </Grid>
+            </TabItem>
+
+            <!-- ===== Scheduled tasks ===== -->
+            <TabItem Header="Scheduled tasks">
+                <Grid Margin="0,8,0,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="300"/>
+                    </Grid.ColumnDefinitions>
+                    <DockPanel Grid.Column="0">
+                        <DockPanel DockPanel.Dock="Top" Margin="0,0,0,8">
+                            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                                <Button Content="Run now" Style="{StaticResource SmallPillButton}" Margin="0,0,4,0" Tag="run" Click="OnTaskActionClick"/>
+                                <Button Content="Enable" Style="{StaticResource SmallPillButton}" Margin="0,0,4,0" Tag="enable" Click="OnTaskActionClick"/>
+                                <Button Content="Disable" Style="{StaticResource SmallPillButton}" Margin="0,0,10,0" Tag="disable" Click="OnTaskActionClick"/>
+                                <CheckBox x:Name="HideMicrosoftTasksCheck" Content="Hide \Microsoft\" VerticalAlignment="Center" Margin="0,0,10,0"
+                                          IsChecked="True" Checked="OnTaskFilterChanged" Unchecked="OnTaskFilterChanged"/>
+                                <Button Content="Refresh" Style="{StaticResource SmallPillButton}" Click="OnRefreshTasksClick"/>
+                            </StackPanel>
+                            <TextBox x:Name="TaskFilterBox" Style="{StaticResource SearchBox}" Tag="Filter tasks..." Margin="0,0,10,0" TextChanged="OnTaskFilterChanged" ToolTip="Filter by path, name or state"/>
+                        </DockPanel>
+                        <DataGrid x:Name="TasksGrid" AutoGenerateColumns="False" IsReadOnly="True" CanUserSortColumns="True"
+                                  SelectionMode="Extended" HeadersVisibility="Column" GridLinesVisibility="None"
+                                  Background="{StaticResource FieldBrush}" BorderBrush="{StaticResource LineBrush}"
+                                  SelectionChanged="OnTaskSelectionChanged">
+                            <DataGrid.Columns>
+                                <DataGridTextColumn Header="Folder" Binding="{Binding TaskPath}" Width="220"/>
+                                <DataGridTextColumn Header="Name" Binding="{Binding TaskName}" Width="*"/>
+                                <DataGridTextColumn Header="State" Binding="{Binding State}" Width="100"/>
+                            </DataGrid.Columns>
+                        </DataGrid>
+                    </DockPanel>
+                    <Border Grid.Column="1" Style="{StaticResource CardStyle}" Margin="10,0,0,0">
+                        <DockPanel>
+                            <TextBlock DockPanel.Dock="Top" Text="DETAILS" Style="{StaticResource Caption}"/>
+                            <ScrollViewer VerticalScrollBarVisibility="Auto">
+                                <TextBox x:Name="TaskDetails" IsReadOnly="True" TextWrapping="Wrap" BorderThickness="0" Background="Transparent"
+                                         FontFamily="{StaticResource MonoFont}" FontSize="11.5" Text="Select a task."/>
+                            </ScrollViewer>
+                        </DockPanel>
+                    </Border>
+                </Grid>
+            </TabItem>
+        </TabControl>
+    </DockPanel>
+</UserControl>

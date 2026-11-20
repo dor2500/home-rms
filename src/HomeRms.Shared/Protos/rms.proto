@@ -49,6 +49,147 @@ service RemoteManagement {
 
   // --- Initial 2FA TOTP pairing (pins the Controller's unique SHA-256 fingerprint). ---
   rpc PairWith2Fa (PairRequest) returns (PairResult);
+
+  // --- Winget package installs/upgrades. winget.exe is run directly (no shell); package IDs
+  // are strictly validated and the whole request is rejected if any ID is invalid. Progress is
+  // streamed per package. Windows only (the Linux agent returns UNIMPLEMENTED). ---
+  rpc RunWinget (WingetRequest) returns (stream WingetProgress);
+
+  // --- File manager. Absolute local paths only (no UNC / device paths / alternate data
+  // streams). Every operation is written to the agent's audit log. Errors are returned as
+  // gRPC status codes (INVALID_ARGUMENT, NOT_FOUND, ALREADY_EXISTS, PERMISSION_DENIED,
+  // FAILED_PRECONDITION, RESOURCE_EXHAUSTED). ---
+  rpc ListDrives (Empty) returns (DriveList);
+  rpc ListDirectory (ListDirectoryRequest) returns (DirectoryListing);
+  // 256 KB chunks; every chunk carries total_size.
+  rpc DownloadFile (FilePathRequest) returns (stream FileChunk);
+  // The first chunk must carry destination_path (+ overwrite). Written to a temp file in the
+  // destination directory, then moved into place. Max 4 GB.
+  rpc UploadFile (stream FileUploadChunk) returns (FileOpResult);
+  rpc DeletePath (DeletePathRequest) returns (FileOpResult);
+  rpc RenamePath (RenamePathRequest) returns (FileOpResult);
+  rpc CreateDirectory (FilePathRequest) returns (FileOpResult);
+
+  // --- Live telemetry: one sample every interval_ms (clamped 1000-10000 ms). ---
+  rpc GetTelemetry (TelemetryRequest) returns (stream TelemetrySample);
+}
+
+// ---------------- Winget ----------------
+message WingetRequest {
+  repeated string package_ids = 1;   // each must match ^[A-Za-z0-9][A-Za-z0-9.\-_+]{0,127}$
+  bool silent = 2;                   // --silent
+  bool machine_scope = 3;            // --scope machine (omitted = winget default scope)
+  bool upgrade_if_installed = 4;     // try "upgrade" first, fall back to "install" if not installed
+  optional string version = 5;       // exact version; only allowed with a single package id
+}
+
+enum WingetPhase {
+  WINGET_PHASE_QUEUED = 0;
+  WINGET_PHASE_DOWNLOADING = 1;
+  WINGET_PHASE_INSTALLING = 2;
+  WINGET_PHASE_SUCCEEDED = 3;
+  WINGET_PHASE_FAILED = 4;
+  WINGET_PHASE_SKIPPED = 5;          // already installed / no applicable upgrade
+}
+
+message WingetProgress {
+  string package_id = 1;
+  WingetPhase phase = 2;
+  int32 percent = 3;                 // 0-100 parsed from winget output, -1 when unknown
+  string log_line = 4;               // one line of winget output (empty for pure progress updates)
+  int32 exit_code = 5;               // winget exit code (HRESULT as signed int); set on terminal phases
+  string exit_message = 6;           // readable meaning of exit_code
+  bool done = 7;                     // true on the very last message of the stream (all packages processed)
+}
+
+// ---------------- File manager ----------------
+message DriveEntry {
+  string name = 1;                   // "C:\" or "/" / mount point
+  string label = 2;
+  string drive_type = 3;             // Fixed | Removable | Network | CDRom ...
+  string format = 4;                 // NTFS, ext4 ...
+  int64 total_bytes = 5;
+  int64 free_bytes = 6;
+  bool is_ready = 7;
+}
+
+message DriveList {
+  repeated DriveEntry drives = 1;
+}
+
+message ListDirectoryRequest {
+  string path = 1;
+  int32 max_entries = 2;             // 0 = default (10000); clamped to 1-10000
+}
+
+message FileEntry {
+  string name = 1;
+  string full_path = 2;
+  bool is_dir = 3;
+  int64 size = 4;                    // bytes (0 for directories)
+  int64 modified_unix_ms = 5;        // last write time (UTC, Unix ms)
+  string attributes = 6;             // e.g. "ReadOnly, Hidden"
+  bool is_link = 7;                  // symlink / junction / reparse point
+}
+
+message DirectoryListing {
+  string path = 1;                   // normalized full path that was listed
+  string parent_path = 2;            // empty at a root
+  repeated FileEntry entries = 3;    // directories first, then files, each sorted by name
+  bool truncated = 4;                // more entries existed than max_entries
+}
+
+message FilePathRequest {
+  string path = 1;
+}
+
+message FileChunk {
+  bytes data = 1;
+  int64 offset = 2;                  // offset of this chunk in the file
+  int64 total_size = 3;              // total file size in bytes
+  string file_name = 4;              // set on the first chunk
+}
+
+message FileUploadChunk {
+  string destination_path = 1;       // required on the first chunk
+  bool overwrite = 2;                // first chunk only
+  bytes data = 3;
+  int64 total_size = 4;              // optional size hint (first chunk); checked against the cap up front
+}
+
+message DeletePathRequest {
+  string path = 1;
+  bool recursive = 2;                // required to delete a non-empty directory
+}
+
+message RenamePathRequest {
+  string source_path = 1;
+  string destination_path = 2;       // full destination path (may be in another directory = move)
+  bool overwrite = 3;                // files only
+}
+
+message FileOpResult {
+  bool success = 1;
+  string message = 2;
+  string path = 3;                   // resulting normalized path
+  int64 bytes = 4;                   // bytes written (UploadFile)
+}
+
+// ---------------- Telemetry ----------------
+message TelemetryRequest {
+  int32 interval_ms = 1;             // clamped to 1000-10000
+}
+
+message TelemetrySample {
+  double cpu_percent = 1;            // 0-100, all cores
+  int64 mem_total_bytes = 2;
+  int64 mem_used_bytes = 3;
+  repeated DiskInfo disks = 4;       // fixed disks only
+  double net_rx_bytes_per_sec = 5;
+  double net_tx_bytes_per_sec = 6;
+  int64 uptime_seconds = 7;
+  int32 process_count = 8;
+  int64 timestamp_unix_ms = 9;
 }
 
 message PairRequest {

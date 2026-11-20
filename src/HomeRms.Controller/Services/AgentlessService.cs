@@ -69,9 +69,9 @@ public sealed class AgentlessService
         }
     }
 
-    public async Task<(bool Ok, string Output)> RunShellAsync(MachineProfile profile, string command, CancellationToken ct = default)
+    public async Task<(bool Ok, string Output)> RunShellAsync(MachineProfile profile, string command, CancellationToken ct = default, int timeoutMs = 60000)
     {
-        var (ok, stdout, stderr) = await InvokeWinRmAsync(profile, command, ct, timeoutMs: 60000);
+        var (ok, stdout, stderr) = await InvokeWinRmAsync(profile, command, ct, timeoutMs: timeoutMs);
         var combined = string.IsNullOrWhiteSpace(stderr)
             ? stdout
             : string.IsNullOrWhiteSpace(stdout) ? stderr : $"{stdout.TrimEnd()}\n{stderr}";

@@ -5,11 +5,13 @@ using Grpc.Core;
 using HomeRms.Agent.Linux.Core;
 using HomeRms.Agent.Linux.Features;
 using HomeRms.Shared.Protocol;
+using HomeRms.Shared.Server;
 
 namespace HomeRms.Agent.Linux.Server;
 
 /// <summary>Linux implementation of the consent-gated Home RMS gRPC service.</summary>
-public sealed class RemoteManagementService(ConsentCoordinator consent, ActivityLog log)
+public sealed class RemoteManagementService(
+    ConsentCoordinator consent, ActivityLog log, ControllerPairing pairing, FileManagerOps files)
     : RemoteManagement.RemoteManagementBase
 {
     private const long MaxDeployBytes = 512L * 1024 * 1024;
@@ -27,6 +29,8 @@ public sealed class RemoteManagementService(ConsentCoordinator consent, Activity
     public override Task<AgentInfo> GetAgentInfo(Empty request, ServerCallContext context)
     {
         var op = OperatorOf(context);
+        // Unpinned caller while nothing is pinned yet: on-device consent (or 2FA) pins it.
+        pairing.EnsurePairedViaConsent(context, consent.RequestGrant);
         log.Write($"[info] '{op}' connected and requested agent info");
         using var cap = new LinuxScreenCapturer();
         var (w, h) = cap.PrimaryBounds;
@@ -415,6 +419,43 @@ public sealed class RemoteManagementService(ConsentCoordinator consent, Activity
         log.Write($"[system] {request.Area}/{request.Action} -> {(res.Success ? "OK" : "FAILED")}");
         return res;
     }
+
+    // Rate-limited (per peer address) TOTP pairing; see ControllerPairing.
+    public override Task<PairResult> PairWith2Fa(PairRequest request, ServerCallContext context) =>
+        Task.FromResult(pairing.PairWith2Fa(request, context));
+
+    // Winget is Windows-only.
+    public override Task RunWinget(WingetRequest request, IServerStreamWriter<WingetProgress> responseStream, ServerCallContext context)
+    {
+        log.Write($"[winget] '{OperatorOf(context)}' requested winget — not available on Linux");
+        throw new RpcException(new Status(StatusCode.Unimplemented, "winget is only available on Windows agents."));
+    }
+
+    // ---------------- File manager ----------------
+    public override Task<DriveList> ListDrives(Empty request, ServerCallContext context) =>
+        Task.FromResult(files.ListDrives(OperatorOf(context)));
+
+    public override Task<DirectoryListing> ListDirectory(ListDirectoryRequest request, ServerCallContext context) =>
+        Task.FromResult(files.ListDirectory(request, OperatorOf(context)));
+
+    public override Task DownloadFile(FilePathRequest request, IServerStreamWriter<FileChunk> responseStream, ServerCallContext context) =>
+        files.DownloadFile(request, responseStream, context, OperatorOf(context));
+
+    public override Task<FileOpResult> UploadFile(IAsyncStreamReader<FileUploadChunk> requestStream, ServerCallContext context) =>
+        files.UploadFile(requestStream, context, OperatorOf(context));
+
+    public override Task<FileOpResult> DeletePath(DeletePathRequest request, ServerCallContext context) =>
+        Task.FromResult(files.DeletePath(request, OperatorOf(context)));
+
+    public override Task<FileOpResult> RenamePath(RenamePathRequest request, ServerCallContext context) =>
+        Task.FromResult(files.RenamePath(request, OperatorOf(context)));
+
+    public override Task<FileOpResult> CreateDirectory(FilePathRequest request, ServerCallContext context) =>
+        Task.FromResult(files.CreateDirectory(request, OperatorOf(context)));
+
+    // ---------------- Telemetry ----------------
+    public override Task GetTelemetry(TelemetryRequest request, IServerStreamWriter<TelemetrySample> responseStream, ServerCallContext context) =>
+        TelemetryStreamer.RunAsync(new LinuxTelemetrySampler(), request, responseStream, context, OperatorOf(context), log.Write);
 
     private static string? TryReadClipboard(string tool, string args)
     {

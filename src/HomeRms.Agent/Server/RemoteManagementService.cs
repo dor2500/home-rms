@@ -9,12 +9,14 @@ using HomeRms.Agent.Core;
 using HomeRms.Agent.Features;
 using HomeRms.Shared.Protocol;
 using HomeRms.Shared.Security;
+using HomeRms.Shared.Server;
 
 namespace HomeRms.Agent.Server;
 
 /// <summary>Server-side implementation of the consent-gated remote management RPCs.</summary>
 [SupportedOSPlatform("windows")]
-public sealed class RemoteManagementService(ConsentCoordinator consent, ActivityLog log)
+public sealed class RemoteManagementService(
+    ConsentCoordinator consent, ActivityLog log, ControllerPairing pairing, FileManagerOps files)
     : RemoteManagement.RemoteManagementBase
 {
     private volatile int _activeMonitorIndex;
@@ -27,25 +29,11 @@ public sealed class RemoteManagementService(ConsentCoordinator consent, Activity
 
     public override Task<AgentInfo> GetAgentInfo(Empty request, ServerCallContext context)
     {
-        var cert = context.GetHttpContext().Connection.ClientCertificate;
         var op = OperatorOf(context);
 
-        if (cert is not null && !TrustedControllerStore.HasPinned()
-            && cert.Subject.Contains("CN=HomeRMS-Controller-", StringComparison.Ordinal))
-        {
-            var cfg = TwoFactorStore.LoadAgent();
-            if (cfg.RequireOnStartupOrPair)
-            {
-                log.Write($"[security] '{op}' requires initial 2FA pairing");
-                throw new RpcException(new Status(StatusCode.Unauthenticated, "2FA_REQUIRED"));
-            }
-
-            var fp = ControllerIdentity.GetSha256Fingerprint(cert);
-            if (!consent.RequestGrant(op, $"pair & permanently pin this Controller\n({fp[..23]}...)"))
-                throw new RpcException(new Status(StatusCode.PermissionDenied, "Controller pairing was declined."));
-            TrustedControllerStore.AddPinned(fp, op);
-            log.Write($"[security] pinned Controller '{op}' ({fp[..23]}...)");
-        }
+        // Unpinned caller while nothing is pinned yet: on-device consent (or 2FA) pins it.
+        // Every other RPC is refused by PinnedControllerInterceptor until this succeeds.
+        pairing.EnsurePairedViaConsent(context, consent.RequestGrant);
 
         log.Write($"[info] '{op}' connected and requested agent info");
         using var cap = new ScreenCapturer();
@@ -635,27 +623,39 @@ public sealed class RemoteManagementService(ConsentCoordinator consent, Activity
     [System.Runtime.InteropServices.DllImport("user32.dll")]
     private static extern uint GetClipboardSequenceNumber();
 
-    public override Task<PairResult> PairWith2Fa(PairRequest request, ServerCallContext context)
-    {
-        var cert = context.GetHttpContext().Connection.ClientCertificate;
-        var op = OperatorOf(context);
-        var cfg = TwoFactorStore.LoadAgent();
+    // Rate-limited (per peer address) TOTP pairing; see ControllerPairing.
+    public override Task<PairResult> PairWith2Fa(PairRequest request, ServerCallContext context) =>
+        Task.FromResult(pairing.PairWith2Fa(request, context));
 
-        if (!TotpHelper.VerifyCode(cfg.TotpSecret, request.TotpCode))
-        {
-            log.Write($"[security] FAILED 2FA pairing attempt from '{op}'");
-            return Task.FromResult(new PairResult { Success = false, Message = "Invalid 6-digit 2FA code." });
-        }
+    // ---------------- Winget ----------------
+    public override Task RunWinget(WingetRequest request, IServerStreamWriter<WingetProgress> responseStream, ServerCallContext context) =>
+        WingetRunner.RunAsync(request, responseStream, context, OperatorOf(context), log.Write);
 
-        if (cert is not null)
-        {
-            var fp = ControllerIdentity.GetSha256Fingerprint(cert);
-            TrustedControllerStore.AddPinned(fp, string.IsNullOrWhiteSpace(request.ControllerName) ? op : request.ControllerName);
-            log.Write($"[security] 2FA paired & pinned Controller '{op}' ({fp[..23]}...)");
-        }
+    // ---------------- File manager ----------------
+    public override Task<DriveList> ListDrives(Empty request, ServerCallContext context) =>
+        Task.FromResult(files.ListDrives(OperatorOf(context)));
 
-        return Task.FromResult(new PairResult { Success = true, Message = "Controller paired & pinned." });
-    }
+    public override Task<DirectoryListing> ListDirectory(ListDirectoryRequest request, ServerCallContext context) =>
+        Task.FromResult(files.ListDirectory(request, OperatorOf(context)));
+
+    public override Task DownloadFile(FilePathRequest request, IServerStreamWriter<FileChunk> responseStream, ServerCallContext context) =>
+        files.DownloadFile(request, responseStream, context, OperatorOf(context));
+
+    public override Task<FileOpResult> UploadFile(IAsyncStreamReader<FileUploadChunk> requestStream, ServerCallContext context) =>
+        files.UploadFile(requestStream, context, OperatorOf(context));
+
+    public override Task<FileOpResult> DeletePath(DeletePathRequest request, ServerCallContext context) =>
+        Task.FromResult(files.DeletePath(request, OperatorOf(context)));
+
+    public override Task<FileOpResult> RenamePath(RenamePathRequest request, ServerCallContext context) =>
+        Task.FromResult(files.RenamePath(request, OperatorOf(context)));
+
+    public override Task<FileOpResult> CreateDirectory(FilePathRequest request, ServerCallContext context) =>
+        Task.FromResult(files.CreateDirectory(request, OperatorOf(context)));
+
+    // ---------------- Telemetry ----------------
+    public override Task GetTelemetry(TelemetryRequest request, IServerStreamWriter<TelemetrySample> responseStream, ServerCallContext context) =>
+        TelemetryStreamer.RunAsync(new TelemetrySampler(), request, responseStream, context, OperatorOf(context), log.Write);
 
     public override Task<ClipboardAck> SetPrivacyMode(PrivacyModeRequest request, ServerCallContext context)
     {
