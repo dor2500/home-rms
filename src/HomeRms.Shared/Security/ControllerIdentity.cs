@@ -192,38 +192,3 @@ public static class TrustedControllerStore
         return ok;
     }
 }
-
-public static class DashboardPinStore
-{
-    private static string PinPath => Path.Combine(ControllerIdentity.SecurityDir, "dashboard-pin.dpapi");
-
-    public static bool VerifyPin(string candidate)
-    {
-        var saved = LoadPin();
-        return string.Equals(candidate, saved, StringComparison.Ordinal);
-    }
-
-    public static void SavePin(string pin)
-    {
-        Directory.CreateDirectory(ControllerIdentity.SecurityDir);
-        var raw = Encoding.UTF8.GetBytes(pin);
-        var protectedBytes = OperatingSystem.IsWindows()
-            ? ProtectedData.Protect(raw, null, DataProtectionScope.CurrentUser)
-            : raw;
-        File.WriteAllBytes(PinPath, protectedBytes);
-    }
-
-    private static string LoadPin()
-    {
-        if (!File.Exists(PinPath)) return "1234";
-        try
-        {
-            var blob = File.ReadAllBytes(PinPath);
-            var raw = OperatingSystem.IsWindows()
-                ? ProtectedData.Unprotect(blob, null, DataProtectionScope.CurrentUser)
-                : blob;
-            return Encoding.UTF8.GetString(raw);
-        }
-        catch { return "1234"; }
-    }
-}

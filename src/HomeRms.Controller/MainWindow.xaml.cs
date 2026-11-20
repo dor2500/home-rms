@@ -112,8 +112,7 @@ public partial class MainWindow : Window
                 return;
             }
 
-            if (TwoFactorStore.LoadController().RequireOnStartupOrPair)
-                LockOverlay.Visibility = Visibility.Visible;
+            ApplyStartupLock();
 
             await ProbeAllMachinesAsync();
             _ = CheckGitHubUpdateInBackgroundAsync();
@@ -255,6 +254,7 @@ public partial class MainWindow : Window
         AboutFingerprintBox.Text = ControllerIdentity.GetSha256Fingerprint(cert);
         var cfg = TwoFactorStore.LoadController();
         Require2FaStartupCheck.IsChecked = cfg.RequireOnStartupOrPair;
+        AllowPasskeyCheck.IsChecked = cfg.AllowPasskey;
         AboutTotpSecretBox.Text = cfg.TotpSecret;
         RememberDaysBox.Text = (cfg.RememberDays <= 0 ? 30 : cfg.RememberDays).ToString();
         AboutBackupCodesBox.Text = string.Join("   ", cfg.BackupCodes ?? []);
@@ -270,6 +270,7 @@ public partial class MainWindow : Window
             AboutQrImage.Source = bmp;
         }
         AboutOverlay.Visibility = Visibility.Visible;
+        _ = RefreshSecuritySectionAsync();
     }
 
     private void OnToggleStartup2Fa(object sender, RoutedEventArgs e)
@@ -294,7 +295,10 @@ public partial class MainWindow : Window
     }
 
     private void OnCloseAboutClick(object sender, RoutedEventArgs e)
-        => AboutOverlay.Visibility = Visibility.Collapsed;
+    {
+        ClearAboutSecretInputs();
+        AboutOverlay.Visibility = Visibility.Collapsed;
+    }
 
     private void OnOpenProjectLinkClick(object sender, System.Windows.Navigation.RequestNavigateEventArgs e)
     {
@@ -540,10 +544,10 @@ public partial class MainWindow : Window
         _inactivityTimer = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromSeconds(15) };
         _inactivityTimer.Tick += (_, _) =>
         {
-            if (LockOverlay.Visibility != Visibility.Visible &&
+            if (!IsConsoleLocked &&
                 DateTime.UtcNow - _lastActivityUtc >= TimeSpan.FromMinutes(15))
             {
-                LockOverlay.Visibility = Visibility.Visible;
+                ShowLockOverlay("Locked after 15 minutes of inactivity.");
             }
         };
         _inactivityTimer.Start();
@@ -551,49 +555,22 @@ public partial class MainWindow : Window
 
     private void OnDashboardActivity(object sender, MouseButtonEventArgs e) => _lastActivityUtc = DateTime.UtcNow;
 
-    private void OnLockDashboardClick(object sender, RoutedEventArgs e)
-    {
-        UnlockPinBox.Clear();
-        LockOverlay.Visibility = Visibility.Visible;
-        UnlockPinBox.Focus();
-    }
-
-    private void OnUnlockDashboardClick(object sender, RoutedEventArgs e)
-    {
-        var input = UnlockPinBox.Password;
-        var cfg = TwoFactorStore.LoadController();
-        if (TwoFactorStore.VerifyCodeOrBackup(cfg, input, out var updated, out var usedBackup))
-        {
-            if (RememberDeviceCheck.IsChecked == true)
-                updated = TwoFactorStore.TrustDevice(updated, Environment.MachineName);
-            if (usedBackup || RememberDeviceCheck.IsChecked == true)
-                TwoFactorStore.SaveController(updated);
-
-            UnlockPinBox.Clear();
-            _lastActivityUtc = DateTime.UtcNow;
-            LockOverlay.Visibility = Visibility.Collapsed;
-        }
-        else
-        {
-            MessageBox.Show("Invalid 6-digit 2FA or backup code.", "Home RMS — Locked", MessageBoxButton.OK, MessageBoxImage.Warning);
-            UnlockPinBox.Clear();
-            UnlockPinBox.Focus();
-        }
-    }
-
-    private void OnUnlockWithPasskeyClick(object sender, RoutedEventArgs e)
-    {
-        if (WindowsHelloPasskey.Verify(this, "Verify Windows Hello / Passkey to unlock Home RMS"))
-        {
-            UnlockPinBox.Clear();
-            _lastActivityUtc = DateTime.UtcNow;
-            LockOverlay.Visibility = Visibility.Collapsed;
-        }
-    }
+    private void OnLockDashboardClick(object sender, RoutedEventArgs e) => ShowLockOverlay(null);
 
     private void OnWindowPreviewKeyDown(object sender, KeyEventArgs e)
     {
         _lastActivityUtc = DateTime.UtcNow;
+        // While locked, keyboard input may only reach the lock overlay (no shortcuts, no remote input).
+        if (IsConsoleLocked)
+        {
+            var isAltF4 = e.Key == Key.System && e.SystemKey == Key.F4;
+            if (!isAltF4 && !IsInsideLockOverlay(Keyboard.FocusedElement))
+            {
+                e.Handled = true;
+                FocusLockInput();
+            }
+            return;
+        }
         if (e.Key == Key.F11)
         {
             e.Handled = true;
@@ -612,7 +589,7 @@ public partial class MainWindow : Window
         // Forward all keyboard input to the remote PC when Remote Desktop control is active
         // and the user is not typing into a toolbar TextBox (FPS / Quality).
         if (NavDesktop.IsChecked == true && _inputCall is not null &&
-            Keyboard.FocusedElement is not TextBox)
+            Keyboard.FocusedElement is not (TextBox or PasswordBox))
         {
             OnScreenKeyDown(sender, e);
         }
@@ -620,8 +597,9 @@ public partial class MainWindow : Window
 
     private void OnWindowPreviewKeyUp(object sender, KeyEventArgs e)
     {
+        if (IsConsoleLocked) return;
         if (NavDesktop.IsChecked == true && _inputCall is not null &&
-            Keyboard.FocusedElement is not TextBox)
+            Keyboard.FocusedElement is not (TextBox or PasswordBox))
         {
             OnScreenKeyUp(sender, e);
         }

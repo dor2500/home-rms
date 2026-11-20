@@ -167,9 +167,19 @@ public sealed class CentralHubService : IDisposable
                 var code = body.TryGetProperty("code", out var cEl) ? cEl.GetString() ?? "" : "";
                 var remember = body.TryGetProperty("remember", out var rEl) && rEl.GetBoolean();
                 var cfg = TwoFactorStore.LoadController();
+                // Shared persistent attempt throttle (same counter as the console lock overlay).
+                var wait = TwoFactorStore.GetUnlockDelayRemaining(cfg);
+                if (wait > TimeSpan.Zero)
+                {
+                    ctx.Response.StatusCode = 429;
+                    ctx.Response.Headers["Retry-After"] = ((int)Math.Ceiling(wait.TotalSeconds)).ToString();
+                    await WriteJsonAsync(ctx.Response, new { ok = false, error = $"Too many failed attempts. Try again in {(int)Math.Ceiling(wait.TotalSeconds)} seconds." });
+                    return;
+                }
                 if (TwoFactorStore.VerifyCodeOrBackup(cfg, code, out var updated, out var usedBackup))
                 {
-                    if (usedBackup) TwoFactorStore.SaveController(updated);
+                    var afterSuccess = TwoFactorStore.RegisterUnlockSuccess(updated);
+                    if (usedBackup || !ReferenceEquals(afterSuccess, updated)) TwoFactorStore.SaveController(afterSuccess);
                     var token = Guid.NewGuid().ToString("N");
                     var days = remember ? Math.Clamp(cfg.RememberDays, 1, 365) : 1;
                     _mobileSessions[token] = DateTimeOffset.UtcNow.AddDays(days);
@@ -178,6 +188,9 @@ public sealed class CentralHubService : IDisposable
                 }
                 else
                 {
+                    var failed = TwoFactorStore.RegisterUnlockFailure(cfg);
+                    TwoFactorStore.SaveController(failed);
+                    TwoFactorStore.LogSecurityEvent($"Mobile 2FA verification failed; consecutive failures: {failed.FailedUnlockAttempts}");
                     ctx.Response.StatusCode = 401;
                     await WriteJsonAsync(ctx.Response, new { ok = false, error = "Invalid 2FA or backup code" });
                 }

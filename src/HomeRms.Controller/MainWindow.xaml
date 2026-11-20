@@ -1093,7 +1093,8 @@
 
         <!-- ==================== SERVER & PKI MODAL ==================== -->
         <Grid x:Name="AboutOverlay" Grid.RowSpan="2" Visibility="Collapsed" Background="#B3090A0D">
-            <Border Style="{StaticResource CardStyle}" Width="440" VerticalAlignment="Center" HorizontalAlignment="Center" Padding="22,20">
+            <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+            <Border Style="{StaticResource CardStyle}" Width="440" VerticalAlignment="Center" HorizontalAlignment="Center" Padding="22,20" Margin="0,16">
                 <StackPanel>
                     <DockPanel Margin="0,0,0,14">
                         <Button DockPanel.Dock="Right" Content="Close" Style="{StaticResource SmallPillButton}" Click="OnCloseAboutClick"/>
@@ -1116,7 +1117,12 @@
                             <TextBlock Text="SERVER X.509 SHA-256 FINGERPRINT" Style="{StaticResource Caption}" Margin="0,4,0,4"/>
                             <TextBox x:Name="AboutFingerprintBox" IsReadOnly="True" FontFamily="{StaticResource MonoFont}" FontSize="10.5" Padding="8,5" Margin="0,0,0,10"/>
 
-                            <CheckBox x:Name="Require2FaStartupCheck" Content="Require TOTP 2FA / Windows Hello Passkey on Console Startup" Margin="0,0,0,8" Checked="OnToggleStartup2Fa" Unchecked="OnToggleStartup2Fa"/>
+                            <!-- Security: unreadable 2FA config warning -->
+                            <Border x:Name="SecurityWarningBorder" Visibility="Collapsed" BorderBrush="{StaticResource WarnBrush}" BorderThickness="1" CornerRadius="4" Padding="8,6" Margin="0,0,0,8">
+                                <TextBlock x:Name="SecurityWarningText" FontSize="10.5" Foreground="{StaticResource WarnBrush}" TextWrapping="Wrap"/>
+                            </Border>
+                            <CheckBox x:Name="Require2FaStartupCheck" Content="Lock console on startup (Windows Hello / TOTP / master password)" Margin="0,0,0,6" Checked="OnToggleStartup2Fa" Unchecked="OnToggleStartup2Fa"/>
+                            <CheckBox x:Name="AllowPasskeyCheck" Content="Allow Windows Hello (fingerprint / face / PIN) to unlock" Margin="0,0,0,8" Checked="OnToggleAllowPasskey" Unchecked="OnToggleAllowPasskey"/>
                             <Grid>
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="*"/>
@@ -1132,7 +1138,7 @@
                                     </StackPanel>
                                     <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
                                         <TextBlock Text="Remember device (days):" FontSize="10.5" Foreground="{StaticResource MutedBrush}" VerticalAlignment="Center" Margin="0,0,6,0"/>
-                                        <TextBox x:Name="RememberDaysBox" FontFamily="{StaticResource MonoFont}" Text="30" Width="44" Padding="5,2"/>
+                                        <TextBox x:Name="RememberDaysBox" FontFamily="{StaticResource MonoFont}" Text="30" Width="44" Padding="5,2" LostFocus="OnRememberDaysLostFocus"/>
                                     </StackPanel>
                                 </StackPanel>
                                 <Border Grid.Column="2" Background="White" CornerRadius="4" Padding="5" VerticalAlignment="Center">
@@ -1141,6 +1147,40 @@
                             </Grid>
                             <TextBlock Text="ONE-TIME BACKUP CODES" Style="{StaticResource Caption}" Margin="0,8,0,3"/>
                             <TextBox x:Name="AboutBackupCodesBox" IsReadOnly="True" FontFamily="{StaticResource MonoFont}" FontSize="10" Padding="7,4"/>
+
+                            <!-- Security diagnostics -->
+                            <TextBlock Text="UNLOCK FACTORS" Style="{StaticResource Caption}" Margin="0,12,0,3"/>
+                            <TextBlock x:Name="SecurityDiagText" FontFamily="{StaticResource MonoFont}" FontSize="10.5" TextWrapping="Wrap" Margin="0,0,0,6"/>
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
+                                <Button x:Name="TestHelloButton" Content="Test Windows Hello" Style="{StaticResource SmallPillButton}" Margin="0,0,6,0" Click="OnTestWindowsHelloClick"/>
+                                <Button x:Name="ForgetDeviceButton" Content="Forget This Device" Style="{StaticResource SmallPillButton}" Click="OnForgetDeviceClick"/>
+                            </StackPanel>
+                            <TextBlock x:Name="TestHelloResultText" FontSize="10.5" Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" Visibility="Collapsed" Margin="0,0,0,4"/>
+
+                            <!-- Master password (optional fallback) -->
+                            <TextBlock Text="MASTER PASSWORD (OPTIONAL FALLBACK)" Style="{StaticResource Caption}" Margin="0,10,0,3"/>
+                            <TextBlock Text="Current password, TOTP or backup code (leave empty to verify with Windows Hello):" FontSize="10.5" Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" Margin="0,0,0,3"/>
+                            <PasswordBox x:Name="CurrentFactorBox" Background="{StaticResource FieldBrush}" Foreground="{StaticResource TextBrush}" BorderBrush="{StaticResource LineBrush}" BorderThickness="1" Padding="8,5" Margin="0,0,0,6"/>
+                            <Grid Margin="0,0,0,6">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="8"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0">
+                                    <TextBlock Text="New password:" FontSize="10.5" Foreground="{StaticResource MutedBrush}" Margin="0,0,0,3"/>
+                                    <PasswordBox x:Name="NewMasterPasswordBox" Background="{StaticResource FieldBrush}" Foreground="{StaticResource TextBrush}" BorderBrush="{StaticResource LineBrush}" BorderThickness="1" Padding="8,5"/>
+                                </StackPanel>
+                                <StackPanel Grid.Column="2">
+                                    <TextBlock Text="Confirm:" FontSize="10.5" Foreground="{StaticResource MutedBrush}" Margin="0,0,0,3"/>
+                                    <PasswordBox x:Name="ConfirmMasterPasswordBox" Background="{StaticResource FieldBrush}" Foreground="{StaticResource TextBrush}" BorderBrush="{StaticResource LineBrush}" BorderThickness="1" Padding="8,5"/>
+                                </StackPanel>
+                            </Grid>
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
+                                <Button x:Name="SetMasterPasswordButton" Content="Set / Change Password" Style="{StaticResource SmallPillButton}" Margin="0,0,6,0" Click="OnSetMasterPasswordClick"/>
+                                <Button x:Name="ClearMasterPasswordButton" Content="Remove Password" Style="{StaticResource SmallPillButton}" Click="OnClearMasterPasswordClick"/>
+                            </StackPanel>
+                            <TextBlock x:Name="MasterPasswordStatusText" FontSize="10.5" Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" Visibility="Collapsed"/>
                         </StackPanel>
                     </Border>
 
@@ -1162,18 +1202,32 @@
                     </Grid>
                 </StackPanel>
             </Border>
+            </ScrollViewer>
         </Grid>
 
-        <!-- ==================== 15-MINUTE AUTO-LOCK & 2FA/PASSKEY OVERLAY ==================== -->
-        <Grid x:Name="LockOverlay" Grid.RowSpan="2" Visibility="Collapsed" Background="#F20E0F12">
+        <!-- ==================== AUTO-LOCK OVERLAY: Windows Hello -> TOTP / backup code -> master password ==================== -->
+        <Grid x:Name="LockOverlay" Grid.RowSpan="2" Visibility="Collapsed" Background="#F20E0F12" Panel.ZIndex="100"
+              KeyboardNavigation.TabNavigation="Cycle" KeyboardNavigation.ControlTabNavigation="Cycle" KeyboardNavigation.DirectionalNavigation="Cycle">
             <Border Style="{StaticResource CardStyle}" Width="370" VerticalAlignment="Center" HorizontalAlignment="Center" Padding="22,20">
                 <StackPanel>
                     <TextBlock Text="CONSOLE LOCKED" Style="{StaticResource Caption}" Foreground="{StaticResource AccentBrush}" Margin="0,0,0,4"/>
-                    <TextBlock Text="Enter 6-digit TOTP Code, Backup Code, or authenticate with Windows Hello" FontSize="12.5" FontWeight="SemiBold" TextWrapping="Wrap" Margin="0,0,0,12"/>
-                    <PasswordBox x:Name="UnlockPinBox" Background="{StaticResource FieldBrush}" Foreground="{StaticResource TextBrush}" BorderBrush="{StaticResource LineBrush}" BorderThickness="1" Padding="10,7" Margin="0,0,0,8"/>
-                    <CheckBox x:Name="RememberDeviceCheck" Content="Remember this device" IsChecked="True" Margin="0,0,0,10"/>
-                    <Button Content="Unlock with 2FA / Backup Code" Style="{StaticResource PrimaryButton}" Margin="0,0,0,6" Click="OnUnlockDashboardClick"/>
-                    <Button Content="Unlock with Windows Hello" Style="{StaticResource GhostButton}" Click="OnUnlockWithPasskeyClick"/>
+                    <TextBlock Text="Verify with Windows Hello, an authenticator / backup code, or your master password." FontSize="12.5" FontWeight="SemiBold" TextWrapping="Wrap" Margin="0,0,0,12"/>
+
+                    <Button x:Name="HelloUnlockButton" Content="Use Windows Hello" Style="{StaticResource PrimaryButton}" Margin="0,0,0,4" Click="OnUnlockWithPasskeyClick"/>
+                    <TextBlock x:Name="HelloStatusText" Text="Checking Windows Hello..." FontSize="10.5" Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" Margin="0,0,0,12"/>
+
+                    <TextBlock Text="AUTHENTICATOR OR BACKUP CODE" Style="{StaticResource Caption}"/>
+                    <PasswordBox x:Name="UnlockPinBox" Background="{StaticResource FieldBrush}" Foreground="{StaticResource TextBrush}" BorderBrush="{StaticResource LineBrush}" BorderThickness="1" Padding="10,7" Margin="0,0,0,6" KeyDown="OnUnlockPinBoxKeyDown"/>
+                    <Button x:Name="UnlockCodeButton" Content="Unlock with Code" Style="{StaticResource GhostButton}" Margin="0,0,0,10" Click="OnUnlockDashboardClick"/>
+
+                    <StackPanel x:Name="MasterPasswordUnlockPanel" Visibility="Collapsed">
+                        <TextBlock Text="MASTER PASSWORD" Style="{StaticResource Caption}"/>
+                        <PasswordBox x:Name="UnlockPasswordBox" Background="{StaticResource FieldBrush}" Foreground="{StaticResource TextBrush}" BorderBrush="{StaticResource LineBrush}" BorderThickness="1" Padding="10,7" Margin="0,0,0,6" KeyDown="OnUnlockPasswordBoxKeyDown"/>
+                        <Button x:Name="UnlockPasswordButton" Content="Unlock with Password" Style="{StaticResource GhostButton}" Margin="0,0,0,10" Click="OnUnlockWithPasswordClick"/>
+                    </StackPanel>
+
+                    <CheckBox x:Name="RememberDeviceCheck" Content="Remember this device (skip startup lock)" IsChecked="False" Margin="0,0,0,8"/>
+                    <TextBlock x:Name="LockStatusText" Text="" FontSize="11" Foreground="{StaticResource WarnBrush}" TextWrapping="Wrap" Visibility="Collapsed"/>
                 </StackPanel>
             </Border>
         </Grid>
