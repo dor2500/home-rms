@@ -79,6 +79,7 @@ public partial class MainWindow : Window
             HubRelayStatusText.Text = _centralHub.IsRunning ? $"HUB RELAY :{_centralHub.Port}" : "HUB STANDBY";
 
         InitializeOverhaulServices();
+        InitializeFeatureViews();
         UpdateDynamicTabVisibility(SelectedMachine);
 
         AddActivity("mTLS", "Central Hub & Operations Console initialized. Mutual-TLS X.509 PKI ready.");
@@ -223,6 +224,8 @@ public partial class MainWindow : Window
             else if (NavSystem.IsChecked == true && _win11Page?.Id == "updates")
                 SelectWin11Page(SystemCatalog.Win11Pages[0]);
         }
+
+        UpdateFeatureViewVisibility();
     }
 
     private void OnToggleSidebarClick(object sender, RoutedEventArgs e)
@@ -834,8 +837,9 @@ public partial class MainWindow : Window
                     m.LatencyMs = (int)Math.Max(1, sw.ElapsedMilliseconds);
                     m.OsName = info.OsVersion;
                     m.UserAndOs = $"{info.LoggedInUser} • {info.PrimaryScreenWidth}×{info.PrimaryScreenHeight}";
-                    if (m.CpuPercent <= 0) m.CpuPercent = 12 + (m.LatencyMs % 18);
-                    if (m.RamPercent <= 0) m.RamPercent = 34 + (m.Port % 25);
+                    m.LastSeenUtc = DateTime.UtcNow;
+                    // Real CPU / RAM / disk values come from the live telemetry stream (TelemetryHub);
+                    // the probe only tracks reachability for the offline alert.
                     _alerts.EvaluateSample(m.DisplayTitle, m.Host, true, m.CpuPercent, m.RamPercent);
                 }
                 catch
@@ -940,11 +944,14 @@ public partial class MainWindow : Window
     private async void OnCardWakeClick(object sender, RoutedEventArgs e)
     {
         if (sender is not Button { Tag: MachineProfile m }) return;
-        if (string.IsNullOrWhiteSpace(m.MacAddress))
+        if (PowerActions.NormalizeMac(m.MacAddress) is null)
         {
-            MessageBox.Show($"No MAC address saved for '{m.DisplayTitle}'. Click Edit to enter its MAC address.",
-                "Home RMS — Wake-on-LAN", MessageBoxButton.OK, MessageBoxImage.Information);
-            return;
+            var mac = Views.InputDialog.Prompt(this, "Wake-on-LAN",
+                $"No MAC address saved for '{m.DisplayTitle}'. Enter it (e.g. 00-11-22-33-44-55):", m.MacAddress,
+                v => PowerActions.NormalizeMac(v) is null ? "Enter 12 hex digits (separators optional)." : null);
+            if (mac is null) return;
+            m.MacAddress = PowerActions.NormalizeMac(mac)!;
+            MachineStore.Save(_machines);
         }
         try
         {
@@ -963,33 +970,9 @@ public partial class MainWindow : Window
         var cmd = MassCommandBox.Text.Trim();
         if (string.IsNullOrWhiteSpace(cmd)) return;
 
-        var targets = _machines.Where(m => m.IsOnline || m.IsConnected).ToList();
-        if (targets.Count == 0)
-        {
-            AddActivity("MASS RUN", "No online endpoints found. Run Scan LAN first.");
-            return;
-        }
-
-        AddActivity("MASS RUN", $"Executing on {targets.Count} online endpoint(s): {cmd}");
-        await Task.WhenAll(targets.Select(async m =>
-        {
-            try
-            {
-                using var temp = new RmsConnection(m.Host, m.Port);
-                using var shell = temp.Client.Shell(deadline: DateTime.UtcNow.AddSeconds(20));
-                await shell.RequestStream.WriteAsync(new ShellInput { Data = cmd + "\r\nexit\r\n" });
-                await shell.RequestStream.CompleteAsync();
-                var sb = new StringBuilder();
-                await foreach (var o in shell.ResponseStream.ReadAllAsync())
-                    sb.Append(o.Data);
-                var firstLine = sb.ToString().Trim().Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries).LastOrDefault() ?? "OK";
-                AddActivity("MASS RUN", $"[{m.DisplayTitle}] -> {firstLine}");
-            }
-            catch (Exception ex)
-            {
-                AddActivity("ALERT", $"[{m.DisplayTitle}] Mass Run failed: {Short(ex)}");
-            }
-        }));
+        // Reuses the Script Library executor: pairs each agent via GetAgentInfo first and reports
+        // PERMISSION_DENIED / 2FA_REQUIRED clearly instead of failing with a raw RPC error.
+        await MassRunAsync(cmd);
     }
 
     private async void OnCardRestartClick(object sender, RoutedEventArgs e)
@@ -1338,15 +1321,6 @@ public partial class MainWindow : Window
                 .OrderByDescending(p => p.WorkingSetBytes)
                 .Select(p => new ProcRow(p.Pid, p.Name, p.WorkingSetBytes / (1024 * 1024)))
                 .ToList();
-
-            if (_connectedProfile is not null && hw.TotalRamBytes > 0)
-            {
-                var usedMb = _allProcs.Sum(p => p.MemoryMb);
-                var totalMb = hw.TotalRamBytes / (1024.0 * 1024.0);
-                _connectedProfile.RamPercent = Math.Clamp(usedMb / totalMb * 100.0, 5, 98);
-                _connectedProfile.CpuPercent = Math.Clamp(inv.Processes.Count / 14.0, 4, 95);
-                UpdateOverviewMetrics();
-            }
 
             ApplyInventoryFilter();
         }
@@ -2297,7 +2271,8 @@ public partial class MainWindow : Window
 
     // ---------------- Helpers ----------------
     private static long Gb(long bytes) => bytes / (1024 * 1024 * 1024);
-    private static string Short(Exception ex) => ex.Message.Split('\n')[0];
+    private static string Short(Exception ex) =>
+        ex is RpcException or AgentPairingException ? AgentErrors.Describe(ex) : ex.Message.Split('\n')[0];
 
     protected override void OnClosed(EventArgs e)
     {
