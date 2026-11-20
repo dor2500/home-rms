@@ -71,6 +71,10 @@ public partial class ServicesTasksView : UserControl
         RefreshEndpointList();
         if (_loadedFor is null && EndpointCombo.SelectedItem is MachineProfile m && (m.IsOnline || m.IsConnected))
             await LoadAsync();
+        else if (_loadedFor is null)
+            SetStatus(EndpointCombo.Items.Count == 0
+                ? "No agent endpoints yet. Add one under Endpoints (or run Scan LAN), then come back here."
+                : "Pick an endpoint above and click Load to list its services and scheduled tasks.");
     }
 
     private void RefreshEndpointList()
@@ -157,8 +161,11 @@ public partial class ServicesTasksView : UserControl
 
             var keep = ServicesGrid.SelectedItems.Cast<ServiceRow>().Select(r => r.Name).ToHashSet(StringComparer.OrdinalIgnoreCase);
             var table = SystemCatalog.ParseTable(res.JsonData);
-            _services.Clear();
-            foreach (var row in table.Rows) _services.Add(new ServiceRow(row));
+            using (_servicesView.DeferRefresh()) // one re-sort / re-filter instead of one per row
+            {
+                _services.Clear();
+                foreach (var row in table.Rows) _services.Add(new ServiceRow(row));
+            }
             foreach (var r in _services.Where(r => keep.Contains(r.Name))) ServicesGrid.SelectedItems.Add(r);
             if (!preserveStatus)
                 SetStatus($"{_services.Count} services · {_services.Count(s => s.State == "Running")} running · refreshed {DateTime.Now:HH:mm:ss}" +
@@ -228,8 +235,11 @@ public partial class ServicesTasksView : UserControl
 
             var keep = TasksGrid.SelectedItems.Cast<TaskRow>().Select(r => r.FullPath).ToHashSet(StringComparer.OrdinalIgnoreCase);
             var table = SystemCatalog.ParseTable(res.JsonData);
-            _tasks.Clear();
-            foreach (var row in table.Rows) _tasks.Add(new TaskRow(row));
+            using (_tasksView.DeferRefresh())
+            {
+                _tasks.Clear();
+                foreach (var row in table.Rows) _tasks.Add(new TaskRow(row));
+            }
             foreach (var r in _tasks.Where(r => keep.Contains(r.FullPath))) TasksGrid.SelectedItems.Add(r);
             _tasksLoaded = true;
             if (!preserveStatus)

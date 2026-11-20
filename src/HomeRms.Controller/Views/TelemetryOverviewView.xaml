@@ -31,8 +31,11 @@
 
                 <ScrollViewer Grid.Column="0" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
                     <Grid>
-                        <TextBlock x:Name="EmptyText" Text="Tiles appear for every online Windows agent endpoint (run Scan LAN)."
-                                   Foreground="{StaticResource MutedBrush}" FontSize="11.5" Margin="2"/>
+                        <StackPanel x:Name="EmptyText" Margin="2,4,2,4">
+                            <TextBlock Text="No agent is streaming telemetry yet." FontWeight="SemiBold" FontSize="12" Margin="0,0,0,4"/>
+                            <TextBlock Foreground="{StaticResource MutedBrush}" FontSize="11.5" TextWrapping="Wrap"
+                                       Text="A live CPU / RAM / disk / network tile appears here for every online Windows or Linux agent endpoint. Add endpoints or run Scan LAN, then connect to each agent once to pair it with this controller."/>
+                        </StackPanel>
                         <ItemsControl x:Name="TilesList">
                             <ItemsControl.ItemsPanel>
                                 <ItemsPanelTemplate>
@@ -107,6 +110,20 @@
                 <!-- Recent alerts -->
                 <DockPanel Grid.Column="1" Margin="10,0,0,0">
                     <TextBlock DockPanel.Dock="Top" Text="Active alerts" Style="{StaticResource Caption}"/>
+                    <Grid>
+                    <TextBlock Panel.ZIndex="1" IsHitTestVisible="False" Text="No active alerts." Margin="10,8" FontSize="11"
+                               HorizontalAlignment="Left" VerticalAlignment="Top">
+                        <TextBlock.Style>
+                            <Style TargetType="TextBlock">
+                                <Setter Property="Foreground" Value="{StaticResource MutedBrush}"/>
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding HasItems, ElementName=AlertsList}" Value="True">
+                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
                     <ListBox x:Name="AlertsList" Background="{StaticResource FieldBrush}" BorderBrush="{StaticResource LineBrush}"
                              ScrollViewer.HorizontalScrollBarVisibility="Disabled">
                         <ListBox.ItemTemplate>
@@ -121,6 +138,7 @@
                             </DataTemplate>
                         </ListBox.ItemTemplate>
                     </ListBox>
+                    </Grid>
                 </DockPanel>
             </Grid>
         </DockPanel>

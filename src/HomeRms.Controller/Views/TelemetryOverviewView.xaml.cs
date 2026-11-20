@@ -26,9 +26,16 @@ public partial class TelemetryOverviewView : UserControl
         OnTilesChanged(null, null);
     }
 
+    /// <summary>Card height with tiles; without tiles the card shrinks to its compact empty state.</summary>
+    private const double TilesHeight = 256;
+
     private void OnTilesChanged(object? sender, NotifyCollectionChangedEventArgs? e)
     {
-        EmptyText.Visibility = _ctx?.Telemetry.Endpoints.Count > 0 ? Visibility.Collapsed : Visibility.Visible;
+        var empty = !(_ctx?.Telemetry.Endpoints.Count > 0);
+        EmptyText.Visibility = empty ? Visibility.Visible : Visibility.Collapsed;
+        Height = empty ? double.NaN : TilesHeight;
+        MaxHeight = TilesHeight;
+        MinHeight = empty ? 0 : TilesHeight;
         UpdateTotals();
     }
 

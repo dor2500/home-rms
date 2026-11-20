@@ -83,6 +83,7 @@ public partial class MainWindow
             et.Profile.LastSeenUtc = et.LastSampleUtc;
             et.Profile.UptimeSeconds = et.UptimeSeconds;
         }
+        RecordTrendSample(throttled: true);
         UpdateOverviewMetrics();
     }
 

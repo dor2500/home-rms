@@ -332,8 +332,7 @@
                                         <TextBlock Text="Relay latency (RTT)" Style="{StaticResource Caption}"/>
                                         <DockPanel>
                                             <Canvas Width="96" Height="24" DockPanel.Dock="Right" HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="8,0,0,4">
-                                                <Polyline x:Name="OverviewSparkline" Stroke="{StaticResource AccentBrush}" StrokeThickness="1.6" StrokeLineJoin="Round"
-                                                          Points="0,18 20,16 40,20 60,12 80,14 100,10"/>
+                                                <Polyline x:Name="OverviewSparkline" Stroke="{StaticResource AccentBrush}" StrokeThickness="1.6" StrokeLineJoin="Round"/>
                                             </Canvas>
                                             <TextBlock x:Name="KpiAvgLatency" Text="-- ms" Style="{StaticResource MetricText}" VerticalAlignment="Center"/>
                                         </DockPanel>
@@ -343,7 +342,7 @@
                             </Grid>
 
                             <!-- Live telemetry tiles (Views\TelemetryOverviewView.xaml) -->
-                            <ContentControl x:Name="TelemetryHost" Height="256" Margin="0,0,0,16"/>
+                            <ContentControl x:Name="TelemetryHost" Margin="0,0,0,16"/>
 
                             <!-- Trend + audit events -->
                             <Grid Height="200" Margin="0,0,0,16">
@@ -366,17 +365,20 @@
                                             <TextBlock Text="Relay latency &amp; utilization" Style="{StaticResource SectionTitle}" VerticalAlignment="Center"/>
                                         </DockPanel>
                                         <Border Style="{StaticResource WellStyle}" Padding="10,8">
+                                            <Grid>
+                                            <TextBlock x:Name="TrafficEmptyText" Panel.ZIndex="1" Style="{StaticResource MetaText}" TextWrapping="Wrap" TextAlignment="Center"
+                                                       HorizontalAlignment="Center" VerticalAlignment="Center" Margin="12"
+                                                       Text="No samples yet. Latency and CPU appear once endpoints answer a probe (Scan LAN)."/>
                                             <Viewbox Stretch="Fill">
                                                 <Canvas Width="400" Height="110">
                                                     <Line X1="0" Y1="27" X2="400" Y2="27" Stroke="{StaticResource ChartGridBrush}" StrokeThickness="1" StrokeDashArray="2 4"/>
                                                     <Line X1="0" Y1="55" X2="400" Y2="55" Stroke="{StaticResource ChartGridBrush}" StrokeThickness="1" StrokeDashArray="2 4"/>
                                                     <Line X1="0" Y1="82" X2="400" Y2="82" Stroke="{StaticResource ChartGridBrush}" StrokeThickness="1" StrokeDashArray="2 4"/>
-                                                    <Polyline x:Name="TrafficSparkline" Stroke="{StaticResource AccentBrush}" StrokeThickness="1.8" StrokeLineJoin="Round"
-                                                              Points="0,85 45,78 90,82 135,62 180,68 225,52 270,58 315,44 360,48 400,38"/>
-                                                    <Polyline x:Name="CpuSparkline" Stroke="{StaticResource IndigoBrush}" StrokeThickness="1.5" StrokeLineJoin="Round"
-                                                              Points="0,92 45,88 90,84 135,79 180,82 225,74 270,76 315,70 360,72 400,66"/>
+                                                    <Polyline x:Name="TrafficSparkline" Stroke="{StaticResource AccentBrush}" StrokeThickness="1.8" StrokeLineJoin="Round"/>
+                                                    <Polyline x:Name="CpuSparkline" Stroke="{StaticResource IndigoBrush}" StrokeThickness="1.5" StrokeLineJoin="Round"/>
                                                 </Canvas>
                                             </Viewbox>
+                                            </Grid>
                                         </Border>
                                     </DockPanel>
                                 </Border>

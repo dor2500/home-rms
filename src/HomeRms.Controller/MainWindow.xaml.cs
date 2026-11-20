@@ -27,7 +27,11 @@ public partial class MainWindow : Window
     private readonly ObservableCollection<MachineProfile> _machines = new();
     private System.Windows.Data.ListCollectionView? _fleetView;
     private readonly ObservableCollection<FleetActivityEvent> _activityEvents = new();
-    private readonly List<int> _latencyHistory = new() { 14, 16, 12, 15, 11, 13, 12 };
+    // Overview trend: one sample per probe cycle (average RTT / CPU of the online endpoints). Starts
+    // empty: the chart shows an empty state instead of made-up numbers until real samples exist.
+    private const int TrendSamples = 30;
+    private readonly List<int> _latencyHistory = new();
+    private readonly List<double> _cpuHistory = new();
     private readonly CentralHubService _centralHub;
     private bool _sidebarCollapsed;
     private MachineProfile? _connectedProfile;
@@ -904,6 +908,7 @@ public partial class MainWindow : Window
 
             var onlineCount = _machines.Count(x => x.IsOnline || x.IsConnected);
             AddActivity("LAN SCAN", $"Probed {_machines.Count} endpoint(s): {onlineCount} online, {_machines.Count - onlineCount} offline.");
+            RecordTrendSample();
             UpdateOverviewMetrics();
         }
         finally
@@ -1126,8 +1131,6 @@ public partial class MainWindow : Window
             _frameHeight = _agentInfo.PrimaryScreenHeight;
 
             var rtt = (int)Math.Max(1, sw.ElapsedMilliseconds);
-            _latencyHistory.Add(rtt);
-            if (_latencyHistory.Count > 14) _latencyHistory.RemoveAt(0);
 
             var profile = _machines.FirstOrDefault(m =>
                 string.Equals(m.Host, host, StringComparison.OrdinalIgnoreCase) && m.Port == port);
@@ -1253,6 +1256,15 @@ public partial class MainWindow : Window
         if (KpiAvgLatency is not null) KpiAvgLatency.Text = onlineHosts.Count > 0 ? $"{avgRtt} ms" : "-- ms";
         if (TrafficPeakText is not null) TrafficPeakText.Text = _latencyHistory.Count > 0 ? $"Peak: {_latencyHistory.Max()} ms" : "Peak: -- ms";
 
+        var hasTrend = _latencyHistory.Count > 1;
+        if (TrafficEmptyText is not null) TrafficEmptyText.Visibility = hasTrend ? Visibility.Collapsed : Visibility.Visible;
+        if (!hasTrend)
+        {
+            if (OverviewSparkline is not null) OverviewSparkline.Points = new PointCollection();
+            if (TrafficSparkline is not null) TrafficSparkline.Points = new PointCollection();
+            if (CpuSparkline is not null) CpuSparkline.Points = new PointCollection();
+        }
+
         // Update mini & large sparkline polylines from latency history
         if (OverviewSparkline is not null && _latencyHistory.Count > 1)
         {
@@ -1278,8 +1290,33 @@ public partial class MainWindow : Window
             }
             TrafficSparkline.Points = pts;
         }
+        if (CpuSparkline is not null && _cpuHistory.Count > 1)
+        {
+            var pts = new PointCollection();
+            for (var i = 0; i < _cpuHistory.Count; i++)
+                pts.Add(new Point(i * (400.0 / (_cpuHistory.Count - 1)), 100 - Math.Clamp(_cpuHistory[i], 0, 100) * 0.8));
+            CpuSparkline.Points = pts;
+        }
 
         UpdateNavBadges(); // MainWindow.Shell.cs
+    }
+
+    private DateTime _lastTrendSampleUtc;
+
+    /// <summary>
+    /// Adds one trend sample (average last-measured RTT / live CPU of the online endpoints); nothing when
+    /// all are offline. Called after every probe and, at most every 10 s, from live telemetry.
+    /// </summary>
+    private void RecordTrendSample(bool throttled = false)
+    {
+        if (throttled && DateTime.UtcNow - _lastTrendSampleUtc < TimeSpan.FromSeconds(10)) return;
+        _lastTrendSampleUtc = DateTime.UtcNow;
+        var online = _machines.Where(m => (m.IsOnline || m.IsConnected) && m.LatencyMs > 0).ToList();
+        if (online.Count == 0) return;
+        _latencyHistory.Add((int)Math.Round(online.Average(m => m.LatencyMs)));
+        _cpuHistory.Add(online.Average(m => m.CpuPercent));
+        if (_latencyHistory.Count > TrendSamples) _latencyHistory.RemoveAt(0);
+        if (_cpuHistory.Count > TrendSamples) _cpuHistory.RemoveAt(0);
     }
 
     private enum Tone { Neutral, Success, Caution, Critical }
