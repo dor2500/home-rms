@@ -1987,12 +1987,15 @@ public partial class MainWindow : Window
     {
         var dlg = new Microsoft.Win32.OpenFileDialog
         {
-            Title = "Select Installer or Script (.exe, .msi, .msp, .ps1, .cmd, .bat)",
-            Filter = "Packages & Scripts (*.exe;*.msi;*.msp;*.ps1;*.cmd;*.bat)|*.exe;*.msi;*.msp;*.ps1;*.cmd;*.bat|Scripts (*.ps1;*.cmd;*.bat)|*.ps1;*.cmd;*.bat|Installers (*.exe;*.msi;*.msp)|*.exe;*.msi;*.msp|All Files (*.*)|*.*"
+            Title = "Select Installers or Scripts (.exe, .msi, .msp, .ps1, .cmd, .bat)",
+            Filter = "Packages & Scripts (*.exe;*.msi;*.msp;*.ps1;*.cmd;*.bat)|*.exe;*.msi;*.msp;*.ps1;*.cmd;*.bat|Scripts (*.ps1;*.cmd;*.bat)|*.ps1;*.cmd;*.bat|Installers (*.exe;*.msi;*.msp)|*.exe;*.msi;*.msp|All Files (*.*)|*.*",
+            Multiselect = true,
         };
         if (dlg.ShowDialog(this) == true)
         {
-            DeployFilePathBox.Text = dlg.FileName;
+            foreach (var file in dlg.FileNames)
+                AddDeployFile(file);
+            DeployFilePathBox.Text = dlg.FileNames.LastOrDefault() ?? "";
         }
     }
 
@@ -2008,7 +2011,8 @@ public partial class MainWindow : Window
             if (dlg.ShowDialog(this) != true) return;
 
             DeployFilePathBox.Text = dlg.FileName;
-            await DeployLocalFileCoreAsync(dlg.FileName, DeployArgsBox.Text.Trim());
+            if (AddDeployFile(dlg.FileName) is { IsBusy: false } item)
+                await DeployLocalFileCoreAsync(item, DeployArgsBox.Text.Trim());
         }
         catch (Exception ex)
         {
@@ -2024,9 +2028,22 @@ public partial class MainWindow : Window
 
     private void OnDeployFileDrop(object sender, DragEventArgs e)
     {
-        if (e.Data.GetData(DataFormats.FileDrop) is string[] { Length: > 0 } files)
+        if (e.Data.GetData(DataFormats.FileDrop) is not string[] { Length: > 0 } files) return;
+        e.Handled = true;
+        var added = 0;
+        foreach (var file in files)
         {
-            DeployFilePathBox.Text = files[0];
+            if (System.IO.Directory.Exists(file))
+            {
+                AppendDeployLog($"[{DateTime.Now:HH:mm:ss}] [file] Skipped folder '{file}': drop the installer files themselves.");
+                continue;
+            }
+            if (AddDeployFile(file) is not null) added++;
+        }
+        if (added > 0)
+        {
+            DeployFilePathBox.Text = files[^1];
+            StatusText.Text = $"Added {added} file(s) to the deploy list. Click Run Files to upload and run them on the connected agent.";
         }
     }
 
@@ -2041,35 +2058,50 @@ public partial class MainWindow : Window
     private async void OnStartDeployClick(object sender, RoutedEventArgs e)
     {
         var path = DeployFilePathBox.Text.Trim().Trim('"');
-        if (string.IsNullOrWhiteSpace(path) || !File.Exists(path))
+        if (!string.IsNullOrWhiteSpace(path) && File.Exists(path))
+            AddDeployFile(path);
+
+        if (!_deployFiles.Any(f => f.DeployStatus == DeployItemStatus.Pending))
         {
-            MessageBox.Show("Please select a valid local installer or script (.exe, .msi, .msp, .ps1, .cmd, or .bat) to upload.",
+            MessageBox.Show("Drop or browse to one or more local installers or scripts (.exe, .msi, .msp, .ps1, .cmd, or .bat) to upload.",
                 "Home RMS — Software Deploy", MessageBoxButton.OK, MessageBoxImage.Information);
             return;
         }
 
-        await DeployLocalFileCoreAsync(path, DeployArgsBox.Text.Trim());
+        await RunPendingDeployFilesAsync();
     }
 
-    private async Task DeployLocalFileCoreAsync(string filePath, string args)
+    /// <summary>Streams one file to the connected agent via DeployPackage and reports upload %, exit code and output.</summary>
+    private async Task<bool> DeployLocalFileCoreAsync(DeployFileItem item, string args)
     {
         if (_conn is null && !await ConnectToCurrentFieldsAsync())
-            return;
+        {
+            item.Detail = "Not connected to an agent.";
+            return false;
+        }
 
-        var fileInfo = new FileInfo(filePath);
-        var fileName = fileInfo.Name;
-        var totalBytes = fileInfo.Length;
+        var filePath = item.FullPath;
+        var fileName = item.FileName;
+        var target = _agentInfo?.MachineName ?? _conn!.Host;
+        var prefix = $"[{target}] [{fileName}]";
 
         try
         {
+            var fileInfo = new FileInfo(filePath);
+            var totalBytes = fileInfo.Length;
+
             DeployRunBtn.IsEnabled = false;
+            item.Percent = 0;
+            item.DeployStatus = DeployItemStatus.Downloading;
+            item.Detail = "Uploading...";
             DeployStatusBadge.Text = "Uploading…";
-            AppendDeployLog($"\r\n[{DateTime.Now:HH:mm:ss}] Preparing to deploy '{fileName}' ({totalBytes / 1024.0 / 1024.0:F2} MB) to {_agentInfo?.MachineName}…");
+            AppendDeployLog($"[{DateTime.Now:HH:mm:ss}] {prefix} Uploading {totalBytes / 1024.0 / 1024.0:F2} MB…");
 
             using var call = _conn!.Client.DeployPackage(deadline: DateTime.UtcNow.AddMinutes(10));
             var buffer = new byte[256 * 1024]; // 256 KB chunks
             long sent = 0;
             var first = true;
+            var lastLoggedPct = -1;
 
             await using (var fs = File.OpenRead(filePath))
             {
@@ -2091,7 +2123,13 @@ public partial class MainWindow : Window
                     await call.RequestStream.WriteAsync(chunk);
                     sent += read;
                     var pct = totalBytes > 0 ? (int)(sent * 100 / totalBytes) : 100;
+                    item.Percent = pct;
                     DeployStatusBadge.Text = $"Uploading {pct}%";
+                    if (pct / 25 != lastLoggedPct / 25 && pct < 100)
+                    {
+                        lastLoggedPct = pct;
+                        AppendDeployLog($"[{DateTime.Now:HH:mm:ss}] {prefix} Upload {pct}%");
+                    }
                 }
             }
 
@@ -2101,25 +2139,47 @@ public partial class MainWindow : Window
                         || ext.Equals(".bat", StringComparison.OrdinalIgnoreCase);
 
             await call.RequestStream.CompleteAsync();
+            item.Percent = -1;
+            item.DeployStatus = DeployItemStatus.Installing;
+            item.Detail = isScript ? "Running script..." : "Running installer...";
             DeployStatusBadge.Text = isScript ? "Running Script Silently…" : "Installing Silently…";
-            AppendDeployLog($"[{DateTime.Now:HH:mm:ss}] Upload complete (100%). {(isScript ? "Running silent script" : "Running silent installer")} on {_agentInfo?.MachineName}…");
+            AppendDeployLog($"[{DateTime.Now:HH:mm:ss}] {prefix} Upload complete (100%). {(isScript ? "Running silent script" : "Running silent installer")}…");
 
             var result = await call.ResponseAsync;
             DeployStatusBadge.Text = result.Success
                 ? (isScript ? $"Script Done (Exit {result.ExitCode})" : $"Installed (Exit {result.ExitCode})")
                 : $"Failed (Exit {result.ExitCode})";
-            AppendDeployLog($"[{DateTime.Now:HH:mm:ss}] Command: {result.CommandLine}");
-            AppendDeployLog($"[{DateTime.Now:HH:mm:ss}] Result : {(result.Success ? "SUCCESS" : "FAILED")} (Exit Code {result.ExitCode})");
+            item.DeployStatus = result.Success ? DeployItemStatus.Success : DeployItemStatus.Failed;
+            item.Detail = $"Exit code {result.ExitCode} (0x{unchecked((uint)result.ExitCode):X8})";
+            AppendDeployLog($"[{DateTime.Now:HH:mm:ss}] {prefix} Command: {result.CommandLine}");
+            AppendDeployLog($"[{DateTime.Now:HH:mm:ss}] {prefix} Result : {(result.Success ? "SUCCESS" : "FAILED")} (exit code {result.ExitCode})");
             if (!string.IsNullOrWhiteSpace(result.Output))
-                AppendDeployLog(result.Output);
+            {
+                foreach (var line in result.Output.Split('\n'))
+                    if (line.Trim().Length > 0)
+                        AppendDeployLog($"[{DateTime.Now:HH:mm:ss}] {prefix} {line.TrimEnd('\r')}");
+            }
 
             if (result.Success)
                 await RefreshInventoryCoreAsync();
+            return result.Success;
+        }
+        catch (RpcException ex) when (ex.StatusCode is StatusCode.PermissionDenied or StatusCode.Unauthenticated)
+        {
+            const string msg = "Endpoint refused the upload: pair this endpoint first (connect from Fleet and enter the agent's 2FA code).";
+            item.DeployStatus = DeployItemStatus.Failed;
+            item.Detail = msg;
+            DeployStatusBadge.Text = "Deploy Failed";
+            AppendDeployLog($"[{DateTime.Now:HH:mm:ss}] {prefix} ERROR: {msg}");
+            return false;
         }
         catch (Exception ex)
         {
+            item.DeployStatus = DeployItemStatus.Failed;
+            item.Detail = ex is RpcException rpc ? $"{rpc.StatusCode}: {rpc.Status.Detail}" : ex.Message;
             DeployStatusBadge.Text = "Deploy Failed";
-            AppendDeployLog($"[{DateTime.Now:HH:mm:ss}] ERROR: {ex.Message}");
+            AppendDeployLog($"[{DateTime.Now:HH:mm:ss}] {prefix} ERROR: {item.Detail}");
+            return false;
         }
         finally
         {
@@ -2127,33 +2187,15 @@ public partial class MainWindow : Window
         }
     }
 
-    private async void OnWingetQuickInstallClick(object sender, RoutedEventArgs e)
-    {
-        if (sender is not Button { Tag: string packageId }) return;
-        if (!System.Text.RegularExpressions.Regex.IsMatch(packageId, @"^[a-zA-Z0-9._\-]+$")) return;
-
-        // Create a tiny temporary .ps1 script that runs winget silently and deploy it via DeployPackage
-        var tempScript = Path.Combine(Path.GetTempPath(), $"winget_{packageId}_{Guid.NewGuid():N}.ps1");
-        try
-        {
-            if (_conn is null && !await ConnectToCurrentFieldsAsync()) return;
-
-            var scriptBody = $"winget install --id '{packageId}' -e --silent --accept-package-agreements --accept-source-agreements --disable-interactivity";
-            await File.WriteAllTextAsync(tempScript, scriptBody);
-            await DeployLocalFileCoreAsync(tempScript, "AUTO");
-        }
-        catch (Exception ex)
-        {
-            AppendDeployLog($"[{DateTime.Now:HH:mm:ss}] ERROR: {ex.Message}");
-        }
-        finally
-        {
-            try { if (File.Exists(tempScript)) File.Delete(tempScript); } catch { }
-        }
-    }
-
     private void AppendDeployLog(string line)
     {
+        // Keep the live log bounded (RunWinget can stream a lot of lines).
+        if (DeployOutputBox.Text.Length > 400_000)
+        {
+            var text = DeployOutputBox.Text;
+            var cut = text.IndexOf('\n', text.Length - 300_000);
+            DeployOutputBox.Text = "… (older log lines trimmed)\r\n" + (cut >= 0 ? text[(cut + 1)..] : text[^300_000..]);
+        }
         DeployOutputBox.AppendText(line + "\r\n");
         DeployOutputBox.ScrollToEnd();
     }

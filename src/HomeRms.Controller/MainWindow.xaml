@@ -711,99 +711,244 @@
                 </DockPanel>
 
                 <!-- ==================== 5. WINSTALL-STYLE VISUAL DEPLOY VIEW ==================== -->
-                <DockPanel x:Name="DeployPanel" Visibility="Collapsed" AllowDrop="True" PreviewDragOver="OnDeployDragOver" Drop="OnDeployFileDrop">
-                    <!-- Top Search, Packs, & Deploy Queue Bar -->
+                <DockPanel x:Name="DeployPanel" Visibility="Collapsed" AllowDrop="True" PreviewDragOver="OnDeployDragOver" Drop="OnDeployFileDrop"
+                           IsVisibleChanged="OnDeployPanelVisibleChanged">
+                    <DockPanel.Resources>
+                        <!-- Status text colour per deploy state (cards, queue rows, file rows) -->
+                        <Style x:Key="DeployStatusText" TargetType="TextBlock">
+                            <Setter Property="FontFamily" Value="{StaticResource MonoFont}"/>
+                            <Setter Property="FontSize" Value="9.5"/>
+                            <Setter Property="Foreground" Value="{StaticResource TextBrush}"/>
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding DeployStatus}" Value="Queued"><Setter Property="Foreground" Value="{StaticResource AccentBrush}"/></DataTrigger>
+                                <DataTrigger Binding="{Binding DeployStatus}" Value="Downloading"><Setter Property="Foreground" Value="{StaticResource AccentBrush}"/></DataTrigger>
+                                <DataTrigger Binding="{Binding DeployStatus}" Value="Installing"><Setter Property="Foreground" Value="{StaticResource AccentBrush}"/></DataTrigger>
+                                <DataTrigger Binding="{Binding DeployStatus}" Value="Success"><Setter Property="Foreground" Value="{StaticResource OkBrush}"/></DataTrigger>
+                                <DataTrigger Binding="{Binding DeployStatus}" Value="Skipped"><Setter Property="Foreground" Value="{StaticResource MutedBrush}"/></DataTrigger>
+                                <DataTrigger Binding="{Binding DeployStatus}" Value="Failed"><Setter Property="Foreground" Value="{StaticResource DangerBrush}"/></DataTrigger>
+                                <DataTrigger Binding="{Binding DeployStatus}" Value="Cancelled"><Setter Property="Foreground" Value="{StaticResource WarnBrush}"/></DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                        <!-- Monogram shows only while no icon is loaded -->
+                        <Style x:Key="DeployMonogram" TargetType="TextBlock">
+                            <Setter Property="Visibility" Value="Collapsed"/>
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding Icon}" Value="{x:Null}"><Setter Property="Visibility" Value="Visible"/></DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </DockPanel.Resources>
+
+                    <!-- Top: catalog search, packs, import & install options -->
                     <Border DockPanel.Dock="Top" Style="{StaticResource CardStyle}" Padding="14,10" Margin="0,0,0,10">
                         <StackPanel>
                             <DockPanel Margin="0,0,0,8">
-                                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
-                                    <Border Background="#183B82F6" CornerRadius="4" Padding="8,3" Margin="0,0,8,0">
-                                        <TextBlock x:Name="DeployStatusBadge" Text="READY" FontFamily="{StaticResource MonoFont}" FontSize="10.5" FontWeight="SemiBold" Foreground="{StaticResource AccentBrush}"/>
-                                    </Border>
-                                    <Button x:Name="WingetDeploySelectedBtn" Content="Deploy Selected (0)" Style="{StaticResource PrimaryButton}" Padding="12,5" Click="OnDeploySelectedWingetClick"/>
-                                </StackPanel>
-                                <StackPanel>
-                                    <TextBlock Text="VISUAL SOFTWARE CATALOG (WINGET) &amp; PACKAGE DEPLOYMENT" Style="{StaticResource Caption}" Margin="0,0,0,2"/>
-                                    <TextBlock Text="Select applications or preset packs, or drop .exe / .msi / .ps1 files to execute silently on the endpoint." FontSize="11.5" Foreground="{StaticResource MutedBrush}"/>
+                                <Border DockPanel.Dock="Right" Background="{StaticResource AccentSoftBrush}" CornerRadius="4" Padding="8,3" VerticalAlignment="Center">
+                                    <TextBlock x:Name="DeployStatusBadge" Text="READY" FontFamily="{StaticResource MonoFont}" FontSize="10.5" FontWeight="SemiBold" Foreground="{StaticResource AccentBrush}"/>
+                                </Border>
+                                <StackPanel Margin="0,0,10,0">
+                                    <TextBlock Text="SOFTWARE CATALOG (WINGET) &amp; PACKAGE DEPLOYMENT" Style="{StaticResource Caption}" Margin="0,0,0,2"/>
+                                    <TextBlock x:Name="WingetSourceStatusText" Text="Catalog source: built-in list (the official winget index loads when this view opens)"
+                                               FontSize="11.5" Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap"/>
                                 </StackPanel>
                             </DockPanel>
 
                             <WrapPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                <TextBox x:Name="WingetSearchBox" Width="210" Margin="0,0,6,0" ToolTip="Search cached + live Winget catalog" TextChanged="OnWingetSearchChanged"/>
-                                <Button Content="Search Live" Style="{StaticResource GhostButton}" Padding="10,5" Margin="0,0,10,0" Click="OnWingetLiveSearchClick"/>
-                                <ComboBox x:Name="WingetPackCombo" Width="165" SelectedIndex="0" Margin="0,0,6,0" Background="{StaticResource FieldBrush}" Foreground="{StaticResource TextBrush}" BorderBrush="{StaticResource LineBrush}"/>
-                                <Button Content="Load Pack" Style="{StaticResource SmallPillButton}" Margin="0,0,4,0" Click="OnApplyWingetPackClick"/>
-                                <Button Content="Save Pack" Style="{StaticResource SmallPillButton}" Margin="0,0,4,0" Click="OnSaveWingetPackClick"/>
-                                <Button Content="Import IDs" Style="{StaticResource SmallPillButton}" Margin="0,0,10,0" Click="OnImportWingetIdsClick"/>
-                                <CheckBox x:Name="WingetSilentCheck" Content="Silent" IsChecked="True" Margin="0,0,8,0"/>
-                                <CheckBox x:Name="WingetMachineScopeCheck" Content="Machine Scope" IsChecked="True" Margin="0,0,8,0"/>
-                                <CheckBox x:Name="WingetUpgradeCheck" Content="Upgrade if installed" IsChecked="True"/>
+                                <TextBox x:Name="WingetSearchBox" Width="240" Margin="0,0,6,6" ToolTip="Search the full winget catalog by ID, name, moniker, tag or publisher" TextChanged="OnWingetSearchChanged"/>
+                                <ComboBox x:Name="WingetCategoryCombo" Width="150" Margin="0,0,6,6" ToolTip="Category (derived from winget tags)" SelectionChanged="OnWingetCategoryChanged"
+                                          Background="{StaticResource FieldBrush}" Foreground="{StaticResource TextBrush}" BorderBrush="{StaticResource LineBrush}"/>
+                                <Button Content="Refresh Index" Style="{StaticResource GhostButton}" Padding="10,5" Margin="0,0,14,6" ToolTip="Check cdn.winget.microsoft.com for a newer index" Click="OnRefreshWingetIndexClick"/>
+                                <ComboBox x:Name="WingetPackCombo" Width="190" Margin="0,0,6,6" SelectionChanged="OnWingetPackSelectionChanged"
+                                          Background="{StaticResource FieldBrush}" Foreground="{StaticResource TextBrush}" BorderBrush="{StaticResource LineBrush}"/>
+                                <Button Content="Load Pack" Style="{StaticResource SmallPillButton}" Margin="0,0,4,6" ToolTip="Add the pack's apps to the queue" Click="OnApplyWingetPackClick"/>
+                                <Button x:Name="WingetDeletePackBtn" Content="Delete Pack" Style="{StaticResource SmallPillButton}" Margin="0,0,14,6" IsEnabled="False" ToolTip="Delete the selected custom pack" Click="OnDeleteWingetPackClick"/>
+                                <TextBox x:Name="WingetPackNameBox" Width="150" Margin="0,0,4,6" ToolTip="Name for a new custom pack (saved from the current queue)"/>
+                                <Button Content="Save Pack" Style="{StaticResource SmallPillButton}" Margin="0,0,14,6" Click="OnSaveWingetPackClick"/>
+                                <Button Content="Import Pack..." Style="{StaticResource SmallPillButton}" Margin="0,0,0,6" ToolTip="Import a winstall pack URL, a winget script, JSON or an ID list" Click="OnToggleWingetImportClick"/>
                             </WrapPanel>
+
+                            <WrapPanel Orientation="Horizontal">
+                                <CheckBox x:Name="WingetSilentCheck" Content="Silent" IsChecked="True" Margin="0,0,12,0" ToolTip="winget --silent"/>
+                                <CheckBox x:Name="WingetMachineScopeCheck" Content="Machine Scope" IsChecked="True" Margin="0,0,12,0" ToolTip="winget --scope machine (unchecked = winget default scope)"/>
+                                <CheckBox x:Name="WingetUpgradeCheck" Content="Upgrade if installed" IsChecked="True" ToolTip="Try 'winget upgrade' first, install when the package is not present"/>
+                            </WrapPanel>
+
+                            <!-- Import Pack area -->
+                            <Border x:Name="WingetImportPanel" Visibility="Collapsed" Margin="0,10,0,0" Padding="10" Background="{StaticResource FieldBrush}"
+                                    BorderBrush="{StaticResource LineBrush}" BorderThickness="1" CornerRadius="5">
+                                <StackPanel>
+                                    <TextBlock Text="IMPORT PACK" Style="{StaticResource Caption}"/>
+                                    <TextBlock FontSize="11" Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" Margin="0,0,0,6"
+                                               Text="Paste a winstall.app pack URL, a winstall-generated winget script (batch or PowerShell), a winget export JSON, an {&quot;apps&quot;:[{&quot;id&quot;:...}]} JSON, or one package ID per line. Every ID is validated; valid IDs are added to the queue."/>
+                                    <TextBox x:Name="WingetImportBox" Height="96" AcceptsReturn="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto"
+                                             FontFamily="{StaticResource MonoFont}" FontSize="11"/>
+                                    <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+                                        <Button x:Name="WingetImportRunBtn" Content="Import to Queue" Style="{StaticResource PrimaryButton}" Padding="12,5" Margin="0,0,6,0" Click="OnRunWingetImportClick"/>
+                                        <Button Content="Paste Clipboard" Style="{StaticResource SmallPillButton}" Margin="0,0,6,0" Click="OnPasteWingetImportClick"/>
+                                        <Button Content="Close" Style="{StaticResource SmallPillButton}" Click="OnToggleWingetImportClick"/>
+                                    </StackPanel>
+                                    <TextBlock x:Name="WingetImportResultText" FontSize="11" Foreground="{StaticResource TextBrush}" TextWrapping="Wrap" Margin="0,6,0,0"/>
+                                </StackPanel>
+                            </Border>
                         </StackPanel>
                     </Border>
 
-                    <!-- Bottom Live Execution Log & Custom File Drop Bar -->
-                    <Border DockPanel.Dock="Bottom" Style="{StaticResource CardStyle}" Padding="10" Margin="0,10,0,0" Height="175">
+                    <!-- Bottom: file deploy list & live log -->
+                    <Border DockPanel.Dock="Bottom" Style="{StaticResource CardStyle}" Padding="10" Margin="0,10,0,0" Height="210">
                         <DockPanel>
                             <DockPanel DockPanel.Dock="Top" Margin="0,0,0,6">
                                 <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
-                                    <TextBox x:Name="DeployFilePathBox" Width="200" FontFamily="{StaticResource MonoFont}" FontSize="11" Margin="0,0,6,0" ToolTip="Custom .exe / .msi / .ps1 path"/>
-                                    <TextBox x:Name="DeployArgsBox" Width="90" FontFamily="{StaticResource MonoFont}" FontSize="11" Text="AUTO" Margin="0,0,6,0"/>
+                                    <TextBox x:Name="DeployFilePathBox" Width="190" FontFamily="{StaticResource MonoFont}" FontSize="11" Margin="0,0,6,0" ToolTip="Local .exe / .msi / .msp / .ps1 / .cmd / .bat path"/>
+                                    <TextBox x:Name="DeployArgsBox" Width="90" FontFamily="{StaticResource MonoFont}" FontSize="11" Text="AUTO" Margin="0,0,6,0" ToolTip="Installer arguments (AUTO = detect silent flags)"/>
                                     <Button Content="Browse" Style="{StaticResource SmallPillButton}" Margin="0,0,4,0" Click="OnBrowseDeployFileClick"/>
-                                    <Button x:Name="DeployRunBtn" Content="Run File" Style="{StaticResource SmallPillButton}" Margin="0,0,4,0" Click="OnStartDeployClick"/>
+                                    <Button x:Name="DeployRunBtn" Content="Run Files" Style="{StaticResource SmallPillButton}" Margin="0,0,4,0" ToolTip="Upload and run every pending file on the connected agent" Click="OnStartDeployClick"/>
                                     <Button Content="Run Script" Style="{StaticResource SmallPillButton}" Margin="0,0,4,0" Click="OnUploadAndRunScriptClick"/>
-                                    <Button Content="Clear" Style="{StaticResource SmallPillButton}" Click="OnClearDeployLogClick"/>
+                                    <Button Content="Clear Files" Style="{StaticResource SmallPillButton}" Margin="0,0,4,0" Click="OnClearDeployFilesClick"/>
+                                    <Button Content="Clear Log" Style="{StaticResource SmallPillButton}" Click="OnClearDeployLogClick"/>
                                 </StackPanel>
-                                <TextBlock Text="DEPLOYMENT QUEUE &amp; LIVE LOG" Style="{StaticResource Caption}" VerticalAlignment="Center" Margin="0"/>
+                                <TextBlock Text="FILE DEPLOY (DROP FILES HERE) &amp; LIVE LOG" Style="{StaticResource Caption}" VerticalAlignment="Center" Margin="0"/>
                             </DockPanel>
-                            <TextBox x:Name="DeployOutputBox" IsReadOnly="True" Background="{StaticResource FieldBrush}" Foreground="#E2E8F0" BorderBrush="{StaticResource LineBrush}" BorderThickness="1" Padding="10,8"
-                                     FontFamily="{StaticResource MonoFont}" FontSize="11.5" VerticalScrollBarVisibility="Auto" TextWrapping="Wrap" AcceptsReturn="True"/>
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="300"/>
+                                    <ColumnDefinition Width="10"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <ListBox x:Name="DeployFileList" Grid.Column="0" Background="{StaticResource FieldBrush}" BorderBrush="{StaticResource LineBrush}" BorderThickness="1"
+                                         ScrollViewer.HorizontalScrollBarVisibility="Disabled" HorizontalContentAlignment="Stretch">
+                                    <ListBox.ItemTemplate>
+                                        <DataTemplate>
+                                            <StackPanel Margin="2,3">
+                                                <DockPanel>
+                                                    <Button DockPanel.Dock="Right" Content="×" Style="{StaticResource SmallPillButton}" Padding="6,0" Margin="6,0,0,0" ToolTip="Remove" Click="OnRemoveDeployFileClick"/>
+                                                    <TextBlock DockPanel.Dock="Right" Text="{Binding StatusLabel}" Style="{StaticResource DeployStatusText}" VerticalAlignment="Center" Margin="6,0,0,0"/>
+                                                    <TextBlock Text="{Binding FileName}" FontSize="11.5" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" ToolTip="{Binding FullPath}"/>
+                                                </DockPanel>
+                                                <ProgressBar Style="{StaticResource ThinProgressBar}" Value="{Binding ProgressValue, Mode=OneWay}" IsIndeterminate="{Binding IsIndeterminate, Mode=OneWay}"
+                                                             Visibility="{Binding ProgressVisibility}" Margin="0,3,0,0"/>
+                                                <TextBlock Text="{Binding Detail}" FontSize="10" Foreground="{StaticResource MutedBrush}" TextTrimming="CharacterEllipsis" ToolTip="{Binding Detail}"/>
+                                            </StackPanel>
+                                        </DataTemplate>
+                                    </ListBox.ItemTemplate>
+                                </ListBox>
+                                <TextBox x:Name="DeployOutputBox" Grid.Column="2" IsReadOnly="True" Background="{StaticResource FieldBrush}" Foreground="{StaticResource TextBrush}" BorderBrush="{StaticResource LineBrush}" BorderThickness="1" Padding="10,8"
+                                         FontFamily="{StaticResource MonoFont}" FontSize="11.5" VerticalScrollBarVisibility="Auto" TextWrapping="Wrap" AcceptsReturn="True"/>
+                            </Grid>
                         </DockPanel>
                     </Border>
 
-                    <!-- Winstall-Style App Cards Grid -->
-                    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
-                        <ItemsControl x:Name="WingetCatalogList">
-                            <ItemsControl.ItemsPanel>
-                                <ItemsPanelTemplate>
-                                    <WrapPanel Orientation="Horizontal"/>
-                                </ItemsPanelTemplate>
-                            </ItemsControl.ItemsPanel>
-                            <ItemsControl.ItemTemplate>
-                                <DataTemplate>
-                                    <Border Width="236" Margin="0,0,10,10" Padding="12,10" Background="{StaticResource CardBrush}"
-                                            BorderBrush="{StaticResource LineBrush}" BorderThickness="1" CornerRadius="6">
-                                        <StackPanel>
-                                            <DockPanel Margin="0,0,0,6">
-                                                <CheckBox DockPanel.Dock="Right" IsChecked="{Binding IsSelected, Mode=TwoWay}" VerticalAlignment="Top" Click="OnWingetCardSelectionChanged"/>
-                                                <Border Width="30" Height="30" CornerRadius="5" Background="#111317" BorderBrush="{StaticResource LineBrush}" BorderThickness="1" Margin="0,0,9,0" DockPanel.Dock="Left">
-                                                    <Grid>
-                                                        <TextBlock Text="{Binding Monogram}" FontFamily="{StaticResource MonoFont}" FontSize="10" FontWeight="Bold" Foreground="{StaticResource AccentBrush}" HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                                                        <Image Source="{Binding IconUrl}" Width="18" Height="18" Stretch="Uniform" RenderOptions.BitmapScalingMode="HighQuality"/>
-                                                    </Grid>
-                                                </Border>
-                                                <StackPanel VerticalAlignment="Center">
-                                                    <TextBlock Text="{Binding Name}" FontSize="12.5" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"/>
-                                                    <TextBlock Text="{Binding Publisher}" FontSize="10.5" Foreground="{StaticResource MutedBrush}" TextTrimming="CharacterEllipsis"/>
-                                                </StackPanel>
-                                            </DockPanel>
-                                            <TextBlock Text="{Binding Description}" FontSize="11" Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" Height="30" TextTrimming="CharacterEllipsis" Margin="0,0,0,8"/>
-                                            <DockPanel>
-                                                <Border DockPanel.Dock="Right" Background="#163B82F6" CornerRadius="3" Padding="6,2">
-                                                    <TextBlock Text="{Binding StatusLabel}" FontFamily="{StaticResource MonoFont}" FontSize="9.5" Foreground="{StaticResource TextBrush}"/>
-                                                </Border>
-                                                <TextBlock FontFamily="{StaticResource MonoFont}" FontSize="10" Foreground="{StaticResource MutedBrush}" VerticalAlignment="Center">
-                                                    <Run Text="{Binding Category, Mode=OneWay}"/>
-                                                    <Run Text=" · "/>
-                                                    <Run Text="{Binding Version, Mode=OneWay}"/>
-                                                </TextBlock>
-                                            </DockPanel>
-                                        </StackPanel>
-                                    </Border>
-                                </DataTemplate>
-                            </ItemsControl.ItemTemplate>
-                        </ItemsControl>
-                    </ScrollViewer>
+                    <!-- Right: targets & deployment queue -->
+                    <Border DockPanel.Dock="Right" Width="330" Style="{StaticResource CardStyle}" Padding="12,10" Margin="10,0,0,0">
+                        <DockPanel>
+                            <DockPanel DockPanel.Dock="Top" Margin="0,0,0,4">
+                                <Button DockPanel.Dock="Right" Content="Refresh" Style="{StaticResource SmallPillButton}" Padding="7,2" Click="OnRefreshDeployTargetsClick"/>
+                                <TextBlock Text="TARGET ENDPOINTS" Style="{StaticResource Caption}" VerticalAlignment="Center" Margin="0"/>
+                            </DockPanel>
+                            <ListBox x:Name="DeployTargetList" DockPanel.Dock="Top" MaxHeight="112" Background="Transparent" BorderThickness="0"
+                                     ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                                <ListBox.ItemTemplate>
+                                    <DataTemplate>
+                                        <CheckBox IsChecked="{Binding IsChecked, Mode=TwoWay}" ToolTip="{Binding Address}">
+                                            <TextBlock FontSize="11.5">
+                                                <Run Text="{Binding Name, Mode=OneWay}" Foreground="{StaticResource TextBrush}"/>
+                                                <Run Text="{Binding Detail, Mode=OneWay}" Foreground="{StaticResource MutedBrush}"/>
+                                            </TextBlock>
+                                        </CheckBox>
+                                    </DataTemplate>
+                                </ListBox.ItemTemplate>
+                            </ListBox>
+                            <TextBlock x:Name="DeployTargetHintText" DockPanel.Dock="Top" FontSize="10.5" Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" Margin="0,2,0,0"
+                                       Text="Nothing checked = the connected endpoint."/>
+
+                            <DockPanel DockPanel.Dock="Top" Margin="0,10,0,6">
+                                <Button DockPanel.Dock="Right" Content="Clear" Style="{StaticResource SmallPillButton}" Padding="7,2" Click="OnClearWingetQueueClick"/>
+                                <TextBlock x:Name="WingetQueueCountText" Text="DEPLOYMENT QUEUE (0)" Style="{StaticResource Caption}" VerticalAlignment="Center" Margin="0"/>
+                            </DockPanel>
+
+                            <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" Margin="0,8,0,0">
+                                <Button x:Name="WingetDeploySelectedBtn" Content="Deploy Queue (0)" Style="{StaticResource PrimaryButton}" Padding="12,5" Margin="0,0,6,0" Click="OnDeploySelectedWingetClick"/>
+                                <Button x:Name="WingetCancelDeployBtn" Content="Cancel" Style="{StaticResource DangerButton}" Padding="12,5" IsEnabled="False" Click="OnCancelWingetDeployClick"/>
+                            </StackPanel>
+
+                            <ListBox x:Name="WingetQueueList" Background="Transparent" BorderThickness="0" HorizontalContentAlignment="Stretch"
+                                     ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                                <ListBox.ItemTemplate>
+                                    <DataTemplate>
+                                        <Border Padding="8,6" Margin="0,0,0,4" Background="{StaticResource CardBrush}" BorderBrush="{StaticResource LineBrush}" BorderThickness="1" CornerRadius="4">
+                                            <StackPanel>
+                                                <DockPanel>
+                                                    <Button DockPanel.Dock="Right" Content="×" Style="{StaticResource SmallPillButton}" Padding="6,0" Margin="6,0,0,0" ToolTip="Remove from queue" Click="OnRemoveWingetQueueItemClick"/>
+                                                    <TextBlock DockPanel.Dock="Right" Text="{Binding StatusLabel}" Style="{StaticResource DeployStatusText}" VerticalAlignment="Center" Margin="6,0,0,0"/>
+                                                    <StackPanel>
+                                                        <TextBlock Text="{Binding Name}" FontSize="11.5" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"/>
+                                                        <TextBlock FontFamily="{StaticResource MonoFont}" FontSize="9.5" Foreground="{StaticResource MutedBrush}" TextTrimming="CharacterEllipsis">
+                                                            <Run Text="{Binding Id, Mode=OneWay}"/>
+                                                            <Run Text="{Binding Version, Mode=OneWay}"/>
+                                                        </TextBlock>
+                                                    </StackPanel>
+                                                </DockPanel>
+                                                <ProgressBar Style="{StaticResource ThinProgressBar}" Value="{Binding ProgressValue, Mode=OneWay}" IsIndeterminate="{Binding IsIndeterminate, Mode=OneWay}"
+                                                             Visibility="{Binding ProgressVisibility}" Margin="0,4,0,0"/>
+                                                <TextBlock Text="{Binding StatusDetail}" Visibility="{Binding DetailVisibility}" FontSize="10" Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" Margin="0,3,0,0"/>
+                                            </StackPanel>
+                                        </Border>
+                                    </DataTemplate>
+                                </ListBox.ItemTemplate>
+                            </ListBox>
+                        </DockPanel>
+                    </Border>
+
+                    <!-- Center: catalog cards -->
+                    <DockPanel>
+                        <DockPanel DockPanel.Dock="Bottom" Margin="0,4,0,0">
+                            <Button x:Name="WingetLoadMoreBtn" DockPanel.Dock="Right" Content="Load more" Style="{StaticResource SmallPillButton}" Visibility="Collapsed" Click="OnWingetLoadMoreClick"/>
+                            <TextBlock x:Name="WingetResultCountText" FontSize="11" Foreground="{StaticResource MutedBrush}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+                        </DockPanel>
+                        <ScrollViewer x:Name="WingetCatalogScroll" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                            <ItemsControl x:Name="WingetCatalogList">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <WrapPanel Orientation="Horizontal"/>
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Border Width="236" Margin="0,0,10,10" Padding="12,10" Background="{StaticResource CardBrush}"
+                                                BorderBrush="{StaticResource LineBrush}" BorderThickness="1" CornerRadius="6">
+                                            <StackPanel>
+                                                <DockPanel Margin="0,0,0,6">
+                                                    <CheckBox DockPanel.Dock="Right" IsChecked="{Binding IsSelected, Mode=TwoWay}" VerticalAlignment="Top" ToolTip="Add to the deployment queue" Click="OnWingetCardSelectionChanged"/>
+                                                    <Border Width="30" Height="30" CornerRadius="5" Background="{StaticResource FieldBrush}" BorderBrush="{StaticResource LineBrush}" BorderThickness="1" Margin="0,0,9,0" DockPanel.Dock="Left">
+                                                        <Grid>
+                                                            <TextBlock Text="{Binding Monogram}" Style="{StaticResource DeployMonogram}" FontFamily="{StaticResource MonoFont}" FontSize="10" FontWeight="Bold" Foreground="{StaticResource AccentBrush}" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                                            <Image Source="{Binding Icon}" Width="20" Height="20" Stretch="Uniform" RenderOptions.BitmapScalingMode="HighQuality"/>
+                                                        </Grid>
+                                                    </Border>
+                                                    <StackPanel VerticalAlignment="Center">
+                                                        <TextBlock Text="{Binding Name}" FontSize="12.5" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" ToolTip="{Binding Id}"/>
+                                                        <TextBlock Text="{Binding Publisher}" FontSize="10.5" Foreground="{StaticResource MutedBrush}" TextTrimming="CharacterEllipsis"/>
+                                                    </StackPanel>
+                                                </DockPanel>
+                                                <TextBlock Text="{Binding Description}" FontSize="11" Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" Height="30" TextTrimming="CharacterEllipsis" Margin="0,0,0,8" ToolTip="{Binding Id}"/>
+                                                <DockPanel>
+                                                    <Border DockPanel.Dock="Right" Background="{StaticResource AccentSoftBrush}" CornerRadius="3" Padding="6,2">
+                                                        <TextBlock Text="{Binding StatusLabel}" Style="{StaticResource DeployStatusText}"/>
+                                                    </Border>
+                                                    <TextBlock FontFamily="{StaticResource MonoFont}" FontSize="10" Foreground="{StaticResource MutedBrush}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis">
+                                                        <Run Text="{Binding Category, Mode=OneWay}"/>
+                                                        <Run Text=" · "/>
+                                                        <Run Text="{Binding Version, Mode=OneWay}"/>
+                                                    </TextBlock>
+                                                </DockPanel>
+                                                <ProgressBar Style="{StaticResource ThinProgressBar}" Value="{Binding ProgressValue, Mode=OneWay}" IsIndeterminate="{Binding IsIndeterminate, Mode=OneWay}"
+                                                             Visibility="{Binding ProgressVisibility}" Margin="0,6,0,0"/>
+                                                <TextBlock Text="{Binding StatusDetail}" Visibility="{Binding DetailVisibility}" FontSize="10" Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" Margin="0,4,0,0"/>
+                                            </StackPanel>
+                                        </Border>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </ScrollViewer>
+                    </DockPanel>
                 </DockPanel>
 
                 <!-- ==================== 6. WINDOWS 11 SETTINGS & UPDATES VIEW ==================== -->
