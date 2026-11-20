@@ -1,0 +1,83 @@
+<UserControl x:Class="HomeRms.Controller.Views.FilePaneView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <Border Style="{StaticResource CardStyle}" Padding="10">
+        <DockPanel>
+            <!-- Title -->
+            <DockPanel DockPanel.Dock="Top" Margin="0,0,0,6">
+                <TextBlock x:Name="CountText" DockPanel.Dock="Right" FontFamily="{StaticResource MonoFont}" FontSize="10.5"
+                           Foreground="{StaticResource MutedBrush}" VerticalAlignment="Center"/>
+                <TextBlock x:Name="TitleText" Text="PANE" Style="{StaticResource Caption}" Margin="0" VerticalAlignment="Center"/>
+            </DockPanel>
+
+            <!-- Drive + navigation -->
+            <DockPanel DockPanel.Dock="Top" Margin="0,0,0,6">
+                <ComboBox x:Name="DriveCombo" DockPanel.Dock="Left" Width="150" Margin="0,0,6,0"
+                          DisplayMemberPath="Display" SelectionChanged="OnDriveChanged" ToolTip="Drive"/>
+                <Button DockPanel.Dock="Left" Content="Up" Style="{StaticResource SmallPillButton}" Margin="0,0,4,0" Click="OnUpClick" ToolTip="Parent folder (Backspace)"/>
+                <Button DockPanel.Dock="Left" Content="Refresh" Style="{StaticResource SmallPillButton}" Margin="0,0,6,0" Click="OnRefreshClick" ToolTip="Refresh (F5)"/>
+                <TextBox x:Name="PathBox" FontFamily="{StaticResource MonoFont}" FontSize="11.5" KeyDown="OnPathKeyDown"
+                         ToolTip="Type a path and press Enter"/>
+            </DockPanel>
+
+            <!-- Pane operations -->
+            <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,0,0,6">
+                <Button Content="New folder" Style="{StaticResource SmallPillButton}" Margin="0,0,4,0" Click="OnNewFolderClick"/>
+                <Button Content="Rename" Style="{StaticResource SmallPillButton}" Margin="0,0,4,0" Click="OnRenameClick" ToolTip="Rename (F2)"/>
+                <Button Content="Delete" Style="{StaticResource SmallPillButton}" Margin="0,0,4,0" Click="OnDeleteClick" ToolTip="Delete (Del)"/>
+            </StackPanel>
+
+            <!-- Inline error -->
+            <TextBlock x:Name="ErrorText" DockPanel.Dock="Top" Foreground="{StaticResource DangerBrush}" TextWrapping="Wrap"
+                       FontSize="11.5" Margin="0,0,0,6" Visibility="Collapsed"/>
+
+            <ListView x:Name="FilesList" AllowDrop="True" SelectionMode="Extended"
+                      Background="{StaticResource FieldBrush}" BorderBrush="{StaticResource LineBrush}"
+                      MouseDoubleClick="OnRowDoubleClick" KeyDown="OnListKeyDown"
+                      PreviewMouseLeftButtonDown="OnListMouseDown" PreviewMouseMove="OnListMouseMove"
+                      DragOver="OnListDragOver" Drop="OnListDrop"
+                      GridViewColumnHeader.Click="OnHeaderClick">
+                <ListView.View>
+                    <GridView>
+                        <GridViewColumn Width="260">
+                            <GridViewColumnHeader Content="Name" Tag="Name"/>
+                            <GridViewColumn.CellTemplate>
+                                <DataTemplate>
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock Text="{Binding Glyph}" FontFamily="{StaticResource MonoFont}" FontSize="10"
+                                                   Foreground="{StaticResource AccentBrush}" Width="22" VerticalAlignment="Center"/>
+                                        <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis"/>
+                                    </StackPanel>
+                                </DataTemplate>
+                            </GridViewColumn.CellTemplate>
+                        </GridViewColumn>
+                        <GridViewColumn Width="90">
+                            <GridViewColumnHeader Content="Size" Tag="Size"/>
+                            <GridViewColumn.CellTemplate>
+                                <DataTemplate>
+                                    <TextBlock Text="{Binding SizeText}" FontFamily="{StaticResource MonoFont}" FontSize="11" TextAlignment="Right"/>
+                                </DataTemplate>
+                            </GridViewColumn.CellTemplate>
+                        </GridViewColumn>
+                        <GridViewColumn Width="130">
+                            <GridViewColumnHeader Content="Modified" Tag="Modified"/>
+                            <GridViewColumn.CellTemplate>
+                                <DataTemplate>
+                                    <TextBlock Text="{Binding ModifiedText}" FontFamily="{StaticResource MonoFont}" FontSize="11" Foreground="{StaticResource MutedBrush}"/>
+                                </DataTemplate>
+                            </GridViewColumn.CellTemplate>
+                        </GridViewColumn>
+                        <GridViewColumn Width="90">
+                            <GridViewColumnHeader Content="Type" Tag="TypeText"/>
+                            <GridViewColumn.CellTemplate>
+                                <DataTemplate>
+                                    <TextBlock Text="{Binding TypeText}" FontSize="11" Foreground="{StaticResource MutedBrush}"/>
+                                </DataTemplate>
+                            </GridViewColumn.CellTemplate>
+                        </GridViewColumn>
+                    </GridView>
+                </ListView.View>
+            </ListView>
+        </DockPanel>
+    </Border>
+</UserControl>

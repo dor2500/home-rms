@@ -1,0 +1,128 @@
+<UserControl x:Class="HomeRms.Controller.Views.TelemetryOverviewView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:v="clr-namespace:HomeRms.Controller.Views">
+    <Border Style="{StaticResource CardStyle}" Padding="12,10">
+        <DockPanel>
+            <!-- Header: fleet totals + thresholds -->
+            <DockPanel DockPanel.Dock="Top" Margin="0,0,0,8">
+                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
+                    <TextBlock Text="ALERT AT  CPU" Style="{StaticResource Caption}" Margin="0,0,4,0" VerticalAlignment="Center"/>
+                    <TextBox x:Name="CpuBox" Width="38" FontFamily="{StaticResource MonoFont}" FontSize="11" Margin="0,0,8,0" ToolTip="CPU % threshold"/>
+                    <TextBlock Text="RAM" Style="{StaticResource Caption}" Margin="0,0,4,0" VerticalAlignment="Center"/>
+                    <TextBox x:Name="RamBox" Width="38" FontFamily="{StaticResource MonoFont}" FontSize="11" Margin="0,0,8,0" ToolTip="RAM % threshold"/>
+                    <TextBlock Text="DISK FREE &lt;" Style="{StaticResource Caption}" Margin="0,0,4,0" VerticalAlignment="Center"/>
+                    <TextBox x:Name="DiskBox" Width="38" FontFamily="{StaticResource MonoFont}" FontSize="11" Margin="0,0,8,0" ToolTip="Minimum free disk space %"/>
+                    <CheckBox x:Name="OfflineCheck" Content="Offline" VerticalAlignment="Center" Margin="0,0,8,0" ToolTip="Alert when an endpoint stops responding"/>
+                    <Button Content="Save" Style="{StaticResource SmallPillButton}" Click="OnSaveThresholdsClick"/>
+                </StackPanel>
+                <StackPanel VerticalAlignment="Center">
+                    <TextBlock Text="LIVE TELEMETRY (5 MIN)" Style="{StaticResource Caption}" Margin="0,0,0,2"/>
+                    <TextBlock x:Name="FleetTotalsText" Text="No live agent telemetry yet." FontFamily="{StaticResource MonoFont}" FontSize="11"
+                               Foreground="{StaticResource MutedBrush}" TextTrimming="CharacterEllipsis"/>
+                </StackPanel>
+            </DockPanel>
+
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="270"/>
+                </Grid.ColumnDefinitions>
+
+                <ScrollViewer Grid.Column="0" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                    <Grid>
+                        <TextBlock x:Name="EmptyText" Text="Tiles appear for every online Windows agent endpoint (run Scan LAN)."
+                                   Foreground="{StaticResource MutedBrush}" FontSize="11.5" Margin="2"/>
+                        <ItemsControl x:Name="TilesList">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <WrapPanel/>
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Border x:Name="Tile" Width="236" Margin="0,0,8,8" Padding="10,8" CornerRadius="5"
+                                            Background="{StaticResource FieldBrush}" BorderBrush="{StaticResource LineBrush}" BorderThickness="1">
+                                        <StackPanel>
+                                            <DockPanel Margin="0,0,0,6">
+                                                <TextBlock x:Name="StatusTb" DockPanel.Dock="Right" Text="{Binding Status}" FontFamily="{StaticResource MonoFont}" FontSize="9.5"
+                                                           Foreground="{StaticResource MutedBrush}" MaxWidth="110" TextTrimming="CharacterEllipsis" ToolTip="{Binding Status}"/>
+                                                <TextBlock Text="{Binding Name}" FontWeight="SemiBold" FontSize="12" TextTrimming="CharacterEllipsis"/>
+                                            </DockPanel>
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="38"/>
+                                                    <ColumnDefinition Width="64"/>
+                                                    <ColumnDefinition Width="*"/>
+                                                </Grid.ColumnDefinitions>
+                                                <Grid.RowDefinitions>
+                                                    <RowDefinition Height="20"/>
+                                                    <RowDefinition Height="20"/>
+                                                    <RowDefinition Height="20"/>
+                                                    <RowDefinition Height="20"/>
+                                                </Grid.RowDefinitions>
+                                                <TextBlock Grid.Row="0" Text="CPU" FontFamily="{StaticResource MonoFont}" FontSize="9.5" Foreground="{StaticResource MutedBrush}" VerticalAlignment="Center"/>
+                                                <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding CpuText}" FontFamily="{StaticResource MonoFont}" FontSize="11" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                                                <v:Sparkline Grid.Row="0" Grid.Column="2" Values="{Binding CpuSeries}" Stroke="{StaticResource AccentBrush}" Margin="0,2"/>
+
+                                                <TextBlock Grid.Row="1" Text="RAM" FontFamily="{StaticResource MonoFont}" FontSize="9.5" Foreground="{StaticResource MutedBrush}" VerticalAlignment="Center"/>
+                                                <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding RamText}" FontFamily="{StaticResource MonoFont}" FontSize="11" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                                                <v:Sparkline Grid.Row="1" Grid.Column="2" Values="{Binding RamSeries}" Stroke="{StaticResource IndigoBrush}" Margin="0,2"/>
+
+                                                <TextBlock Grid.Row="2" Text="DISK" FontFamily="{StaticResource MonoFont}" FontSize="9.5" Foreground="{StaticResource MutedBrush}" VerticalAlignment="Center"/>
+                                                <TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding DiskText}" FontFamily="{StaticResource MonoFont}" FontSize="11" FontWeight="SemiBold" VerticalAlignment="Center"
+                                                           ToolTip="Fullest fixed disk (% used)"/>
+                                                <v:Sparkline Grid.Row="2" Grid.Column="2" Values="{Binding DiskSeries}" Stroke="{StaticResource WarnBrush}" Margin="0,2"/>
+
+                                                <TextBlock Grid.Row="3" Text="NET" FontFamily="{StaticResource MonoFont}" FontSize="9.5" Foreground="{StaticResource MutedBrush}" VerticalAlignment="Center"/>
+                                                <v:Sparkline Grid.Row="3" Grid.Column="1" Grid.ColumnSpan="2" Values="{Binding NetSeries}" Maximum="0" Stroke="{StaticResource OkBrush}" Margin="0,2"
+                                                             ToolTip="{Binding NetText}"/>
+                                            </Grid>
+                                            <DockPanel Margin="0,4,0,0">
+                                                <TextBlock DockPanel.Dock="Right" Text="{Binding NetText}" FontFamily="{StaticResource MonoFont}" FontSize="9.5" Foreground="{StaticResource MutedBrush}"
+                                                           ToolTip="Receive / transmit"/>
+                                                <TextBlock FontFamily="{StaticResource MonoFont}" FontSize="9.5" Foreground="{StaticResource MutedBrush}">
+                                                    <Run Text="up"/> <Run Text="{Binding UptimeText, Mode=OneWay}"/> <Run Text="· procs"/> <Run Text="{Binding ProcText, Mode=OneWay}"/>
+                                                </TextBlock>
+                                            </DockPanel>
+                                        </StackPanel>
+                                    </Border>
+                                    <DataTemplate.Triggers>
+                                        <DataTrigger Binding="{Binding IsHot}" Value="True">
+                                            <Setter TargetName="Tile" Property="BorderBrush" Value="{StaticResource DangerBrush}"/>
+                                        </DataTrigger>
+                                        <DataTrigger Binding="{Binding IsLive}" Value="False">
+                                            <Setter TargetName="Tile" Property="Opacity" Value="0.6"/>
+                                        </DataTrigger>
+                                        <DataTrigger Binding="{Binding IsLive}" Value="True">
+                                            <Setter TargetName="StatusTb" Property="Foreground" Value="{StaticResource OkBrush}"/>
+                                        </DataTrigger>
+                                    </DataTemplate.Triggers>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </Grid>
+                </ScrollViewer>
+
+                <!-- Recent alerts -->
+                <DockPanel Grid.Column="1" Margin="10,0,0,0">
+                    <TextBlock DockPanel.Dock="Top" Text="ACTIVE ALERTS" Style="{StaticResource Caption}"/>
+                    <ListBox x:Name="AlertsList" Background="{StaticResource FieldBrush}" BorderBrush="{StaticResource LineBrush}"
+                             ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                        <ListBox.ItemTemplate>
+                            <DataTemplate>
+                                <StackPanel Margin="0,1">
+                                    <DockPanel>
+                                        <TextBlock DockPanel.Dock="Right" Text="{Binding TimeText}" FontFamily="{StaticResource MonoFont}" FontSize="9.5" Foreground="{StaticResource MutedBrush}"/>
+                                        <TextBlock Text="{Binding Title}" FontSize="11" FontWeight="SemiBold" Foreground="{Binding SeverityBrush}" TextTrimming="CharacterEllipsis"/>
+                                    </DockPanel>
+                                    <TextBlock Text="{Binding EndpointName}" FontSize="10.5" Foreground="{StaticResource MutedBrush}" TextTrimming="CharacterEllipsis" ToolTip="{Binding Detail}"/>
+                                </StackPanel>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+                </DockPanel>
+            </Grid>
+        </DockPanel>
+    </Border>
+</UserControl>

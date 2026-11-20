@@ -248,6 +248,7 @@ public sealed class MachineProfile : INotifyPropertyChanged
             OnPropertyChanged(nameof(CpuLabel));
             OnPropertyChanged(nameof(RamLabel));
             OnPropertyChanged(nameof(LatencyLabel));
+            OnPropertyChanged(nameof(HealthLine));
         }
     }
 
@@ -330,8 +331,57 @@ public sealed class MachineProfile : INotifyPropertyChanged
         set { _latencyMs = Math.Max(0, value); OnPropertyChanged(); OnPropertyChanged(nameof(LatencyLabel)); }
     }
 
+    private DateTime? _lastSeenUtc;
+    private long _uptimeSeconds;
+
+    /// <summary>Last time the endpoint answered a probe or streamed telemetry (persisted).</summary>
+    public DateTime? LastSeenUtc
+    {
+        get => _lastSeenUtc;
+        set { _lastSeenUtc = value; OnPropertyChanged(); OnPropertyChanged(nameof(HealthLine)); }
+    }
+
+    /// <summary>Uptime reported by the agent's telemetry stream (0 = unknown).</summary>
     [JsonIgnore]
-    public string CpuLabel => IsOnline || IsConnected ? $"{_cpuPercent:0}%" : "--";
+    public long UptimeSeconds
+    {
+        get => _uptimeSeconds;
+        set
+        {
+            if (_uptimeSeconds / 60 == value / 60) { _uptimeSeconds = value; return; }
+            _uptimeSeconds = value;
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(HealthLine));
+        }
+    }
+
+    /// <summary>"up 3d 4h · seen 14:02" style line for the endpoint cards.</summary>
+    [JsonIgnore]
+    public string HealthLine
+    {
+        get
+        {
+            var parts = new List<string>();
+            if (_uptimeSeconds > 0 && (IsOnline || IsConnected))
+            {
+                var ts = TimeSpan.FromSeconds(_uptimeSeconds);
+                parts.Add(ts.TotalDays >= 1 ? $"up {(int)ts.TotalDays}d {ts.Hours}h" : $"up {ts.Hours}h {ts.Minutes}m");
+            }
+            if (_lastSeenUtc is { } seen)
+            {
+                var local = seen.ToLocalTime();
+                parts.Add(local.Date == DateTime.Today ? $"seen {local:HH:mm}" : $"seen {local:yyyy-MM-dd HH:mm}");
+            }
+            else
+            {
+                parts.Add("never seen");
+            }
+            return string.Join("  ·  ", parts);
+        }
+    }
+
+    [JsonIgnore]
+    public string CpuLabel =>IsOnline || IsConnected ? $"{_cpuPercent:0}%" : "--";
 
     [JsonIgnore]
     public string RamLabel => IsOnline || IsConnected ? $"{_ramPercent:0}%" : "--";

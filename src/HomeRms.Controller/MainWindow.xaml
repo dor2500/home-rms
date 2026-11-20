@@ -177,6 +177,24 @@
                                 <TextBlock x:Name="NavLabelSettings" Text="System &amp; Settings" FontSize="12" FontWeight="Medium" Margin="10,0,0,0" VerticalAlignment="Center"/>
                             </StackPanel>
                         </RadioButton>
+                        <RadioButton x:Name="NavFiles" Style="{StaticResource RailTab}" Checked="OnNavTabChanged" ToolTip="Remote File Manager">
+                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                <Path Style="{StaticResource VectorIcon}" Data="{StaticResource GeoDeploy}"/>
+                                <TextBlock x:Name="NavLabelFiles" Text="Files" FontSize="12" FontWeight="Medium" Margin="10,0,0,0" VerticalAlignment="Center"/>
+                            </StackPanel>
+                        </RadioButton>
+                        <RadioButton x:Name="NavServices" Style="{StaticResource RailTab}" Checked="OnNavTabChanged" ToolTip="Services &amp; Scheduled Tasks">
+                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                <Path Style="{StaticResource VectorIcon}" Data="{StaticResource GeoSettings}"/>
+                                <TextBlock x:Name="NavLabelServices" Text="Services &amp; Tasks" FontSize="12" FontWeight="Medium" Margin="10,0,0,0" VerticalAlignment="Center"/>
+                            </StackPanel>
+                        </RadioButton>
+                        <RadioButton x:Name="NavScripts" Style="{StaticResource RailTab}" Checked="OnNavTabChanged" ToolTip="Script Library &amp; Multi-Endpoint Runs">
+                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                <Path Style="{StaticResource VectorIcon}" Data="{StaticResource GeoShell}"/>
+                                <TextBlock x:Name="NavLabelScripts" Text="Script Library" FontSize="12" FontWeight="Medium" Margin="10,0,0,0" VerticalAlignment="Center"/>
+                            </StackPanel>
+                        </RadioButton>
                         <RadioButton x:Name="NavWebUi" Style="{StaticResource RailTab}" Checked="OnNavTabChanged" Visibility="Collapsed" ToolTip="Embedded Reverse-Proxied Web UI">
                             <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                                 <Path Style="{StaticResource VectorIcon}" Data="{StaticResource GeoDesktop}"/>
@@ -252,6 +270,9 @@
                             </StackPanel>
                         </Border>
                     </Grid>
+
+                    <!-- Live telemetry tiles (Views\TelemetryOverviewView.xaml) -->
+                    <ContentControl x:Name="TelemetryHost" DockPanel.Dock="Top" Height="250" Margin="0,0,0,12"/>
 
                     <!-- Middle Row: Network Traffic Sparkline & Recent Alerts -->
                     <Grid DockPanel.Dock="Top" Height="186" Margin="0,0,0,12">
@@ -371,6 +392,12 @@
                         </DockPanel>
                     </Border>
 
+                    <!-- Power & Wake-on-LAN for the selected endpoint(s) (Views\EndpointActionBar.xaml) -->
+                    <Border DockPanel.Dock="Top" Style="{StaticResource CardStyle}" Padding="12,7" Margin="0,0,0,10"
+                            ToolTip="Acts on every selected endpoint card (Ctrl/Shift+click to select several)">
+                        <ContentControl x:Name="FleetPowerHost"/>
+                    </Border>
+
                     <!-- Live Activity Log / Recent Events Feed (Docked Bottom) -->
                     <Border DockPanel.Dock="Bottom" Style="{StaticResource CardStyle}" Padding="12,10" Height="160" Margin="0,10,0,0">
                         <DockPanel>
@@ -397,6 +424,7 @@
 
                     <!-- Pro-Tool Endpoint Cards Grid (Zero DropShadow Glows, Crisp 1px Borders) -->
                     <ListBox x:Name="MachinesList" Background="Transparent" BorderThickness="0"
+                             SelectionMode="Extended"
                              ScrollViewer.HorizontalScrollBarVisibility="Disabled"
                              SelectionChanged="OnMachineSelectionChanged"
                              MouseDoubleClick="OnMachineDoubleClick">
@@ -457,6 +485,10 @@
                                         </Border>
                                         <TextBlock Text="{Binding Address}" FontFamily="{StaticResource MonoFont}" FontSize="11.5" Foreground="{StaticResource MutedBrush}" VerticalAlignment="Center"/>
                                     </DockPanel>
+
+                                    <!-- Uptime / last seen (live telemetry + probes) -->
+                                    <TextBlock Text="{Binding HealthLine}" FontFamily="{StaticResource MonoFont}" FontSize="10"
+                                               Foreground="{StaticResource MutedBrush}" Margin="0,-4,0,8" TextTrimming="CharacterEllipsis"/>
 
                                     <!-- CPU / RAM Real-Time Mini Bars -->
                                     <Grid Margin="0,0,0,10">
@@ -901,6 +933,11 @@
                         </StackPanel>
                     </Border>
                 </DockPanel>
+
+                <!-- ==================== 8-10. FEATURE VIEWS (Views\*.xaml, wired in MainWindow.Features.cs) ==================== -->
+                <ContentControl x:Name="FilesHost" Visibility="Collapsed"/>
+                <ContentControl x:Name="ServicesHost" Visibility="Collapsed"/>
+                <ContentControl x:Name="ScriptsHost" Visibility="Collapsed"/>
 
             </Grid>
         </Grid>

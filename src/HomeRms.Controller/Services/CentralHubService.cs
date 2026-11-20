@@ -32,6 +32,7 @@ public sealed class CentralHubService : IDisposable
     private readonly AlertCenterService _alerts;
 
     private readonly ConcurrentDictionary<string, RmsConnection> _connectionPool = new(StringComparer.OrdinalIgnoreCase);
+    private readonly ConcurrentDictionary<string, AgentInfo> _pairedInfo = new(StringComparer.OrdinalIgnoreCase);
     private readonly ConcurrentDictionary<string, DateTimeOffset> _mobileSessions = new();
     private readonly HttpClient _proxyClient = new(new HttpClientHandler
     {
@@ -117,6 +118,7 @@ public sealed class CentralHubService : IDisposable
     public void EvictConnection(string host, int port)
     {
         var key = $"{host}:{port}";
+        _pairedInfo.TryRemove(key, out _);
         if (_connectionPool.TryRemove(key, out var conn))
             conn.Dispose();
     }
@@ -369,10 +371,44 @@ public sealed class CentralHubService : IDisposable
         }
 
         var conn = GetOrCreateConnection(host, port);
+        var key = $"{host}:{port}";
 
+        // The agent refuses every RPC except GetAgentInfo / PairWith2Fa from an unpinned controller,
+        // so run the GetAgentInfo pairing handshake first. The relay is headless: a 2FA-only agent
+        // cannot be paired from here and gets a clear message instead.
+        AgentInfo info;
+        try
+        {
+            if (!_pairedInfo.TryGetValue(key, out info!))
+            {
+                info = await AgentConnectionPool.PairAsync(conn, host, port, interactive: false, prompt: null, promptGate: null, ct);
+                _pairedInfo[key] = info;
+            }
+        }
+        catch (Exception ex) when (ex is AgentPairingException or Grpc.Core.RpcException)
+        {
+            ctx.Response.StatusCode = AgentErrors.IsPermissionDenied(ex) ? 403 : 502;
+            await WriteJsonAsync(ctx.Response, new { ok = false, error = AgentErrors.Describe(ex) });
+            return;
+        }
+
+        try
+        {
+            await RelayAgentActionAsync(ctx, conn, info, action, ct);
+        }
+        catch (Grpc.Core.RpcException ex)
+        {
+            if (ex.StatusCode == Grpc.Core.StatusCode.PermissionDenied) _pairedInfo.TryRemove(key, out _);
+            ctx.Response.StatusCode = ex.StatusCode == Grpc.Core.StatusCode.PermissionDenied ? 403 : 502;
+            await WriteJsonAsync(ctx.Response, new { ok = false, error = AgentErrors.Describe(ex) });
+        }
+    }
+
+    private async Task RelayAgentActionAsync(HttpListenerContext ctx, RmsConnection conn, AgentInfo info, string action, CancellationToken ct)
+    {
         if (action.Equals("info", StringComparison.OrdinalIgnoreCase))
         {
-            var info = await conn.Client.GetAgentInfoAsync(new Empty(), cancellationToken: ct);
+            info = await conn.Client.GetAgentInfoAsync(new Empty(), deadline: DateTime.UtcNow.AddSeconds(10), cancellationToken: ct);
             await WriteJsonAsync(ctx.Response, new
             {
                 machineName = info.MachineName,
