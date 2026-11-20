@@ -101,7 +101,8 @@ public partial class MainWindow
 
     private void UpdateConsoleCount()
     {
-        if (ConsoleCountText is null) return;
+        // Called from Checked handlers while InitializeComponent is still building the tree.
+        if (ConsoleCountText is null || ConsoleList is null) return;
         var count = _consoleView is ListCollectionView lcv ? lcv.Count : ConsoleList.Items.Count;
         ConsoleCountText.Text = count == 1 ? "1 line" : $"{count} lines";
     }
@@ -326,6 +327,7 @@ public partial class MainWindow
     {
         if (sender is not RadioButton { Tag: string tag }) return;
         _consoleFilter = tag;
+        if (_consoleView is null) return; // initial IsChecked during InitializeComponent
         _consoleView?.Refresh();
         UpdateConsoleCount();
 

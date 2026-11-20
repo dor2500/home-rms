@@ -176,7 +176,7 @@ public partial class MainWindow
         var win = new Window
         {
             Title = $"Home RMS — Screen 2 ({SelectedMachine?.DisplayTitle})",
-            Background = Brushes.Black,
+            Background = Themes.Palette.Get("StreamCanvasBrush"),
             Width = 1280,
             Height = 720,
             Left = hasSecondMonitor ? SystemParameters.PrimaryScreenWidth + 40 : 80,

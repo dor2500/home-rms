@@ -1488,13 +1488,14 @@
         <Setter Property="FontSize" Value="{StaticResource FontSizeBody}"/>
         <Setter Property="FontWeight" Value="Medium"/>
         <Setter Property="Padding" Value="2,0"/>
-        <Setter Property="Margin" Value="0,0,20,0"/>
+        <!-- TabPanel subtracts item Margin from the measured width (clips headers), so spacing lives in the template -->
+        <Setter Property="Margin" Value="0"/>
         <Setter Property="Height" Value="36"/>
         <Setter Property="Cursor" Value="Hand"/>
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="TabItem">
-                    <Grid Background="Transparent">
+                    <Grid Background="Transparent" Margin="0,0,20,0">
                         <ContentPresenter ContentSource="Header" Margin="{TemplateBinding Padding}" VerticalAlignment="Center" RecognizesAccessKey="True"/>
                         <Border x:Name="Underline" Height="2" CornerRadius="1" VerticalAlignment="Bottom" Background="{StaticResource AccentBrush}" Visibility="Hidden"/>
                     </Grid>

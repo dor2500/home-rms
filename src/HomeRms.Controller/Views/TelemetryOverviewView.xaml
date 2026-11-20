@@ -7,17 +7,17 @@
             <!-- Header: fleet totals + thresholds -->
             <DockPanel DockPanel.Dock="Top" Margin="0,0,0,8">
                 <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
-                    <TextBlock Text="ALERT AT  CPU" Style="{StaticResource Caption}" Margin="0,0,4,0" VerticalAlignment="Center"/>
+                    <TextBlock Text="Alert at  CPU" Style="{StaticResource Caption}" Margin="0,0,4,0" VerticalAlignment="Center"/>
                     <TextBox x:Name="CpuBox" Width="38" FontFamily="{StaticResource MonoFont}" FontSize="11" Margin="0,0,8,0" ToolTip="CPU % threshold"/>
                     <TextBlock Text="RAM" Style="{StaticResource Caption}" Margin="0,0,4,0" VerticalAlignment="Center"/>
                     <TextBox x:Name="RamBox" Width="38" FontFamily="{StaticResource MonoFont}" FontSize="11" Margin="0,0,8,0" ToolTip="RAM % threshold"/>
-                    <TextBlock Text="DISK FREE &lt;" Style="{StaticResource Caption}" Margin="0,0,4,0" VerticalAlignment="Center"/>
+                    <TextBlock Text="Disk free &lt;" Style="{StaticResource Caption}" Margin="0,0,4,0" VerticalAlignment="Center"/>
                     <TextBox x:Name="DiskBox" Width="38" FontFamily="{StaticResource MonoFont}" FontSize="11" Margin="0,0,8,0" ToolTip="Minimum free disk space %"/>
                     <CheckBox x:Name="OfflineCheck" Content="Offline" VerticalAlignment="Center" Margin="0,0,8,0" ToolTip="Alert when an endpoint stops responding"/>
                     <Button Content="Save" Style="{StaticResource SmallPillButton}" Click="OnSaveThresholdsClick"/>
                 </StackPanel>
                 <StackPanel VerticalAlignment="Center">
-                    <TextBlock Text="LIVE TELEMETRY (5 MIN)" Style="{StaticResource Caption}" Margin="0,0,0,2"/>
+                    <TextBlock Text="Live telemetry (5 min)" Style="{StaticResource Caption}" Margin="0,0,0,2"/>
                     <TextBlock x:Name="FleetTotalsText" Text="No live agent telemetry yet." FontFamily="{StaticResource MonoFont}" FontSize="11"
                                Foreground="{StaticResource MutedBrush}" TextTrimming="CharacterEllipsis"/>
                 </StackPanel>
@@ -106,7 +106,7 @@
 
                 <!-- Recent alerts -->
                 <DockPanel Grid.Column="1" Margin="10,0,0,0">
-                    <TextBlock DockPanel.Dock="Top" Text="ACTIVE ALERTS" Style="{StaticResource Caption}"/>
+                    <TextBlock DockPanel.Dock="Top" Text="Active alerts" Style="{StaticResource Caption}"/>
                     <ListBox x:Name="AlertsList" Background="{StaticResource FieldBrush}" BorderBrush="{StaticResource LineBrush}"
                              ScrollViewer.HorizontalScrollBarVisibility="Disabled">
                         <ListBox.ItemTemplate>

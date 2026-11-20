@@ -1238,18 +1238,11 @@ public partial class MainWindow : Window
 
     private enum Tone { Neutral, Success, Caution, Critical }
 
-    // Fixed colours for status text drawn on the always-dark console surfaces
-    private static readonly Brush ConsoleMutedBrush = Frozen(0xB3, 0xFF, 0xFF, 0xFF);
-    private static readonly Brush ConsoleOkBrush = Frozen(0xFF, 0x6C, 0xCB, 0x5F);
-    private static readonly Brush ConsoleWarnBrush = Frozen(0xFF, 0xF9, 0xF1, 0xA5);
-    private static readonly Brush ConsoleErrorBrush = Frozen(0xFF, 0xFF, 0x99, 0xA4);
-
-    private static Brush Frozen(byte a, byte r, byte g, byte b)
-    {
-        var brush = new SolidColorBrush(Color.FromArgb(a, r, g, b));
-        brush.Freeze();
-        return brush;
-    }
+    // Status text colours on the sunken console surfaces (semantic tokens, see Themes\Palette.cs)
+    private static Brush ConsoleMutedBrush => Palette.TextSecondary;
+    private static Brush ConsoleOkBrush => Palette.Success;
+    private static Brush ConsoleWarnBrush => Palette.Warning;
+    private static Brush ConsoleErrorBrush => Palette.Danger;
 
     private static void SetPill(Border pill, TextBlock text, Tone tone)
     {
@@ -2243,6 +2236,55 @@ public partial class MainWindow : Window
         NavSystem.IsChecked = true;
         await Task.Delay(400);
         SaveWindowPng(Path.Combine(outDir, "controller-settings.png"));
+
+        // Remaining views, drawers and overlays (redesign coverage; nothing here is persisted)
+        foreach (var (nav, name) in new[] { (NavUpdates, "updates"), (NavFiles, "files"), (NavServices, "services"), (NavScripts, "scripts") })
+        {
+            nav.IsChecked = true;
+            await Task.Delay(450);
+            SaveWindowPng(Path.Combine(outDir, $"controller-{name}.png"));
+        }
+
+        NavOverview.IsChecked = true;
+        AddActivity("FLEET", "Screenshot run: sample activity line for the live console.");
+        SetConsoleOpen(true, persist: false);
+        await Task.Delay(450);
+        SaveWindowPng(Path.Combine(outDir, "controller-console.png"));
+        SetConsoleOpen(false, persist: false);
+
+        _sidebarCollapsed = true;
+        ApplySidebarState(animate: false);
+        NavFleet.IsChecked = true;
+        await Task.Delay(450);
+        SaveWindowPng(Path.Combine(outDir, "controller-sidebar-collapsed.png"));
+        _sidebarCollapsed = false;
+        ApplySidebarState(animate: false);
+
+        EndpointDrawerOverlay.Visibility = Visibility.Visible;
+        await Task.Delay(350);
+        SaveWindowPng(Path.Combine(outDir, "controller-endpoint-drawer.png"));
+        EndpointDrawerOverlay.Visibility = Visibility.Collapsed;
+
+        AlertDrawerOverlay.Visibility = Visibility.Visible;
+        await Task.Delay(350);
+        SaveWindowPng(Path.Combine(outDir, "controller-alerts.png"));
+        AlertDrawerOverlay.Visibility = Visibility.Collapsed;
+
+        try { OnOpenAboutClick(this, new RoutedEventArgs()); } catch { AboutOverlay.Visibility = Visibility.Visible; }
+        await Task.Delay(450);
+        // Never write real 2FA material into a screenshot
+        AboutTotpSecretBox.Text = "•••• redacted ••••";
+        AboutBackupCodesBox.Text = "•••• redacted ••••";
+        AboutFingerprintBox.Text = "•••• redacted ••••";
+        AboutQrImage.Source = null;
+        SecurityDiagText.Text = "(redacted for screenshot)";
+        SaveWindowPng(Path.Combine(outDir, "controller-about.png"));
+        AboutOverlay.Visibility = Visibility.Collapsed;
+
+        LockOverlay.Visibility = Visibility.Visible;
+        await Task.Delay(350);
+        SaveWindowPng(Path.Combine(outDir, "controller-lock.png"));
+
 
         Application.Current.Shutdown(0);
         Environment.Exit(0);

@@ -62,23 +62,23 @@
                                 <ColumnDefinition Width="200"/>
                             </Grid.ColumnDefinitions>
                             <StackPanel Grid.Column="0">
-                                <TextBlock Text="NAME" Style="{StaticResource Caption}"/>
+                                <TextBlock Text="Name" Style="{StaticResource Caption}"/>
                                 <TextBox x:Name="NameBox"/>
                             </StackPanel>
                             <StackPanel Grid.Column="2">
-                                <TextBlock Text="SHELL" Style="{StaticResource Caption}"/>
+                                <TextBlock Text="Shell" Style="{StaticResource Caption}"/>
                                 <ComboBox x:Name="ShellCombo" SelectedIndex="0">
                                     <ComboBoxItem Content="PowerShell"/>
                                     <ComboBoxItem Content="cmd"/>
                                 </ComboBox>
                             </StackPanel>
                             <StackPanel Grid.Column="4">
-                                <TextBlock Text="TAGS (COMMA SEPARATED)" Style="{StaticResource Caption}"/>
+                                <TextBlock Text="Tags (comma separated)" Style="{StaticResource Caption}"/>
                                 <TextBox x:Name="TagsBox"/>
                             </StackPanel>
                         </Grid>
                         <StackPanel DockPanel.Dock="Top" Margin="0,0,0,6">
-                            <TextBlock Text="DESCRIPTION" Style="{StaticResource Caption}"/>
+                            <TextBlock Text="Description" Style="{StaticResource Caption}"/>
                             <TextBox x:Name="DescriptionBox"/>
                         </StackPanel>
                         <DockPanel DockPanel.Dock="Bottom" Margin="0,8,0,0">
@@ -88,7 +88,7 @@
                             </StackPanel>
                             <TextBlock x:Name="EditorNote" FontSize="11" Foreground="{StaticResource MutedBrush}" VerticalAlignment="Center" TextWrapping="Wrap"/>
                         </DockPanel>
-                        <TextBox x:Name="BodyBox" AcceptsReturn="True" AcceptsTab="True" TextWrapping="NoWrap"
+                        <TextBox x:Name="BodyBox" VerticalContentAlignment="Top" AcceptsReturn="True" AcceptsTab="True" TextWrapping="NoWrap"
                                  VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto"
                                  FontFamily="{StaticResource MonoFont}" FontSize="12" Background="{StaticResource FieldBrush}"/>
                     </DockPanel>
@@ -109,7 +109,7 @@
                                         Margin="4,0,0,0" Click="OnPickOnlineClick" ToolTip="Tick every online Windows endpoint"/>
                                 <Button DockPanel.Dock="Right" Content="Fleet sel." Style="{StaticResource SmallPillButton}" Padding="6,2" FontSize="10.5"
                                         Click="OnPickFleetSelectionClick" ToolTip="Tick the endpoints selected in the Endpoints view"/>
-                                <TextBlock Text="TARGETS" Style="{StaticResource Caption}" Margin="0" VerticalAlignment="Center"/>
+                                <TextBlock Text="Targets" Style="{StaticResource Caption}" Margin="0" VerticalAlignment="Center"/>
                             </DockPanel>
                             <StackPanel DockPanel.Dock="Bottom" Margin="0,8,0,0">
                                 <DockPanel Margin="0,0,0,6">
@@ -146,7 +146,7 @@
                                 <RowDefinition Height="Auto" MinHeight="70"/>
                                 <RowDefinition Height="*"/>
                             </Grid.RowDefinitions>
-                            <TextBlock x:Name="RunCaption" Grid.Row="0" Text="RESULTS" Style="{StaticResource Caption}"/>
+                            <TextBlock x:Name="RunCaption" Grid.Row="0" Text="Results" Style="{StaticResource Caption}"/>
                             <DataGrid x:Name="RunsGrid" Grid.Row="1" MaxHeight="150" AutoGenerateColumns="False" IsReadOnly="True"
                                       HeadersVisibility="Column" GridLinesVisibility="None" SelectionMode="Single"
                                       Background="{StaticResource FieldBrush}" BorderBrush="{StaticResource LineBrush}"
@@ -158,7 +158,7 @@
                                     <DataGridTextColumn Header="Summary" Binding="{Binding Summary}" Width="*"/>
                                 </DataGrid.Columns>
                             </DataGrid>
-                            <TextBox x:Name="OutputBox" Grid.Row="2" Margin="0,8,0,0" IsReadOnly="True" TextWrapping="NoWrap"
+                            <TextBox x:Name="OutputBox" VerticalContentAlignment="Top" Grid.Row="2" Margin="0,8,0,0" IsReadOnly="True" TextWrapping="NoWrap"
                                      VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto"
                                      FontFamily="{StaticResource MonoFont}" FontSize="11.5" Background="{StaticResource FieldBrush}"
                                      Text="Select a result row to see that endpoint's output."/>
