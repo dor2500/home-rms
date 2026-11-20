@@ -80,7 +80,12 @@ public partial class MainWindow : Window
         _centralHub = new CentralHubService(() => _machines, ProbeAllMachinesAsync, AddActivity, _agentless, _ssh, _alerts);
         _centralHub.Start();
         if (HubRelayStatusText is not null)
+        {
             HubRelayStatusText.Text = _centralHub.IsRunning ? $"Hub relay :{_centralHub.Port}" : "Hub standby";
+            HubRelayStatusText.ToolTip = _centralHub.AuthRequired
+                ? "Mobile web app relay. Sign-in required: hub access key (Server & PKI) or 2FA code."
+                : "Mobile web app relay. WARNING: sign-in is turned off (Server & PKI).";
+        }
         if (HubRelayDot is not null)
             HubRelayDot.Fill = (Brush)FindResource(_centralHub.IsRunning ? "OkBrush" : "WarnBrush");
 
@@ -272,8 +277,48 @@ public partial class MainWindow : Window
             bmp.EndInit();
             AboutQrImage.Source = bmp;
         }
+        AboutHubKeyBox.Text = _centralHub.AccessKey ?? "(unavailable)";
+        AboutHubKeyLabel.Text = $"Hub relay access key (mobile web app on http://{Environment.MachineName}:{_centralHub.Port}/)";
+        HubRequireAuthCheck.IsChecked = _centralHub.Settings.RequireAuth;
         AboutOverlay.Visibility = Visibility.Visible;
         _ = RefreshSecuritySectionAsync();
+    }
+
+    private void OnCopyHubKeyClick(object sender, RoutedEventArgs e)
+    {
+        if (_centralHub.AccessKey is not { } key) return;
+        try
+        {
+            Clipboard.SetText(key);
+            StatusText.Text = "Copied the hub relay access key to the clipboard.";
+        }
+        catch (Exception ex)
+        {
+            StatusText.Text = $"Could not copy to the clipboard: {ex.Message}";
+        }
+    }
+
+    private void OnRegenerateHubKeyClick(object sender, RoutedEventArgs e)
+    {
+        if (MessageBox.Show(this, "Generate a new hub access key? Every phone or browser signed in to the hub relay is signed out.",
+                "Home RMS - Hub relay", MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes)
+            return;
+        AboutHubKeyBox.Text = _centralHub.RegenerateAccessKey();
+    }
+
+    private void OnToggleHubAuth(object sender, RoutedEventArgs e)
+    {
+        if (AboutOverlay.Visibility != Visibility.Visible) return;
+        var required = HubRequireAuthCheck.IsChecked == true;
+        if (!required && MessageBox.Show(this,
+                "Turn off sign-in for the hub relay?\n\nAnyone who can reach this PC on the network could then list endpoints, " +
+                "run commands and view screens through the relay without a password.",
+                "Home RMS - Hub relay", MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes)
+        {
+            HubRequireAuthCheck.IsChecked = true;
+            return;
+        }
+        _centralHub.SetRequireAuth(required);
     }
 
     private void OnToggleStartup2Fa(object sender, RoutedEventArgs e)
@@ -2276,6 +2321,7 @@ public partial class MainWindow : Window
         AboutTotpSecretBox.Text = "•••• redacted ••••";
         AboutBackupCodesBox.Text = "•••• redacted ••••";
         AboutFingerprintBox.Text = "•••• redacted ••••";
+        AboutHubKeyBox.Text = "•••• redacted ••••";
         AboutQrImage.Source = null;
         SecurityDiagText.Text = "(redacted for screenshot)";
         SaveWindowPng(Path.Combine(outDir, "controller-about.png"));

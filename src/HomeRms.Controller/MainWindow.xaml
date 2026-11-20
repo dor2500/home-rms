@@ -1429,6 +1429,17 @@
                             <TextBlock Text="Server X.509 SHA-256 fingerprint" Style="{StaticResource FieldLabel}"/>
                             <TextBox x:Name="AboutFingerprintBox" IsReadOnly="True" FontFamily="{StaticResource MonoFont}" FontSize="10.5" Margin="0,0,0,12"/>
 
+                            <!-- Central Hub relay (mobile web app) sign-in -->
+                            <TextBlock x:Name="AboutHubKeyLabel" Text="Hub relay access key (mobile web app sign-in)" Style="{StaticResource FieldLabel}"/>
+                            <DockPanel Margin="0,0,0,6">
+                                <Button DockPanel.Dock="Right" Content="New key" Style="{StaticResource SmallPillButton}" Margin="6,0,0,0" Click="OnRegenerateHubKeyClick"
+                                        ToolTip="Generate a new access key and sign out every phone / browser"/>
+                                <Button DockPanel.Dock="Right" Content="Copy" Style="{StaticResource SmallPillButton}" Margin="6,0,0,0" Click="OnCopyHubKeyClick"/>
+                                <TextBox x:Name="AboutHubKeyBox" IsReadOnly="True" FontFamily="{StaticResource MonoFont}" FontSize="10.5"/>
+                            </DockPanel>
+                            <CheckBox x:Name="HubRequireAuthCheck" Content="Require sign-in for the hub relay (recommended)" Margin="0,0,0,12"
+                                      Checked="OnToggleHubAuth" Unchecked="OnToggleHubAuth"/>
+
                             <!-- Security: unreadable 2FA config warning -->
                             <Border x:Name="SecurityWarningBorder" Visibility="Collapsed" Background="{StaticResource WarningSoftBrush}" BorderBrush="{StaticResource WarningLineBrush}" BorderThickness="1"
                                     CornerRadius="{StaticResource RadiusControl}" Padding="10,8" Margin="0,0,0,10">
