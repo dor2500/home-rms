@@ -1,6 +1,8 @@
+using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+using System.Windows.Interop;
 
 namespace HomeRms.Controller.Views;
 
@@ -49,6 +51,7 @@ public sealed class InputDialog : Window
         root.Children.Add(buttons);
 
         Content = root;
+        SourceInitialized += (_, _) => ApplyDarkTitleBar();
         Loaded += (_, _) =>
         {
             _box.Focus();
@@ -57,6 +60,24 @@ public sealed class InputDialog : Window
             else _box.SelectAll();
         };
     }
+
+    private void ApplyDarkTitleBar()
+    {
+        try
+        {
+            var hwnd = new WindowInteropHelper(this).Handle;
+            if (hwnd == IntPtr.Zero) return;
+            int dark = 1;
+            DwmSetWindowAttribute(hwnd, 20 /* DWMWA_USE_IMMERSIVE_DARK_MODE */, ref dark, sizeof(int));
+        }
+        catch
+        {
+            // Older Windows: keep the default title bar
+        }
+    }
+
+    [DllImport("dwmapi.dll")]
+    private static extern int DwmSetWindowAttribute(IntPtr hwnd, int attribute, ref int value, int size);
 
     private void Accept()
     {

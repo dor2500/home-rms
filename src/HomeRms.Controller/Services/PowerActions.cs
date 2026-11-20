@@ -41,8 +41,16 @@ public static class PowerActions
             return $"Magic packet sent to {mac}.";
         }
 
-        if (m.IsAppliance)
-            throw new NotSupportedException("Power actions are only available for Windows endpoints.");
+        var isLinuxAgent = m.Kind == EndpointKind.Linux && m.ConnectionMode == ConnectionMode.Agent;
+        if (isLinuxAgent)
+        {
+            if (action.Id is not ("restart" or "shutdown" or "cancel"))
+                throw new NotSupportedException($"'{action.Label}' is not supported on Linux agent endpoints.");
+        }
+        else if (m.IsAppliance)
+        {
+            throw new NotSupportedException("Power actions are only available for Windows and Linux agent endpoints.");
+        }
 
         if (m.IsAgentless)
         {

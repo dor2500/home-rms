@@ -71,6 +71,7 @@ public partial class MainWindow
         // Hide anything showing secrets (TOTP secret / backup codes) behind the lock.
         ClearAboutSecretInputs();
         AboutOverlay.Visibility = Visibility.Collapsed;
+        AgentPair2FaOverlay.Visibility = Visibility.Collapsed;
 
         UnlockPinBox.Clear();
         UnlockPasswordBox.Clear();
@@ -85,39 +86,51 @@ public partial class MainWindow
 
     private async Task RefreshLockOverlayAsync(bool autoPrompt)
     {
-        var cfg = TwoFactorStore.LoadController();
-        MasterPasswordUnlockPanel.Visibility = TwoFactorStore.HasMasterPassword(cfg) ? Visibility.Visible : Visibility.Collapsed;
-        var days = Math.Clamp(cfg.RememberDays <= 0 ? 30 : cfg.RememberDays, 1, 365);
-        RememberDeviceCheck.Content = $"Remember this device for {days} days (skip startup lock)";
-        UpdateThrottleUi(cfg, null);
-
-        if (!cfg.AllowPasskey)
+        try
         {
+            var cfg = TwoFactorStore.LoadController();
+            MasterPasswordUnlockPanel.Visibility = TwoFactorStore.HasMasterPassword(cfg) ? Visibility.Visible : Visibility.Collapsed;
+            var days = Math.Clamp(cfg.RememberDays <= 0 ? 30 : cfg.RememberDays, 1, 365);
+            RememberDeviceCheck.Content = $"Remember this device for {days} days (skip startup lock)";
+            UpdateThrottleUi(cfg, null);
+
+            if (!cfg.AllowPasskey)
+            {
+                _helloAvailable = false;
+                _helloAutoPromptPending = false;
+                HelloUnlockButton.Visibility = Visibility.Collapsed;
+                HelloStatusText.Text = "Windows Hello unlock is turned off in the security settings.";
+                return;
+            }
+
+            HelloUnlockButton.Visibility = Visibility.Visible;
+            HelloUnlockButton.IsEnabled = false;
+            HelloStatusText.Text = "Checking Windows Hello...";
+
+            var availability = await WindowsHelloService.CheckAvailabilityAsync();
+            if (!IsConsoleLocked) return;
+
+            _helloAvailable = availability.CanAttemptVerification;
+            HelloUnlockButton.IsEnabled = _helloAvailable && !_helloBusy;
+            HelloStatusText.Text = availability.IsAvailable
+                ? "Fingerprint, face or Windows Hello PIN."
+                : $"Windows Hello unavailable: {availability.Description}.";
+
+            if (availability.IsAvailable && autoPrompt)
+                TryAutoPromptHello();
+            else if (!availability.IsAvailable)
+                _helloAutoPromptPending = false;
+        }
+        catch (Exception ex)
+        {
+            if (!IsConsoleLocked) return;
             _helloAvailable = false;
             _helloAutoPromptPending = false;
-            HelloUnlockButton.Visibility = Visibility.Collapsed;
-            HelloStatusText.Text = "Windows Hello unlock is turned off in the security settings.";
-            return;
+            HelloUnlockButton.IsEnabled = false;
+            HelloStatusText.Text = $"Security configuration error ({ex.GetType().Name}): {ex.Message}";
+            SetLockStatus($"Security settings could not be read ({ex.Message}).", warn: true);
+            TwoFactorStore.LogSecurityEvent($"RefreshLockOverlayAsync failed: {ex.GetType().Name}: {ex.Message}");
         }
-
-        HelloUnlockButton.Visibility = Visibility.Visible;
-        HelloUnlockButton.IsEnabled = false;
-        HelloStatusText.Text = "Checking Windows Hello...";
-
-        var availability = await WindowsHelloService.CheckAvailabilityAsync();
-        if (!IsConsoleLocked) return;
-
-        _helloAvailable = availability.IsAvailable;
-        var canTry = availability.IsAvailable || availability.Availability == Windows.Security.Credentials.UI.UserConsentVerifierAvailability.DeviceBusy;
-        HelloUnlockButton.IsEnabled = canTry && !_helloBusy;
-        HelloStatusText.Text = availability.IsAvailable
-            ? "Fingerprint, face or Windows Hello PIN."
-            : $"Windows Hello unavailable: {availability.Description}.";
-
-        if (availability.IsAvailable && autoPrompt)
-            TryAutoPromptHello();
-        else if (!availability.IsAvailable)
-            _helloAutoPromptPending = false;
     }
 
     /// <summary>Auto-prompts Windows Hello once per lock, only when the window is visible and in the foreground.</summary>
@@ -145,13 +158,19 @@ public partial class MainWindow
     private async Task RunHelloUnlockAsync()
     {
         if (_helloBusy || !IsConsoleLocked) return;
-        if (!TwoFactorStore.LoadController().AllowPasskey) return;
 
         _helloBusy = true;
         HelloUnlockButton.IsEnabled = false;
         HelloStatusText.Text = "Waiting for Windows Hello...";
         try
         {
+            if (!TwoFactorStore.LoadController().AllowPasskey)
+            {
+                _helloAvailable = false;
+                HelloStatusText.Text = "Windows Hello unlock is turned off in the security settings.";
+                return;
+            }
+
             var result = await WindowsHelloService.VerifyAsync(this, HelloUnlockMessage);
             if (!IsConsoleLocked) return;
             if (result.IsVerified)
@@ -162,12 +181,18 @@ public partial class MainWindow
             HelloStatusText.Text = $"{result.Message} Retry with the button above or use another method below.";
             TwoFactorStore.LogSecurityEvent($"Windows Hello unlock not verified: {result.Result?.ToString() ?? "error"} ({result.Message})");
         }
+        catch (Exception ex)
+        {
+            if (!IsConsoleLocked) return;
+            HelloStatusText.Text = $"Windows Hello error ({ex.GetType().Name}): {ex.Message}";
+            TwoFactorStore.LogSecurityEvent($"Windows Hello unlock failed: {ex.GetType().Name}: {ex.Message}");
+        }
         finally
         {
             _helloBusy = false;
             if (IsConsoleLocked)
             {
-                HelloUnlockButton.IsEnabled = true;
+                HelloUnlockButton.IsEnabled = _helloAvailable;
                 FocusLockInput();
             }
         }
@@ -190,90 +215,116 @@ public partial class MainWindow
     private void OnUnlockDashboardClick(object sender, RoutedEventArgs e)
     {
         if (_unlockBusy || !IsConsoleLocked) return;
-        var cfg = TwoFactorStore.LoadController();
-        if (TwoFactorStore.GetUnlockDelayRemaining(cfg) > TimeSpan.Zero)
+        try
         {
-            UpdateThrottleUi(cfg, null);
-            return;
-        }
-
-        var input = UnlockPinBox.Password;
-        if (string.IsNullOrWhiteSpace(input))
-        {
-            SetLockStatus("Enter the 6-digit authenticator code or a backup code.", warn: true);
-            FocusLockInput();
-            return;
-        }
-
-        if (TwoFactorStore.VerifyCodeOrBackup(cfg, input, out var updated, out var usedBackup))
-        {
-            if (usedBackup)
+            var cfg = TwoFactorStore.LoadController();
+            if (TwoFactorStore.GetUnlockDelayRemaining(cfg) > TimeSpan.Zero)
             {
-                TwoFactorStore.SaveController(updated);
-                StatusText.Text = $"Backup code used. {updated.BackupCodes?.Count ?? 0} backup code(s) remain.";
+                UpdateThrottleUi(cfg, null);
+                return;
             }
-            CompleteUnlock(usedBackup ? "a backup code" : "an authenticator code");
+
+            var input = UnlockPinBox.Password;
+            if (string.IsNullOrWhiteSpace(input))
+            {
+                SetLockStatus("Enter the 6-digit authenticator code or a backup code.", warn: true);
+                FocusLockInput();
+                return;
+            }
+
+            if (TwoFactorStore.VerifyCodeOrBackup(cfg, input, out var updated, out var usedBackup))
+            {
+                if (usedBackup)
+                {
+                    TwoFactorStore.SaveController(updated);
+                    StatusText.Text = $"Backup code used. {updated.BackupCodes?.Count ?? 0} backup code(s) remain.";
+                }
+                CompleteUnlock(usedBackup ? "a backup code" : "an authenticator code");
+            }
+            else
+            {
+                UnlockPinBox.Clear();
+                RecordUnlockFailure(cfg, "Invalid authenticator or backup code.");
+            }
         }
-        else
+        catch (Exception ex)
         {
-            UnlockPinBox.Clear();
-            RecordUnlockFailure(cfg, "Invalid authenticator or backup code.");
+            SetLockStatus($"Security settings error ({ex.GetType().Name}): {ex.Message}", warn: true);
+            TwoFactorStore.LogSecurityEvent($"Dashboard unlock failed: {ex.GetType().Name}: {ex.Message}");
         }
     }
 
     private async void OnUnlockWithPasswordClick(object sender, RoutedEventArgs e)
     {
         if (_unlockBusy || !IsConsoleLocked) return;
-        var cfg = TwoFactorStore.LoadController();
-        if (!TwoFactorStore.HasMasterPassword(cfg)) return;
-        if (TwoFactorStore.GetUnlockDelayRemaining(cfg) > TimeSpan.Zero)
-        {
-            UpdateThrottleUi(cfg, null);
-            return;
-        }
-
-        var password = UnlockPasswordBox.Password;
-        if (string.IsNullOrEmpty(password))
-        {
-            SetLockStatus("Enter your master password.", warn: true);
-            UnlockPasswordBox.Focus();
-            return;
-        }
-
-        _unlockBusy = true;
-        UpdateThrottleUi(cfg, null);
-        SetLockStatus("Verifying password...", warn: false);
-        bool ok;
         try
         {
-            ok = await Task.Run(() => TwoFactorStore.VerifyMasterPassword(cfg, password));
-        }
-        finally
-        {
-            _unlockBusy = false;
-        }
-        if (!IsConsoleLocked) return;
+            var cfg = TwoFactorStore.LoadController();
+            if (!TwoFactorStore.HasMasterPassword(cfg)) return;
+            if (TwoFactorStore.GetUnlockDelayRemaining(cfg) > TimeSpan.Zero)
+            {
+                UpdateThrottleUi(cfg, null);
+                return;
+            }
 
-        if (ok)
-        {
-            CompleteUnlock("the master password");
+            var password = UnlockPasswordBox.Password;
+            if (string.IsNullOrEmpty(password))
+            {
+                SetLockStatus("Enter your master password.", warn: true);
+                UnlockPasswordBox.Focus();
+                return;
+            }
+
+            _unlockBusy = true;
+            UpdateThrottleUi(cfg, null);
+            SetLockStatus("Verifying password...", warn: false);
+            bool ok;
+            try
+            {
+                ok = await Task.Run(() => TwoFactorStore.VerifyMasterPassword(cfg, password));
+            }
+            finally
+            {
+                _unlockBusy = false;
+            }
+            if (!IsConsoleLocked) return;
+
+            if (ok)
+            {
+                CompleteUnlock("the master password");
+            }
+            else
+            {
+                UnlockPasswordBox.Clear();
+                RecordUnlockFailure(TwoFactorStore.LoadController(), "Incorrect master password.");
+                UnlockPasswordBox.Focus();
+            }
         }
-        else
+        catch (Exception ex)
         {
-            UnlockPasswordBox.Clear();
-            RecordUnlockFailure(TwoFactorStore.LoadController(), "Incorrect master password.");
-            UnlockPasswordBox.Focus();
+            if (!IsConsoleLocked) return;
+            SetLockStatus($"Security settings error ({ex.GetType().Name}): {ex.Message}", warn: true);
+            TwoFactorStore.LogSecurityEvent($"Master password unlock failed: {ex.GetType().Name}: {ex.Message}");
         }
     }
 
     private void CompleteUnlock(string method)
     {
-        var cfg = TwoFactorStore.LoadController();
-        var updated = TwoFactorStore.RegisterUnlockSuccess(cfg);
-        if (RememberDeviceCheck.IsChecked == true)
-            updated = TwoFactorStore.TrustDevice(updated, LocalDeviceId);
-        if (!ReferenceEquals(updated, cfg))
-            TwoFactorStore.SaveController(updated);
+        try
+        {
+            var cfg = TwoFactorStore.LoadController();
+            var updated = TwoFactorStore.RegisterUnlockSuccess(cfg);
+            if (RememberDeviceCheck.IsChecked == true)
+                updated = TwoFactorStore.TrustDevice(updated, LocalDeviceId);
+            if (!ReferenceEquals(updated, cfg))
+                TwoFactorStore.SaveController(updated);
+        }
+        catch (Exception ex)
+        {
+            SetLockStatus($"Could not complete unlock ({ex.GetType().Name}): {ex.Message}", warn: true);
+            TwoFactorStore.LogSecurityEvent($"CompleteUnlock failed: {ex.GetType().Name}: {ex.Message}");
+            return;
+        }
 
         _lockThrottleTimer?.Stop();
         _helloAutoPromptPending = false;
@@ -386,30 +437,38 @@ public partial class MainWindow
 
     private async Task RefreshSecuritySectionAsync()
     {
-        var cfg = TwoFactorStore.LoadController();
-
-        if (TwoFactorStore.ControllerLoadWarning is { } warning)
+        try
         {
-            SecurityWarningText.Text = warning;
-            SecurityWarningBorder.Visibility = Visibility.Visible;
+            var cfg = TwoFactorStore.LoadController();
+
+            if (TwoFactorStore.ControllerLoadWarning is { } warning)
+            {
+                SecurityWarningText.Text = warning;
+                SecurityWarningBorder.Visibility = Visibility.Visible;
+            }
+            else
+            {
+                SecurityWarningBorder.Visibility = Visibility.Collapsed;
+            }
+
+            ClearMasterPasswordButton.IsEnabled = TwoFactorStore.HasMasterPassword(cfg) && !_aboutSecurityBusy;
+            SetMasterPasswordButton.Content = TwoFactorStore.HasMasterPassword(cfg) ? "Change Password" : "Set Password";
+            ForgetDeviceButton.IsEnabled = TwoFactorStore.IsDeviceRemembered(cfg, LocalDeviceId);
+
+            SecurityDiagText.Text = BuildSecurityDiagnostics(cfg, "checking...", null);
+            var hello = await WindowsHelloService.CheckAvailabilityAsync();
+            cfg = TwoFactorStore.LoadController();
+            var helloText = hello.Description + (cfg.AllowPasskey ? "" : " (unlock with Windows Hello turned off)");
+            SecurityDiagText.Text = BuildSecurityDiagnostics(cfg, helloText, hello);
         }
-        else
+        catch (Exception ex)
         {
-            SecurityWarningBorder.Visibility = Visibility.Collapsed;
+            SecurityDiagText.Text = $"Security diagnostics unavailable ({ex.GetType().Name}): {ex.Message}";
+            TwoFactorStore.LogSecurityEvent($"RefreshSecuritySectionAsync failed: {ex.GetType().Name}: {ex.Message}");
         }
-
-        ClearMasterPasswordButton.IsEnabled = TwoFactorStore.HasMasterPassword(cfg) && !_aboutSecurityBusy;
-        SetMasterPasswordButton.Content = TwoFactorStore.HasMasterPassword(cfg) ? "Change Password" : "Set Password";
-        ForgetDeviceButton.IsEnabled = TwoFactorStore.IsDeviceRemembered(cfg, LocalDeviceId);
-
-        SecurityDiagText.Text = BuildSecurityDiagnostics(cfg, "checking...");
-        var hello = await WindowsHelloService.CheckAvailabilityAsync();
-        cfg = TwoFactorStore.LoadController();
-        var helloText = hello.Description + (cfg.AllowPasskey ? "" : " (unlock with Windows Hello turned off)");
-        SecurityDiagText.Text = BuildSecurityDiagnostics(cfg, helloText);
     }
 
-    private static string BuildSecurityDiagnostics(TwoFactorConfig cfg, string helloStatus)
+    private static string BuildSecurityDiagnostics(TwoFactorConfig cfg, string helloStatus, WindowsHelloAvailability? hello)
     {
         var days = Math.Clamp(cfg.RememberDays <= 0 ? 30 : cfg.RememberDays, 1, 365);
         var expiry = TwoFactorStore.GetDeviceTrustExpiry(cfg, LocalDeviceId);
@@ -419,11 +478,21 @@ public partial class MainWindow
         var totp = string.IsNullOrWhiteSpace(cfg.TotpSecret)
             ? "not enrolled"
             : $"enrolled ({cfg.BackupCodes?.Count ?? 0} backup codes left)";
+        var rawState = hello is null
+            ? "checking..."
+            : hello.Availability is { } avail
+                ? avail.ToString()
+                : $"Error ({hello.ErrorType ?? "Exception"} 0x{hello.HResult ?? 0:X8})";
+        var elevated = WindowsHelloService.IsProcessElevated()
+            ? "yes (Administrator / requireAdministrator)"
+            : "no (standard user)";
         var throttle = TwoFactorStore.GetUnlockDelayRemaining(cfg) is var w && w > TimeSpan.Zero
             ? $"\nUnlock throttle:  paused for {FormatWait(w)}"
             : cfg.FailedUnlockAttempts > 0 ? $"\nFailed attempts:  {cfg.FailedUnlockAttempts}" : "";
         return
             $"Windows Hello:    {helloStatus}\n" +
+            $"Hello raw state:  {rawState}\n" +
+            $"Elevated (UAC):   {elevated}\n" +
             $"TOTP:             {totp}\n" +
             $"Master password:  {(TwoFactorStore.HasMasterPassword(cfg) ? "set" : "not set")}\n" +
             $"Remember device:  {remember}\n" +

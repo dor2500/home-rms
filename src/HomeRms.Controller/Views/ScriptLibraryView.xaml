@@ -4,9 +4,9 @@
     <DockPanel>
         <!-- Header -->
         <StackPanel DockPanel.Dock="Top" Margin="0,0,0,10">
-            <TextBlock Text="SCRIPT LIBRARY" Style="{StaticResource Caption}" Margin="0,0,0,2"/>
+            <TextBlock Text="Script library" Style="{StaticResource PageTitle}"/>
             <TextBlock Text="Saved PowerShell / cmd snippets. Run them on many endpoints at once; every command is recorded in each agent's activity log."
-                       FontSize="11.5" Foreground="{StaticResource MutedBrush}" TextTrimming="CharacterEllipsis"/>
+                       Style="{StaticResource PageSubtitle}" TextTrimming="CharacterEllipsis"/>
         </StackPanel>
 
         <Grid>
@@ -19,7 +19,7 @@
             <!-- ===== Snippet list ===== -->
             <Border Grid.Column="0" Style="{StaticResource CardStyle}" Padding="10">
                 <DockPanel>
-                    <TextBox x:Name="SearchBox" DockPanel.Dock="Top" Margin="0,0,0,8" TextChanged="OnSearchChanged" ToolTip="Search name, description, tags"/>
+                    <TextBox x:Name="SearchBox" Style="{StaticResource SearchBox}" Tag="Search scripts..." DockPanel.Dock="Top" Margin="0,0,0,8" TextChanged="OnSearchChanged" ToolTip="Search name, description, tags"/>
                     <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" Margin="0,8,0,0">
                         <Button Content="New" Style="{StaticResource SmallPillButton}" Margin="0,0,4,0" Click="OnNewClick"/>
                         <Button Content="Duplicate" Style="{StaticResource SmallPillButton}" Margin="0,0,4,0" Click="OnDuplicateClick"/>

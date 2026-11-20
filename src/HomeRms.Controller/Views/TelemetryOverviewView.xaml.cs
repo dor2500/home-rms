@@ -51,6 +51,8 @@ public partial class TelemetryOverviewView : UserControl
         if (double.TryParse(DiskBox.Text, out var dsk)) t.DiskFreeMinPercent = Math.Clamp(dsk, 1, 90);
         t.AlertOnOffline = OfflineCheck.IsChecked == true;
         _ctx.Alerts.SaveThresholds();
+        foreach (var et in _ctx.Telemetry.Endpoints)
+            et.RefreshHot(t);
         LoadThresholds();
         _ctx.Log("ALERT", $"Alert thresholds saved: CPU ≥ {t.CpuThresholdPercent:0}%, RAM ≥ {t.RamThresholdPercent:0}%, disk free < {t.DiskFreeMinPercent:0}%, offline {(t.AlertOnOffline ? "on" : "off")}.");
     }

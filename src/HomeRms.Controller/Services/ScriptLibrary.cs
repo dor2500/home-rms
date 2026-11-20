@@ -234,7 +234,7 @@ public sealed class ScriptExecutor(AgentConnectionPool pool, AgentlessService ag
             if (m.IsAgentless)
             {
                 Ui(() => { run.State = ScriptRunState.Running; run.Summary = "Running over WinRM"; });
-                var (ok, output) = await agentless.RunShellAsync(m, wrapped, ct);
+                var (ok, output) = await agentless.RunShellAsync(m, wrapped, ct, timeoutMs: Math.Max(1, (int)timeout.TotalMilliseconds));
                 Ui(() => Finish(run, output, transportOk: ok));
                 return;
             }
@@ -248,15 +248,38 @@ public sealed class ScriptExecutor(AgentConnectionPool pool, AgentlessService ag
             await call.RequestStream.WriteAsync(new ShellInput { Close = true }, ct);
             await call.RequestStream.CompleteAsync();
 
+            const string markerPrefix = "__HRMS_DONE__";
+            var holdBack = markerPrefix.Length - 1;
             var all = new StringBuilder();
+            var pending = "";
+            var doneSeen = false;
             await foreach (var o in call.ResponseStream.ReadAllAsync(ct))
             {
                 all.Append(o.Data);
-                var chunk = o.Data;
-                var cut = chunk.IndexOf("__HRMS_DONE__", StringComparison.Ordinal);
-                if (cut >= 0) chunk = chunk[..cut];
-                if (chunk.Length > 0) Ui(() => run.Append(chunk));
+                if (doneSeen) continue;
+
+                pending += o.Data;
+                var cut = pending.IndexOf(markerPrefix, StringComparison.Ordinal);
+                if (cut >= 0)
+                {
+                    if (cut > 0)
+                    {
+                        var emit = pending[..cut];
+                        Ui(() => run.Append(emit));
+                    }
+                    pending = "";
+                    doneSeen = true;
+                }
+                else if (pending.Length > holdBack)
+                {
+                    var safeLen = pending.Length - holdBack;
+                    var emit = pending[..safeLen];
+                    pending = pending[safeLen..];
+                    Ui(() => run.Append(emit));
+                }
             }
+            if (!doneSeen && pending.Length > 0)
+                Ui(() => run.Append(pending));
             Ui(() => Finish(run, all.ToString(), transportOk: true, alreadyStreamed: true));
         }
         catch (OperationCanceledException) when (outer.IsCancellationRequested)

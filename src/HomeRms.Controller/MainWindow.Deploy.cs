@@ -237,11 +237,11 @@ public partial class MainWindow
         var canPage = false;
         var problems = new List<string>();
 
-        if (query.Length == 0 && category == WingetCategories.All)
+        if (query.Length == 0 && category == WingetCategories.All && !_wingetIndex.IsAvailable)
         {
             page = _winget.BuiltIn;
             total = page.Count;
-            source = BuiltInSourceLabel + (_wingetIndex.IsAvailable ? $"; type to search all {_wingetIndex.Status.PackageCount:N0} packages" : "");
+            source = BuiltInSourceLabel;
         }
         else
         {
@@ -329,7 +329,7 @@ public partial class MainWindow
     {
         if (WingetDeploySelectedBtn is null) return;
         WingetDeploySelectedBtn.Content = $"Deploy Queue ({_wingetQueue.Count})";
-        WingetQueueCountText.Text = $"DEPLOYMENT QUEUE ({_wingetQueue.Count})";
+        WingetQueueCountText.Text = $"Deployment queue ({_wingetQueue.Count})";
     }
 
     private void SetQueued(WingetAppItem item, bool queued)

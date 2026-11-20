@@ -140,24 +140,29 @@ public partial class ServicesTasksView : UserControl
 
     private async void OnRefreshServicesClick(object sender, RoutedEventArgs e) => await RefreshServicesAsync();
 
-    private async Task RefreshServicesAsync()
+    private async Task RefreshServicesAsync(bool preserveStatus = false)
     {
         if (_busy) return;
         _busy = true;
         try
         {
-            SetStatus("Loading services…");
+            if (!preserveStatus) SetStatus("Loading services…");
             var res = await RunOpAsync("services", "list");
             if (res is null) return;
-            if (!res.Success) { SetStatus("[ERR] " + res.Message, error: true); return; }
+            if (!res.Success)
+            {
+                if (!preserveStatus) SetStatus("[ERR] " + res.Message, error: true);
+                return;
+            }
 
             var keep = ServicesGrid.SelectedItems.Cast<ServiceRow>().Select(r => r.Name).ToHashSet(StringComparer.OrdinalIgnoreCase);
             var table = SystemCatalog.ParseTable(res.JsonData);
             _services.Clear();
             foreach (var row in table.Rows) _services.Add(new ServiceRow(row));
             foreach (var r in _services.Where(r => keep.Contains(r.Name))) ServicesGrid.SelectedItems.Add(r);
-            SetStatus($"{_services.Count} services · {_services.Count(s => s.State == "Running")} running · refreshed {DateTime.Now:HH:mm:ss}" +
-                      (res.IsElevated ? "" : " · agent NOT elevated"));
+            if (!preserveStatus)
+                SetStatus($"{_services.Count} services · {_services.Count(s => s.State == "Running")} running · refreshed {DateTime.Now:HH:mm:ss}" +
+                          (res.IsElevated ? "" : " · agent NOT elevated"));
         }
         finally
         {
@@ -180,7 +185,7 @@ public partial class ServicesTasksView : UserControl
         if (action is "stop" or "restart" && !Confirm($"{Cap(action)} {rows.Count} service(s)?\n\n{List(rows.Select(r => r.Name))}"))
             return;
         await RunBatchAsync("services", action, rows.Select(r => r.Name).ToList(), "");
-        await RefreshServicesAsync();
+        await RefreshServicesAsync(preserveStatus: true);
     }
 
     private async void OnSetStartupClick(object sender, RoutedEventArgs e)
@@ -190,7 +195,7 @@ public partial class ServicesTasksView : UserControl
         var type = (StartupTypeCombo.SelectedItem as ComboBoxItem)?.Content as string ?? "Manual";
         if (!Confirm($"Set the startup type of {rows.Count} service(s) to {type}?\n\n{List(rows.Select(r => r.Name))}")) return;
         await RunBatchAsync("services", "set-startup", rows.Select(r => r.Name).ToList(), type);
-        await RefreshServicesAsync();
+        await RefreshServicesAsync(preserveStatus: true);
     }
 
     // ---------------- Tasks ----------------
@@ -206,16 +211,20 @@ public partial class ServicesTasksView : UserControl
 
     private async void OnRefreshTasksClick(object sender, RoutedEventArgs e) => await RefreshTasksAsync();
 
-    private async Task RefreshTasksAsync()
+    private async Task RefreshTasksAsync(bool preserveStatus = false)
     {
         if (_busy) return;
         _busy = true;
         try
         {
-            SetStatus("Loading scheduled tasks…");
+            if (!preserveStatus) SetStatus("Loading scheduled tasks…");
             var res = await RunOpAsync("tasks", "list");
             if (res is null) return;
-            if (!res.Success) { SetStatus("[ERR] " + res.Message, error: true); return; }
+            if (!res.Success)
+            {
+                if (!preserveStatus) SetStatus("[ERR] " + res.Message, error: true);
+                return;
+            }
 
             var keep = TasksGrid.SelectedItems.Cast<TaskRow>().Select(r => r.FullPath).ToHashSet(StringComparer.OrdinalIgnoreCase);
             var table = SystemCatalog.ParseTable(res.JsonData);
@@ -223,7 +232,8 @@ public partial class ServicesTasksView : UserControl
             foreach (var row in table.Rows) _tasks.Add(new TaskRow(row));
             foreach (var r in _tasks.Where(r => keep.Contains(r.FullPath))) TasksGrid.SelectedItems.Add(r);
             _tasksLoaded = true;
-            SetStatus($"{_tasks.Count} scheduled tasks · {_tasks.Count(t => t.State == "Disabled")} disabled · refreshed {DateTime.Now:HH:mm:ss}");
+            if (!preserveStatus)
+                SetStatus($"{_tasks.Count} scheduled tasks · {_tasks.Count(t => t.State == "Disabled")} disabled · refreshed {DateTime.Now:HH:mm:ss}");
         }
         finally
         {
@@ -246,24 +256,33 @@ public partial class ServicesTasksView : UserControl
         if (action == "disable" && !Confirm($"Disable {rows.Count} scheduled task(s)?\n\n{List(rows.Select(r => r.FullPath))}"))
             return;
         await RunBatchAsync("tasks", action, rows.Select(r => r.FullPath).ToList(), "");
-        await RefreshTasksAsync();
+        await RefreshTasksAsync(preserveStatus: true);
     }
 
     // ---------------- Helpers ----------------
     private async Task RunBatchAsync(string area, string action, IReadOnlyList<string> targets, string extra)
     {
         var ok = 0;
+        var transportFailed = false;
         var errors = new List<string>();
         foreach (var t in targets)
         {
             SetStatus($"{area}/{action}: {t}…");
             var res = await RunOpAsync(area, action, t, extra);
-            if (res is null) return; // transport / permission error already shown
+            if (res is null)
+            {
+                transportFailed = true;
+                break; // transport / permission error already shown
+            }
             if (res.Success) ok++;
             else errors.Add($"{t}: {res.Message}");
         }
-        var who = (EndpointCombo.SelectedItem as MachineProfile)?.DisplayTitle ?? "endpoint";
-        _ctx?.Log("SYSTEM", $"{area}/{action} on {who}: {ok}/{targets.Count} OK");
+        if (ok > 0 || !transportFailed)
+        {
+            var who = (EndpointCombo.SelectedItem as MachineProfile)?.DisplayTitle ?? "endpoint";
+            _ctx?.Log("SYSTEM", $"{area}/{action} on {who}: {ok}/{targets.Count} OK");
+        }
+        if (transportFailed) return;
         if (errors.Count == 0)
             SetStatus($"[OK] {area}/{action} succeeded for {ok} item(s).");
         else

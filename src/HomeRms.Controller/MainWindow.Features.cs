@@ -66,7 +66,6 @@ public partial class MainWindow
         _telemetrySyncTimer.Start();
         _machines.CollectionChanged += OnMachinesChangedForFeatures;
 
-        SidebarToggleBtn.Click += (_, _) => UpdateFeatureNavLabels();
         Closed += (_, _) =>
         {
             _telemetrySyncTimer?.Stop();

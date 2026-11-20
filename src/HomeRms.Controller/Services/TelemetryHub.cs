@@ -67,10 +67,15 @@ public sealed class EndpointTelemetry : INotifyPropertyChanged
         RamSeries = _points.Select(p => p.Ram).ToArray();
         DiskSeries = _points.Select(p => p.DiskMax).ToArray();
         NetSeries = _points.Select(p => p.RxBps + p.TxBps).ToArray();
-        var last = _points[^1];
+        RefreshHot(t);
+        Raise(string.Empty);
+    }
+
+    public void RefreshHot(AlertThresholds t)
+    {
+        if (Latest is not { } last) { IsHot = false; return; }
         IsHot = last.Cpu >= t.CpuThresholdPercent || last.Ram >= t.RamThresholdPercent ||
                 100 - last.DiskMax < t.DiskFreeMinPercent;
-        Raise(string.Empty);
     }
 
     internal void Clear()
@@ -132,8 +137,10 @@ public sealed class TelemetryHub : IDisposable
     /// <summary>Starts / stops streams to match the fleet. Call on the UI thread.</summary>
     public void Sync(IEnumerable<MachineProfile> machines)
     {
-        var wanted = machines
-            .Where(m => m.Kind == EndpointKind.WindowsAgent && (m.IsOnline || m.IsConnected))
+        var all = machines.ToHashSet();
+        var wanted = all
+            .Where(m => (m.Kind == EndpointKind.WindowsAgent || (m.Kind == EndpointKind.Linux && m.ConnectionMode == ConnectionMode.Agent))
+                        && (m.IsOnline || m.IsConnected))
             .ToHashSet();
 
         foreach (var (m, cts) in _running.ToList())
@@ -146,10 +153,11 @@ public sealed class TelemetryHub : IDisposable
                 et.IsLive = false;
                 et.Status = "Offline";
             }
+            if (all.Contains(m))
+                _alerts.EvaluateSample(m.DisplayTitle, m.Host, false, 0, 0);
         }
 
         // Endpoints removed from the fleet disappear from the tiles; offline ones stay (shown offline).
-        var all = machines.ToHashSet();
         foreach (var et in Endpoints.Where(e => !all.Contains(e.Profile)).ToList())
             Endpoints.Remove(et);
 
@@ -176,18 +184,19 @@ public sealed class TelemetryHub : IDisposable
             var gotSample = false;
             try
             {
-                _dispatcher.Invoke(() => et.Status = "Connecting");
+                RunOnUi(() => et.Status = "Connecting");
                 var conn = _pool.Get(et.Profile);
                 using var call = conn.Client.GetTelemetry(new TelemetryRequest { IntervalMs = IntervalMs }, cancellationToken: ct);
                 await foreach (var s in call.ResponseStream.ReadAllAsync(ct))
                 {
                     gotSample = true;
                     backoff = TimeSpan.FromSeconds(2);
+                    if (_dispatcher.HasShutdownStarted || _dispatcher.HasShutdownFinished) break;
                     await _dispatcher.InvokeAsync(() => OnSample(et, s));
                 }
                 SetStatus(et, "Stream ended", live: false);
             }
-            catch (OperationCanceledException) when (ct.IsCancellationRequested) { break; }
+            catch (OperationCanceledException) when (ct.IsCancellationRequested || _dispatcher.HasShutdownStarted || _dispatcher.HasShutdownFinished) { break; }
             catch (RpcException ex) when (ex.StatusCode == StatusCode.Cancelled && ct.IsCancellationRequested) { break; }
             catch (RpcException ex) when (ex.StatusCode is StatusCode.PermissionDenied or StatusCode.Unauthenticated)
             {
@@ -211,8 +220,19 @@ public sealed class TelemetryHub : IDisposable
         }
     }
 
+    private void RunOnUi(Action action)
+    {
+        if (_dispatcher.HasShutdownStarted || _dispatcher.HasShutdownFinished) return;
+        try
+        {
+            _dispatcher.Invoke(action);
+        }
+        catch (TaskCanceledException) { }
+        catch (OperationCanceledException) { }
+    }
+
     private void SetStatus(EndpointTelemetry et, string status, bool live) =>
-        _dispatcher.Invoke(() =>
+        RunOnUi(() =>
         {
             et.Status = status;
             et.IsLive = live;

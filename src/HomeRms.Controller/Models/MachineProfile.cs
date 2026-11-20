@@ -2,6 +2,7 @@ using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using System.Text.Json.Serialization;
 using System.Windows.Media;
+using HomeRms.Controller.Themes;
 
 namespace HomeRms.Controller.Models;
 
@@ -393,25 +394,18 @@ public sealed class MachineProfile : INotifyPropertyChanged
     public string ConnectActionText => IsConnected ? "Disconnect" : "Connect";
 
     [JsonIgnore]
-    public Brush DotBrush => IsConnected
-        ? new SolidColorBrush(Color.FromRgb(14, 165, 233))   // #0EA5E9 Connected Cyan
-        : IsOnline
-            ? new SolidColorBrush(Color.FromRgb(16, 185, 129)) // #10B981 Glowing Emerald
-            : new SolidColorBrush(Color.FromRgb(100, 116, 139)); // Muted Slate
+    public Brush DotBrush => Palette.Fg(StatusTone); // connected = info, online = success, offline = neutral
 
     [JsonIgnore]
-    public Color DotGlowColor => IsConnected
-        ? Color.FromRgb(14, 165, 233)
-        : IsOnline
-            ? Color.FromRgb(16, 185, 129)
-            : Color.FromArgb(0, 0, 0, 0);
+    public Color DotGlowColor => IsConnected || IsOnline
+        ? (Palette.Fg(StatusTone) as SolidColorBrush)?.Color ?? Colors.Transparent
+        : Colors.Transparent;
 
     [JsonIgnore]
-    public Brush BadgeBackground => IsConnected
-        ? new SolidColorBrush(Color.FromArgb(45, 14, 165, 233))
-        : IsOnline
-            ? new SolidColorBrush(Color.FromArgb(40, 16, 185, 129))
-            : new SolidColorBrush(Color.FromArgb(30, 100, 116, 139));
+    public Brush BadgeBackground => Palette.Soft(StatusTone);
+
+    [JsonIgnore]
+    private PaletteTone StatusTone => IsConnected ? PaletteTone.Info : IsOnline ? PaletteTone.Success : PaletteTone.Neutral;
 
     public event PropertyChangedEventHandler? PropertyChanged;
     private void OnPropertyChanged([CallerMemberName] string? prop = null)

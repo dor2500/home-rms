@@ -12,9 +12,9 @@
                 <Button Content="Open" Style="{StaticResource PrimaryButton}" Padding="12,5" Click="OnOpenEndpointClick"/>
             </StackPanel>
             <StackPanel VerticalAlignment="Center">
-                <TextBlock Text="REMOTE FILE MANAGER" Style="{StaticResource Caption}" Margin="0,0,0,2"/>
+                <TextBlock Text="Remote file manager" Style="{StaticResource PageTitle}"/>
                 <TextBlock x:Name="SubtitleText" Text="Browse, upload, download and manage files on a paired agent. Drag files between panes or from Explorer."
-                           FontSize="11.5" Foreground="{StaticResource MutedBrush}" TextTrimming="CharacterEllipsis"/>
+                           Style="{StaticResource PageSubtitle}" TextTrimming="CharacterEllipsis"/>
             </StackPanel>
         </DockPanel>
 

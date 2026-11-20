@@ -220,7 +220,7 @@ public sealed partial class WingetCatalogService
     {
         Id = p.Id,
         Name = p.Name,
-        Publisher = PublisherFromId(p.Id),
+        Publisher = !string.IsNullOrWhiteSpace(p.NormPublisher) ? p.NormPublisher : PublisherFromId(p.Id),
         Version = p.Version,
         Category = WingetCategories.FromTags(p.Tags),
         Description = DescribeTags(p),

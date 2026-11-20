@@ -56,8 +56,8 @@ public partial class FileManagerView : UserControl
     {
         InitializeComponent();
         TransfersList.ItemsSource = _transfers;
-        LocalPane.Title = "THIS PC (LOCAL)";
-        RemotePane.Title = "REMOTE — choose an endpoint and click Open";
+        LocalPane.Title = "This PC (local)";
+        RemotePane.Title = "Remote — choose an endpoint and click Open";
         LocalPane.DropReceived += OnPaneDrop;
         RemotePane.DropReceived += OnPaneDrop;
     }
@@ -104,7 +104,7 @@ public partial class FileManagerView : UserControl
     {
         if (_ctx is null || EndpointCombo.SelectedItem is not MachineProfile m) return;
         _remote = new RemoteFileSource(_ctx.Pool, m);
-        RemotePane.Title = $"REMOTE — {m.DisplayTitle.ToUpperInvariant()} ({m.Address})";
+        RemotePane.Title = $"Remote — {m.DisplayTitle} ({m.Address})";
         SubtitleText.Text = $"Connected to {m.DisplayTitle}. Every file operation is written to the agent's audit log.";
         await RemotePane.AttachAsync(_remote);
     }
@@ -192,31 +192,39 @@ public partial class FileManagerView : UserControl
 
     private async Task UploadFileAsync(RemoteFileSource remote, TransferItem item, bool overwrite, CancellationToken ct)
     {
-        var conn = await _ctx!.Pool.GetPairedAsync(remote.Endpoint, interactive: true, ct);
-        await using var fs = new FileStream(item.SourcePath, FileMode.Open, FileAccess.Read, FileShare.Read, 1 << 16, useAsync: true);
-        item.Total = fs.Length;
-        using var call = conn.Client.UploadFile(cancellationToken: ct);
-        var buffer = new byte[ChunkSize];
-        var first = true;
-        while (true)
+        try
         {
-            var n = await fs.ReadAsync(buffer, ct);
-            if (n == 0 && !first) break;
-            var chunk = new FileUploadChunk { Data = ByteString.CopyFrom(buffer, 0, n) };
-            if (first)
+            var conn = await _ctx!.Pool.GetPairedAsync(remote.Endpoint, interactive: true, ct);
+            await using var fs = new FileStream(item.SourcePath, FileMode.Open, FileAccess.Read, FileShare.Read, 1 << 16, useAsync: true);
+            item.Total = fs.Length;
+            using var call = conn.Client.UploadFile(cancellationToken: ct);
+            var buffer = new byte[ChunkSize];
+            var first = true;
+            while (true)
             {
-                chunk.DestinationPath = item.DestinationPath;
-                chunk.Overwrite = overwrite;
-                chunk.TotalSize = fs.Length;
-                first = false;
+                var n = await fs.ReadAsync(buffer, ct);
+                if (n == 0 && !first) break;
+                var chunk = new FileUploadChunk { Data = ByteString.CopyFrom(buffer, 0, n) };
+                if (first)
+                {
+                    chunk.DestinationPath = item.DestinationPath;
+                    chunk.Overwrite = overwrite;
+                    chunk.TotalSize = fs.Length;
+                    first = false;
+                }
+                await call.RequestStream.WriteAsync(chunk, ct);
+                item.Done += n;
+                if (n == 0) break;
             }
-            await call.RequestStream.WriteAsync(chunk, ct);
-            item.Done += n;
-            if (n == 0) break;
+            await call.RequestStream.CompleteAsync();
+            var res = await call.ResponseAsync;
+            if (!res.Success) throw new IOException(res.Message);
         }
-        await call.RequestStream.CompleteAsync();
-        var res = await call.ResponseAsync;
-        if (!res.Success) throw new IOException(res.Message);
+        catch (RpcException ex) when (ex.StatusCode == StatusCode.PermissionDenied)
+        {
+            _ctx!.Pool.MarkUnpaired(remote.Endpoint.Host, remote.Endpoint.Port);
+            throw;
+        }
     }
 
     // ---------------- Download ----------------
@@ -288,6 +296,12 @@ public partial class FileManagerView : UserControl
                 }
             }
             File.Move(tmp, item.DestinationPath, overwrite: true);
+        }
+        catch (RpcException ex) when (ex.StatusCode == StatusCode.PermissionDenied)
+        {
+            _ctx.Pool.MarkUnpaired(remote.Endpoint.Host, remote.Endpoint.Port);
+            try { File.Delete(tmp); } catch { }
+            throw;
         }
         catch
         {

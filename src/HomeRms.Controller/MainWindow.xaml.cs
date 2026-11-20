@@ -14,6 +14,7 @@ using System.Windows.Media.Imaging;
 using Grpc.Core;
 using HomeRms.Controller.Models;
 using HomeRms.Controller.Services;
+using HomeRms.Controller.Themes;
 using HomeRms.Shared;
 using HomeRms.Shared.Network;
 using HomeRms.Shared.Protocol;
@@ -24,6 +25,7 @@ namespace HomeRms.Controller;
 public partial class MainWindow : Window
 {
     private readonly ObservableCollection<MachineProfile> _machines = new();
+    private System.Windows.Data.ListCollectionView? _fleetView;
     private readonly ObservableCollection<FleetActivityEvent> _activityEvents = new();
     private readonly List<int> _latencyHistory = new() { 14, 16, 12, 15, 11, 13, 12 };
     private readonly CentralHubService _centralHub;
@@ -66,7 +68,9 @@ public partial class MainWindow : Window
         foreach (var m in MachineStore.Load())
             _machines.Add(m);
 
-        MachinesList.ItemsSource = _machines;
+        // Endpoint cards get their own view so the fleet filter never touches the Overview list.
+        _fleetView = new System.Windows.Data.ListCollectionView(_machines);
+        MachinesList.ItemsSource = _fleetView;
         OverviewFleetList.ItemsSource = _machines;
         OverviewEventsList.ItemsSource = _activityEvents;
         FleetActivityList.ItemsSource = _activityEvents;
@@ -76,10 +80,13 @@ public partial class MainWindow : Window
         _centralHub = new CentralHubService(() => _machines, ProbeAllMachinesAsync, AddActivity, _agentless, _ssh, _alerts);
         _centralHub.Start();
         if (HubRelayStatusText is not null)
-            HubRelayStatusText.Text = _centralHub.IsRunning ? $"HUB RELAY :{_centralHub.Port}" : "HUB STANDBY";
+            HubRelayStatusText.Text = _centralHub.IsRunning ? $"Hub relay :{_centralHub.Port}" : "Hub standby";
+        if (HubRelayDot is not null)
+            HubRelayDot.Fill = (Brush)FindResource(_centralHub.IsRunning ? "OkBrush" : "WarnBrush");
 
         InitializeOverhaulServices();
         InitializeFeatureViews();
+        InitializeShell(); // MainWindow.Shell.cs: live console, sidebar state, nav badges, transitions
         UpdateDynamicTabVisibility(SelectedMachine);
 
         AddActivity("mTLS", "Central Hub & Operations Console initialized. Mutual-TLS X.509 PKI ready.");
@@ -126,6 +133,13 @@ public partial class MainWindow : Window
 
     private AvailableUpdate? _pendingUpdate;
 
+    private void StyleUpdateAvailable()
+    {
+        UpdateBtn.Background = Palette.Success;
+        UpdateBtn.BorderBrush = Palette.SuccessLine;
+        UpdateBtn.Foreground = Palette.TextOnAccent;
+    }
+
     private async Task CheckGitHubUpdateInBackgroundAsync()
     {
         try
@@ -136,9 +150,7 @@ public partial class MainWindow : Window
             {
                 _pendingUpdate = update;
                 UpdateBtn.Content = $"Update {update.Tag}";
-                UpdateBtn.Background = new SolidColorBrush(Color.FromRgb(16, 185, 129));
-                UpdateBtn.BorderBrush = new SolidColorBrush(Color.FromRgb(52, 211, 153));
-                UpdateBtn.Foreground = Brushes.White;
+                StyleUpdateAvailable();
                 UpdateBtn.ToolTip = $"New version {update.Tag} available on GitHub. Click to update & restart.";
             }
             else
@@ -166,9 +178,7 @@ public partial class MainWindow : Window
                     return;
                 }
                 UpdateBtn.Content = $"Update {_pendingUpdate.Tag}";
-                UpdateBtn.Background = new SolidColorBrush(Color.FromRgb(16, 185, 129));
-                UpdateBtn.BorderBrush = new SolidColorBrush(Color.FromRgb(52, 211, 153));
-                UpdateBtn.Foreground = Brushes.White;
+                StyleUpdateAvailable();
                 return;
             }
 
@@ -226,25 +236,15 @@ public partial class MainWindow : Window
         }
 
         UpdateFeatureViewVisibility();
+        AnimateActivePanel(); // MainWindow.Shell.cs
     }
 
     private void OnToggleSidebarClick(object sender, RoutedEventArgs e)
     {
         _sidebarCollapsed = !_sidebarCollapsed;
-        RailColumn.Width = new GridLength(_sidebarCollapsed ? 52 : 192);
-        var labelVis = _sidebarCollapsed ? Visibility.Collapsed : Visibility.Visible;
-
-        SidebarSectionLabel.Visibility = labelVis;
-        SidebarFooterText.Visibility = labelVis;
-        NavLabelOverview.Visibility = labelVis;
-        NavLabelFleet.Visibility = labelVis;
-        NavLabelDesktop.Visibility = labelVis;
-        NavLabelMonitor.Visibility = labelVis;
-        NavLabelShell.Visibility = labelVis;
-        NavLabelDeploy.Visibility = labelVis;
-        NavLabelUpdates.Visibility = labelVis;
-        NavLabelSettings.Visibility = labelVis;
-        NavLabelAbout.Visibility = labelVis;
+        ApplySidebarState(animate: true); // MainWindow.Shell.cs
+        _ui.SidebarCollapsed = _sidebarCollapsed;
+        _ui.Save();
     }
 
     private void OnGoToFleetClick(object sender, RoutedEventArgs e) => NavFleet.IsChecked = true;
@@ -331,7 +331,7 @@ public partial class MainWindow : Window
                 FontFamily = (FontFamily)FindResource("MonoFont"),
                 FontSize = 9.5,
                 FontWeight = FontWeights.SemiBold,
-                Foreground = (Brush)FindResource("AccentBrush"),
+                Foreground = (Brush)FindResource("TextMutedBrush"),
                 Width = 34,
                 VerticalAlignment = VerticalAlignment.Center
             });
@@ -349,8 +349,9 @@ public partial class MainWindow : Window
                 HorizontalContentAlignment = HorizontalAlignment.Left,
                 Margin = new Thickness(0, 0, 0, 2),
                 Padding = new Thickness(10, 7, 10, 7),
-                Style = (Style)FindResource("GhostButton"),
-                BorderThickness = new Thickness(0)
+                Style = (Style)FindResource("SubtleButton"),
+                BorderThickness = new Thickness(0),
+                MinHeight = 32
             };
             item.Click += (_, _) => { if (!ReferenceEquals(_win11Page, page)) SelectWin11Page(page); };
             Win11SidebarPanel.Children.Add(item);
@@ -364,14 +365,15 @@ public partial class MainWindow : Window
         foreach (Button item in Win11SidebarPanel.Children)
         {
             var active = ReferenceEquals(item.Tag, page);
-            item.Background = new SolidColorBrush(active ? Color.FromArgb(40, 59, 130, 246) : Colors.Transparent);
-            item.Foreground = new SolidColorBrush(active ? Colors.White : Color.FromRgb(203, 213, 225));
+            item.Background = active ? Palette.AccentSoft : Brushes.Transparent;
+            item.Foreground = active ? Palette.TextPrimary : Palette.TextSecondary;
+            item.FontWeight = active ? FontWeights.SemiBold : FontWeights.Normal;
         }
 
         if (!string.IsNullOrEmpty(SettingsSearchBox.Text))
             SettingsSearchBox.Text = "";
 
-        Win11PageTitle.Text = $"{page.Icon} // {page.Title}";
+        Win11PageTitle.Text = page.Title;
         Win11PageSubtitle.Text = page.Subtitle;
         SystemTargetLabel.Text = "Target — " + page.TargetHint;
         SystemExtraLabel.Text = "Extra — " + (page.Items.FirstOrDefault(i => i.ExtraHint is not null)?.ExtraHint ?? "(optional)");
@@ -384,7 +386,7 @@ public partial class MainWindow : Window
         var q = SettingsSearchBox.Text.Trim();
         if (string.IsNullOrEmpty(q))
         {
-            Win11PageTitle.Text = $"{_win11Page.Icon} // {_win11Page.Title}";
+            Win11PageTitle.Text = _win11Page.Title;
             Win11PageSubtitle.Text = _win11Page.Subtitle;
             RenderWin11Cards(_win11Page.Items);
             return;
@@ -395,7 +397,7 @@ public partial class MainWindow : Window
             .Where(i => i.Title.Contains(q, StringComparison.OrdinalIgnoreCase) ||
                         i.Subtitle.Contains(q, StringComparison.OrdinalIgnoreCase))
             .ToList();
-        Win11PageTitle.Text = $"SEARCH // \"{q}\"";
+        Win11PageTitle.Text = $"Search: \u201c{q}\u201d";
         Win11PageSubtitle.Text = matches.Count == 1 ? "1 matching operation" : $"{matches.Count} matching operations";
         RenderWin11Cards(matches);
     }
@@ -408,8 +410,8 @@ public partial class MainWindow : Window
             var card = new Border
             {
                 Style = (Style)FindResource("CardStyle"),
-                Padding = new Thickness(14, 10, 14, 10),
-                Margin = new Thickness(0, 0, 0, 6)
+                Padding = new Thickness(16, 12, 16, 12),
+                Margin = new Thickness(0, 0, 0, 8)
             };
 
             var dock = new DockPanel();
@@ -418,8 +420,7 @@ public partial class MainWindow : Window
                 Content = item.ButtonLabel,
                 Style = (Style)FindResource(item.Dangerous ? "DangerButton" : "PrimaryButton"),
                 MinWidth = 104,
-                Padding = new Thickness(12, 6, 12, 6),
-                FontSize = 11.5,
+                Padding = new Thickness(12, 4, 12, 4),
                 VerticalAlignment = VerticalAlignment.Center
             };
             if (item.Dangerous) btn.ToolTip = "Modifies remote endpoint configuration — confirmation required";
@@ -428,18 +429,15 @@ public partial class MainWindow : Window
 
             var tagBorder = new Border
             {
-                Background = new SolidColorBrush(Color.FromArgb(24, 59, 130, 246)),
-                BorderBrush = (Brush)FindResource("LineBrush"),
-                BorderThickness = new Thickness(1),
-                CornerRadius = new CornerRadius(4),
-                Padding = new Thickness(6, 3, 6, 3),
-                Margin = new Thickness(0, 0, 12, 0),
+                Background = Palette.AccentSoft,
+                CornerRadius = new CornerRadius(10),
+                Padding = new Thickness(8, 2, 8, 2),
+                Margin = new Thickness(0, 0, 14, 0),
                 VerticalAlignment = VerticalAlignment.Center,
                 Child = new TextBlock
                 {
-                    Text = item.Area.ToUpperInvariant(),
-                    FontFamily = (FontFamily)FindResource("MonoFont"),
-                    FontSize = 9.5,
+                    Text = item.Area,
+                    FontSize = 10.5,
                     FontWeight = FontWeights.SemiBold,
                     Foreground = (Brush)FindResource("AccentBrush")
                 }
@@ -447,11 +445,11 @@ public partial class MainWindow : Window
             DockPanel.SetDock(tagBorder, Dock.Left);
 
             var textStack = new StackPanel { VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 14, 0) };
-            textStack.Children.Add(new TextBlock { Text = item.Title, FontSize = 12.5, FontWeight = FontWeights.SemiBold });
+            textStack.Children.Add(new TextBlock { Text = item.Title, FontSize = 13, FontWeight = FontWeights.SemiBold });
             var sub = new TextBlock
             {
                 Text = item.Subtitle,
-                FontSize = 11,
+                FontSize = 12,
                 Foreground = (Brush)FindResource("MutedBrush"),
                 Margin = new Thickness(0, 2, 0, 0),
                 TextWrapping = TextWrapping.Wrap
@@ -574,6 +572,12 @@ public partial class MainWindow : Window
             }
             return;
         }
+        if (e.Key == Key.Oem3 && Keyboard.Modifiers == ModifierKeys.Control)
+        {
+            e.Handled = true;
+            SetConsoleOpen(ConsoleDrawer.Visibility != Visibility.Visible, persist: true);
+            return;
+        }
         if (e.Key == Key.F11)
         {
             e.Handled = true;
@@ -622,6 +626,7 @@ public partial class MainWindow : Window
             RailBorder.Visibility = Visibility.Collapsed;
             TopBarBorder.Visibility = Visibility.Collapsed;
             DesktopToolbarBorder.Visibility = Visibility.Collapsed;
+            SetConsoleChromeHidden(true); // MainWindow.Shell.cs
             WorkspaceGrid.Margin = new Thickness(0);
             ScreenCanvasBorder.CornerRadius = new CornerRadius(0);
             ScreenCanvasBorder.BorderThickness = new Thickness(0);
@@ -639,12 +644,13 @@ public partial class MainWindow : Window
             ResizeMode = ResizeMode.CanResize;
             WindowState = _prevWindowState == WindowState.Minimized ? WindowState.Normal : _prevWindowState;
 
-            RailColumn.Width = new GridLength(76);
+            RailColumn.Width = GridLength.Auto;
             RailBorder.Visibility = Visibility.Visible;
             TopBarBorder.Visibility = Visibility.Visible;
             DesktopToolbarBorder.Visibility = Visibility.Visible;
-            WorkspaceGrid.Margin = new Thickness(20, 16, 20, 18);
-            ScreenCanvasBorder.CornerRadius = new CornerRadius(14);
+            SetConsoleChromeHidden(false);
+            WorkspaceGrid.Margin = (Thickness)FindResource("PageMargin");
+            ScreenCanvasBorder.CornerRadius = (CornerRadius)FindResource("RadiusCard");
             ScreenCanvasBorder.BorderThickness = new Thickness(1);
             FullscreenHud.Visibility = Visibility.Collapsed;
         }
@@ -680,16 +686,14 @@ public partial class MainWindow : Window
 
     private void OnFleetFilterChanged(object sender, TextChangedEventArgs e)
     {
+        if (_fleetView is null) return;
         var q = FleetFilterBox?.Text?.Trim() ?? "";
-        if (q.Length == 0)
-        {
-            MachinesList.ItemsSource = _machines;
-            return;
-        }
-        MachinesList.ItemsSource = _machines.Where(m =>
-            m.DisplayTitle.Contains(q, StringComparison.OrdinalIgnoreCase) ||
-            m.Host.Contains(q, StringComparison.OrdinalIgnoreCase) ||
-            m.OsTag.Contains(q, StringComparison.OrdinalIgnoreCase)).ToList();
+        _fleetView.Filter = q.Length == 0
+            ? null
+            : o => o is MachineProfile m &&
+                   (m.DisplayTitle.Contains(q, StringComparison.OrdinalIgnoreCase) ||
+                    m.Host.Contains(q, StringComparison.OrdinalIgnoreCase) ||
+                    m.OsTag.Contains(q, StringComparison.OrdinalIgnoreCase));
     }
 
     private void OnClearActivityLogClick(object sender, RoutedEventArgs e) => _activityEvents.Clear();
@@ -1147,13 +1151,12 @@ public partial class MainWindow : Window
 
     private void AddActivity(string category, string message)
     {
-        var (bg, fg) = category switch
-        {
-            "CONNECT" or "mTLS" => (Color.FromArgb(40, 16, 185, 129), Color.FromRgb(52, 211, 153)),
-            "ALERT" => (Color.FromArgb(45, 244, 63, 94), Color.FromRgb(251, 113, 133)),
-            "LAN SCAN" or "FLEET" => (Color.FromArgb(40, 14, 165, 233), Color.FromRgb(56, 189, 248)),
-            _ => (Color.FromArgb(40, 99, 102, 241), Color.FromRgb(165, 180, 252))
-        };
+        // Badge tone comes from the semantic palette; every line is mirrored to the Live Console.
+        var (source, tone) = LogBus.Classify(category);
+        if (tone == PaletteTone.Neutral) tone = PaletteTone.Accent;
+        var bg = Palette.Soft(tone);
+        var fg = Palette.Fg(tone);
+        LogBus.Publish(source, category, message, tone);
 
         void Append()
         {
@@ -1162,8 +1165,8 @@ public partial class MainWindow : Window
                 Timestamp = DateTime.Now.ToString("HH:mm:ss"),
                 Category = category,
                 Message = message,
-                BadgeBackground = new SolidColorBrush(bg),
-                BadgeForeground = new SolidColorBrush(fg)
+                BadgeBackground = bg,
+                BadgeForeground = fg
             });
             while (_activityEvents.Count > 60)
                 _activityEvents.RemoveAt(_activityEvents.Count - 1);
@@ -1199,7 +1202,7 @@ public partial class MainWindow : Window
         var avgRam = onlineHosts.Count > 0 ? onlineHosts.Average(m => m.RamPercent) : 0;
         var avgRtt = onlineHosts.Count > 0 ? (int)onlineHosts.Average(m => m.LatencyMs) : 0;
 
-        if (KpiFleetLoad is not null) KpiFleetLoad.Text = onlineHosts.Count > 0 ? $"{avgCpu:0}% CPU • {avgRam:0}% RAM" : "--% CPU • --% RAM";
+        if (KpiFleetLoad is not null) KpiFleetLoad.Text = onlineHosts.Count > 0 ? $"{avgCpu:0}% CPU · {avgRam:0}% RAM" : "--% CPU · --% RAM";
         if (KpiLoadBar is not null) KpiLoadBar.Value = avgCpu;
         if (KpiAvgLatency is not null) KpiAvgLatency.Text = onlineHosts.Count > 0 ? $"{avgRtt} ms" : "-- ms";
         if (TrafficPeakText is not null) TrafficPeakText.Text = _latencyHistory.Count > 0 ? $"Peak: {_latencyHistory.Max()} ms" : "Peak: -- ms";
@@ -1229,6 +1232,8 @@ public partial class MainWindow : Window
             }
             TrafficSparkline.Points = pts;
         }
+
+        UpdateNavBadges(); // MainWindow.Shell.cs
     }
 
     private enum Tone { Neutral, Success, Caution, Critical }
@@ -1248,15 +1253,16 @@ public partial class MainWindow : Window
 
     private static void SetPill(Border pill, TextBlock text, Tone tone)
     {
-        var (bg, fg) = tone switch
+        var t = tone switch
         {
-            Tone.Success => (Color.FromArgb(30, 16, 185, 129), Color.FromRgb(16, 185, 129)),
-            Tone.Caution => (Color.FromArgb(30, 245, 158, 11), Color.FromRgb(245, 158, 11)),
-            Tone.Critical => (Color.FromArgb(30, 239, 68, 68), Color.FromRgb(239, 68, 68)),
-            _ => (Color.FromArgb(24, 59, 130, 246), Color.FromRgb(138, 144, 158))
+            Tone.Success => PaletteTone.Success,
+            Tone.Caution => PaletteTone.Warning,
+            Tone.Critical => PaletteTone.Danger,
+            _ => PaletteTone.Neutral
         };
-        pill.Background = new SolidColorBrush(bg);
-        text.Foreground = new SolidColorBrush(fg);
+        pill.Background = Palette.Soft(t);
+        pill.BorderBrush = Palette.Line(t);
+        text.Foreground = Palette.Fg(t);
     }
 
     private void SetBadge(string text, Tone tone)
@@ -1338,28 +1344,17 @@ public partial class MainWindow : Window
 
     private void ApplyInventoryFilter()
     {
+        // ICollectionView filtering: the user's column sort survives both filtering and refreshes.
         var q = SearchBox?.Text?.Trim() ?? "";
-        if (string.IsNullOrEmpty(q))
-        {
-            AppsGrid.ItemsSource = _allApps;
-            ProcGrid.ItemsSource = _allProcs;
-            AppsCountText.Text = $"{_allApps.Count} apps";
-            ProcsCountText.Text = $"{_allProcs.Count} processes";
-            return;
-        }
+        var apps = BindPreservingSort(AppsGrid, _allApps, q.Length == 0 ? null : o => o is AppRow a &&
+            (a.Name.Contains(q, StringComparison.OrdinalIgnoreCase) ||
+             a.Publisher.Contains(q, StringComparison.OrdinalIgnoreCase)));
+        var procs = BindPreservingSort(ProcGrid, _allProcs, q.Length == 0 ? null : o => o is ProcRow p &&
+            (p.Name.Contains(q, StringComparison.OrdinalIgnoreCase) ||
+             p.Pid.ToString().Contains(q, StringComparison.OrdinalIgnoreCase)));
 
-        var filteredApps = _allApps.Where(a =>
-            a.Name.Contains(q, StringComparison.OrdinalIgnoreCase) ||
-            a.Publisher.Contains(q, StringComparison.OrdinalIgnoreCase)).ToList();
-
-        var filteredProcs = _allProcs.Where(p =>
-            p.Name.Contains(q, StringComparison.OrdinalIgnoreCase) ||
-            p.Pid.ToString().Contains(q, StringComparison.OrdinalIgnoreCase)).ToList();
-
-        AppsGrid.ItemsSource = filteredApps;
-        ProcGrid.ItemsSource = filteredProcs;
-        AppsCountText.Text = $"{filteredApps.Count} / {_allApps.Count} apps";
-        ProcsCountText.Text = $"{filteredProcs.Count} / {_allProcs.Count} procs";
+        AppsCountText.Text = q.Length == 0 ? $"{_allApps.Count} apps" : $"{apps} / {_allApps.Count} apps";
+        ProcsCountText.Text = q.Length == 0 ? $"{_allProcs.Count} processes" : $"{procs} / {_allProcs.Count} procs";
     }
 
     private async void OnKillSelectedProcessClick(object sender, RoutedEventArgs e)
@@ -2172,6 +2167,7 @@ public partial class MainWindow : Window
         }
         DeployOutputBox.AppendText(line + "\r\n");
         DeployOutputBox.ScrollToEnd();
+        MirrorDeployLineToConsole(line); // MainWindow.Shell.cs
     }
 
     // ---------------- Automated Screenshot Generation ----------------

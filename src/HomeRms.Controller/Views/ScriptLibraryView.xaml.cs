@@ -188,10 +188,10 @@ public partial class ScriptLibraryView : UserControl
     {
         if (_ctx is null || _runCts is not null) return;
         var targets = _targets.Where(t => t.IsChecked).Select(t => t.Profile).ToList();
-        if (targets.Count == 0) { RunCaption.Text = "RESULTS — tick at least one target endpoint"; return; }
+        if (targets.Count == 0) { RunCaption.Text = "Results — tick at least one target endpoint"; return; }
 
         var body = BodyBox.Text;
-        if (body.Trim().Length == 0) { RunCaption.Text = "RESULTS — the script body is empty"; return; }
+        if (body.Trim().Length == 0) { RunCaption.Text = "Results — the script body is empty"; return; }
         var shell = ShellCombo.SelectedIndex == 1 ? ScriptShell.Cmd : ScriptShell.PowerShell;
         var title = NameBox.Text.Trim().Length > 0 ? NameBox.Text.Trim() : "Ad-hoc script";
         var minutes = double.TryParse(TimeoutBox.Text, out var t) ? Math.Clamp(t, 1, 240) : 15;
@@ -220,7 +220,7 @@ public partial class ScriptLibraryView : UserControl
         var (runs, completion) = _ctx.Scripts.Start(targets, shell, body, title, timeout, _runCts.Token);
         foreach (var r in runs) _runs.Add(r);
         RunsGrid.SelectedIndex = 0;
-        RunCaption.Text = $"RESULTS — {title}";
+        RunCaption.Text = $"Results — {title}";
         try
         {
             await completion;
@@ -228,7 +228,10 @@ public partial class ScriptLibraryView : UserControl
         finally
         {
             var ok = runs.Count(r => r.State == ScriptRunState.Succeeded);
-            RunCaption.Text = $"RESULTS — {title}: {ok}/{runs.Count} succeeded";
+            RunCaption.Text = $"Results — {title}: {ok}/{runs.Count} succeeded";
+            foreach (var r in runs)
+                Services.LogBus.Publish(Services.LogBus.Scripts, r.EndpointName, $"{title}: {r.StateText} — {r.Summary}",
+                    r.State == ScriptRunState.Succeeded ? Themes.PaletteTone.Success : Themes.PaletteTone.Danger);
             _ctx.Log(ok == runs.Count ? "SCRIPT" : "ALERT", $"'{title}' finished: {ok}/{runs.Count} succeeded.");
             _runCts.Dispose();
             _runCts = null;

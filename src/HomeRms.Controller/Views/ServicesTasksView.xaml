@@ -11,9 +11,9 @@
                 <Button Content="Load" Style="{StaticResource PrimaryButton}" Padding="12,5" Click="OnLoadClick"/>
             </StackPanel>
             <StackPanel VerticalAlignment="Center">
-                <TextBlock Text="SERVICES &amp; SCHEDULED TASKS" Style="{StaticResource Caption}" Margin="0,0,0,2"/>
+                <TextBlock Text="Services &amp; scheduled tasks" Style="{StaticResource PageTitle}"/>
                 <TextBlock x:Name="SubtitleText" Text="Manage Windows services and scheduled tasks on a paired agent (allowlisted SystemOp actions, audited on the agent)."
-                           FontSize="11.5" Foreground="{StaticResource MutedBrush}" TextTrimming="CharacterEllipsis"/>
+                           Style="{StaticResource PageSubtitle}" TextTrimming="CharacterEllipsis"/>
             </StackPanel>
         </DockPanel>
 
@@ -48,7 +48,7 @@
                                 <Button Content="Set startup" Style="{StaticResource SmallPillButton}" Margin="0,0,10,0" Click="OnSetStartupClick"/>
                                 <Button Content="Refresh" Style="{StaticResource SmallPillButton}" Click="OnRefreshServicesClick"/>
                             </StackPanel>
-                            <TextBox x:Name="ServiceFilterBox" Margin="0,0,10,0" TextChanged="OnServiceFilterChanged" ToolTip="Filter by name, display name, state or start mode"/>
+                            <TextBox x:Name="ServiceFilterBox" Style="{StaticResource SearchBox}" Tag="Filter services..." Margin="0,0,10,0" TextChanged="OnServiceFilterChanged" ToolTip="Filter by name, display name, state or start mode"/>
                         </DockPanel>
                         <DataGrid x:Name="ServicesGrid" AutoGenerateColumns="False" IsReadOnly="True" CanUserSortColumns="True"
                                   SelectionMode="Extended" HeadersVisibility="Column" GridLinesVisibility="None"
@@ -92,7 +92,7 @@
                                           IsChecked="True" Checked="OnTaskFilterChanged" Unchecked="OnTaskFilterChanged"/>
                                 <Button Content="Refresh" Style="{StaticResource SmallPillButton}" Click="OnRefreshTasksClick"/>
                             </StackPanel>
-                            <TextBox x:Name="TaskFilterBox" Margin="0,0,10,0" TextChanged="OnTaskFilterChanged" ToolTip="Filter by path, name or state"/>
+                            <TextBox x:Name="TaskFilterBox" Style="{StaticResource SearchBox}" Tag="Filter tasks..." Margin="0,0,10,0" TextChanged="OnTaskFilterChanged" ToolTip="Filter by path, name or state"/>
                         </DockPanel>
                         <DataGrid x:Name="TasksGrid" AutoGenerateColumns="False" IsReadOnly="True" CanUserSortColumns="True"
                                   SelectionMode="Extended" HeadersVisibility="Column" GridLinesVisibility="None"

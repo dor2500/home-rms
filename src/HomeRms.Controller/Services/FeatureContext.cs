@@ -25,6 +25,7 @@ public sealed class FeatureContext
     /// <summary>All endpoints currently selected in the Endpoints view (multi-select).</summary>
     public required Func<IReadOnlyList<MachineProfile>> SelectedEndpoints { get; init; }
 
-    /// <summary>Windows endpoints that can run agent RPCs.</summary>
-    public IEnumerable<MachineProfile> AgentEndpoints => Machines.Where(m => m.Kind == EndpointKind.WindowsAgent);
+    /// <summary>Windows and Linux agent endpoints that can run agent RPCs.</summary>
+    public IEnumerable<MachineProfile> AgentEndpoints =>
+        Machines.Where(m => m.Kind == EndpointKind.WindowsAgent || (m.Kind == EndpointKind.Linux && m.ConnectionMode == ConnectionMode.Agent));
 }

@@ -50,12 +50,9 @@ public partial class MainWindow
         {
             var count = _alerts.UnreadCount;
             AlertBadgeText.Text = count.ToString();
-            AlertBadgeBorder.Background = count > 0
-                ? new SolidColorBrush(Color.FromArgb(45, 239, 68, 68))
-                : new SolidColorBrush(Color.FromArgb(34, 59, 130, 246));
-            AlertBadgeText.Foreground = count > 0
-                ? new SolidColorBrush(Color.FromRgb(239, 68, 68))
-                : (Brush)FindResource("TextBrush");
+            AlertBadgeBorder.Background = count > 0 ? Themes.Palette.DangerSoft : Themes.Palette.NeutralSoft;
+            AlertBadgeText.Foreground = count > 0 ? Themes.Palette.Danger : Themes.Palette.TextSecondary;
+            UpdateNavBadges(); // MainWindow.Shell.cs
         });
     }
 

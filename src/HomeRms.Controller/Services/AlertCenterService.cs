@@ -38,12 +38,12 @@ public sealed class AlertItem
     public string TimeText => Timestamp.ToString("HH:mm:ss");
     public string SeverityText => Severity.ToString().ToUpperInvariant();
 
-    public Brush SeverityBrush => Severity switch
+    public Brush SeverityBrush => HomeRms.Controller.Themes.Palette.Fg(Severity switch
     {
-        AlertSeverity.Critical => new SolidColorBrush(Color.FromRgb(239, 68, 68)),
-        AlertSeverity.Warning => new SolidColorBrush(Color.FromRgb(245, 158, 11)),
-        _ => new SolidColorBrush(Color.FromRgb(59, 130, 246)),
-    };
+        AlertSeverity.Critical => HomeRms.Controller.Themes.PaletteTone.Danger,
+        AlertSeverity.Warning => HomeRms.Controller.Themes.PaletteTone.Warning,
+        _ => HomeRms.Controller.Themes.PaletteTone.Info,
+    });
 }
 
 /// <summary>
@@ -147,6 +147,11 @@ public sealed class AlertCenterService
             Detail = detail,
             Timestamp = now,
         };
+
+        LogBus.Publish(LogBus.Alerts, endpointName, $"{severity.ToString().ToUpperInvariant()} {title} — {detail}",
+            severity == AlertSeverity.Critical ? HomeRms.Controller.Themes.PaletteTone.Danger
+            : severity == AlertSeverity.Warning ? HomeRms.Controller.Themes.PaletteTone.Warning
+            : HomeRms.Controller.Themes.PaletteTone.Info);
 
         void Insert()
         {
