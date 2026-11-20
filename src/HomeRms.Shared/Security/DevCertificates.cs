@@ -185,7 +185,13 @@ public static class DevCertificates
     /// optionally enforces the required Extended Key Usage OID (<c>serverAuth</c> vs <c>clientAuth</c>)
     /// so an Agent certificate can never impersonate a Controller client certificate.
     /// </summary>
-    public static bool ValidateAgainstCa(X509Certificate2 peerCert, X509Certificate2 ca, string? expectedEkuOid = null)
+    /// <param name="onTimeInvalid">
+    /// Called (after a successful validation) when the peer certificate is expired or not yet valid.
+    /// Validity dates are deliberately not enforced (home PCs with wrong clocks), but callers should
+    /// surface the warning so an expired deployment certificate gets noticed and replaced.
+    /// </param>
+    public static bool ValidateAgainstCa(X509Certificate2 peerCert, X509Certificate2 ca, string? expectedEkuOid = null,
+        Action<string>? onTimeInvalid = null)
     {
         // Prevent self-signed CA itself from being presented directly as a leaf cert
         if (string.Equals(peerCert.Thumbprint, ca.Thumbprint, StringComparison.OrdinalIgnoreCase))
@@ -223,7 +229,16 @@ public static class DevCertificates
             return false;
 
         var root = chain.ChainElements[^1].Certificate;
-        return string.Equals(root.Thumbprint, ca.Thumbprint, StringComparison.OrdinalIgnoreCase);
+        var ok = string.Equals(root.Thumbprint, ca.Thumbprint, StringComparison.OrdinalIgnoreCase);
+        if (ok && onTimeInvalid is not null)
+        {
+            var now = DateTime.Now;
+            if (now > peerCert.NotAfter)
+                onTimeInvalid($"certificate '{peerCert.Subject}' expired on {peerCert.NotAfter:yyyy-MM-dd} (accepted because clock skew is tolerated; replace it)");
+            else if (now < peerCert.NotBefore)
+                onTimeInvalid($"certificate '{peerCert.Subject}' is not valid before {peerCert.NotBefore:yyyy-MM-dd} (check this PC's clock)");
+        }
+        return ok;
     }
 
     private static byte[]? TryGetEmbeddedBytes(string fileName)

@@ -44,7 +44,8 @@ public sealed class RmsConnection : IDisposable
                     cert is not null && DevCertificates.ValidateAgainstCa(
                         cert as X509Certificate2 ?? X509CertificateLoader.LoadCertificate(cert.Export(X509ContentType.Cert)),
                         ca,
-                        DevCertificates.ServerAuthOid)
+                        DevCertificates.ServerAuthOid,
+                        warning => WarnOnce(host, port, warning))
             }
         };
 
@@ -57,4 +58,13 @@ public sealed class RmsConnection : IDisposable
     }
 
     public void Dispose() => _channel.Dispose();
+
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, byte> Warned = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>Logs a certificate-validity warning once per endpoint and process (handshakes repeat often).</summary>
+    private static void WarnOnce(string host, int port, string warning)
+    {
+        if (Warned.TryAdd($"{host}:{port}|{warning}", 0))
+            LogBus.Publish(LogBus.Alerts, "mTLS", $"{host}:{port}: agent {warning}.", Themes.PaletteTone.Warning);
+    }
 }
