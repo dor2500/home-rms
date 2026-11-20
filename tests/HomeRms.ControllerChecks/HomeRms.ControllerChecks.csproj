@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Fast, offline checks of controller-side logic (no agent, no UI): script builders parse with the
+       PowerShell parser, winstall import parsing, hub relay access control (dotnet run, no arguments). -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net11.0-windows10.0.19041.0</TargetFramework>
+    <SupportedOSPlatformVersion>10.0.17763.0</SupportedOSPlatformVersion>
+    <UseWPF>true</UseWPF>
+    <RootNamespace>HomeRms.ControllerChecks</RootNamespace>
+    <NoWarn>$(NoWarn);WPF0001</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\HomeRms.Controller\HomeRms.Controller.csproj" />
+  </ItemGroup>
+
+</Project>
