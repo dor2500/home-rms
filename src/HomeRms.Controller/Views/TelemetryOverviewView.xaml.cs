@@ -70,8 +70,9 @@ public partial class TelemetryOverviewView : UserControl
         var live = _ctx.Telemetry.Endpoints.Where(e => e.IsLive && e.Latest is not null).Select(e => e.Latest!.Value).ToList();
         if (live.Count == 0)
         {
+            // With no tiles the empty-state panel below already explains it; do not say it twice.
             FleetTotalsText.Text = _ctx.Telemetry.Endpoints.Count == 0
-                ? "No live agent telemetry yet."
+                ? ""
                 : $"{_ctx.Telemetry.Endpoints.Count} agent endpoint(s) tracked · none streaming";
             return;
         }

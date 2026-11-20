@@ -367,7 +367,8 @@
                                         <Border Style="{StaticResource WellStyle}" Padding="10,8">
                                             <Grid>
                                             <TextBlock x:Name="TrafficEmptyText" Panel.ZIndex="1" Style="{StaticResource MetaText}" TextWrapping="Wrap" TextAlignment="Center"
-                                                       HorizontalAlignment="Center" VerticalAlignment="Center" Margin="12"
+                                                       HorizontalAlignment="Center" VerticalAlignment="Center" Margin="12" Padding="10,4"
+                                                       Background="{StaticResource SunkenBrush}"
                                                        Text="No samples yet. Latency and CPU appear once endpoints answer a probe (Scan LAN)."/>
                                             <Viewbox Stretch="Fill">
                                                 <Canvas Width="400" Height="110">
