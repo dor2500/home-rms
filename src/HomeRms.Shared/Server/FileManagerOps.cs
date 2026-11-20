@@ -1,3 +1,4 @@
+using System.Runtime.InteropServices;
 using Google.Protobuf;
 using Grpc.Core;
 using HomeRms.Shared.Protocol;
@@ -94,7 +95,11 @@ public static class SafePath
     /// </summary>
     public static bool IsProtected(string normalizedFullPath)
     {
-        var full = normalizedFullPath;
+        // Expand 8.3 aliases first: C:\PROGRA~1 must be treated exactly like C:\Program Files.
+        var full = TrimTrailingSeparator(ExpandShortNames(normalizedFullPath));
+        // Win32 silently drops trailing dots / spaces of a segment ("C:\Windows ." opens C:\Windows).
+        if (OperatingSystem.IsWindows())
+            full = string.Join('\\', full.Split('\\').Select((seg, i) => i == 0 ? seg : seg.TrimEnd(' ', '.')));
         var root = Path.GetPathRoot(full);
         if (root is not null && SamePath(full, root)) return true;
 
@@ -106,7 +111,10 @@ public static class SafePath
 
         var winDir = Environment.GetFolderPath(Environment.SpecialFolder.Windows);
         if (string.IsNullOrEmpty(winDir)) winDir = Environment.GetEnvironmentVariable("SystemRoot") ?? @"C:\Windows";
-        var userProfile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+        // The profiles folder (C:\Users). The agent service runs as LocalSystem, whose own profile lives
+        // under %SystemRoot%, so derive it from %PUBLIC% (C:\Users\Public) instead of the user profile.
+        var publicDir = Environment.GetEnvironmentVariable("PUBLIC");
+        var usersDir = !string.IsNullOrEmpty(publicDir) ? Path.GetDirectoryName(publicDir) : Path.Combine(Path.GetPathRoot(winDir) ?? @"C:\", "Users");
 
         string?[] protectedDirs =
         [
@@ -117,9 +125,27 @@ public static class SafePath
             Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles),
             Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86),
             Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData),
-            string.IsNullOrEmpty(userProfile) ? null : Path.GetDirectoryName(userProfile), // C:\Users
+            usersDir,
         ];
-        return protectedDirs.Any(d => !string.IsNullOrEmpty(d) && SamePath(full, d));
+        if (protectedDirs.Any(d => !string.IsNullOrEmpty(d) && SamePath(full, d))) return true;
+
+        // A whole user profile (C:\Users\<name>) cannot be deleted or renamed remotely; its contents can.
+        return !string.IsNullOrEmpty(usersDir) && Path.GetDirectoryName(full) is { } parent && SamePath(parent, usersDir);
+    }
+
+    [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    private static extern uint GetLongPathNameW(string shortPath, char[] longPath, uint bufferLength);
+
+    /// <summary>
+    /// Expands 8.3 short names of an existing path (C:\PROGRA~1 -> C:\Program Files). Returns the
+    /// input unchanged when it has no '~' or cannot be expanded (e.g. it does not exist).
+    /// </summary>
+    public static string ExpandShortNames(string path)
+    {
+        if (!OperatingSystem.IsWindows() || !path.Contains('~')) return path;
+        var buffer = new char[32_768];
+        var n = GetLongPathNameW(path, buffer, (uint)buffer.Length);
+        return n > 0 && n < buffer.Length ? new string(buffer, 0, (int)n) : path;
     }
 }
 

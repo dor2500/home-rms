@@ -346,9 +346,10 @@ try
             }
             await call.RequestStream.CompleteAsync();
         }
-        catch (Exception ex) when (ex is RpcException or InvalidOperationException)
+        catch (Exception ex) when (ex is RpcException or InvalidOperationException or IOException or HttpRequestException)
         {
-            // The server may finish the call early (e.g. ALREADY_EXISTS); the real status is in ResponseAsync.
+            // The server may finish the call early (e.g. ALREADY_EXISTS) and reset the stream mid-write
+            // ("The request was aborted"); the real status is in ResponseAsync.
         }
         return await call.ResponseAsync;
     }
@@ -431,6 +432,44 @@ try
     }
     Console.WriteLine($"[test] File manager path safety -> {pathOk}/{pathCases.Length} cases refused as expected");
 
+    // 11c) protected-path aliases. All calls are NON-recursive, so even a regression could not delete
+    //      anything (a non-empty directory answers FailedPrecondition instead of PermissionDenied).
+    var profileDir = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+    var programFiles = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles);
+    var aliasCases = new List<(string Name, string Path)>
+    {
+        ("%SystemRoot% + trailing space", winDir + " "),
+        ("%SystemRoot% + trailing dot", winDir + "."),
+        ("user profile folder", profileDir),
+    };
+    var shortProgramFiles = SafePath.ExpandShortNames(programFiles) == programFiles ? GetShortPath(programFiles) : null;
+    if (shortProgramFiles is not null && shortProgramFiles != programFiles)
+        aliasCases.Add(("Program Files 8.3 alias", shortProgramFiles));
+    var aliasOk = 0;
+    foreach (var (name, path) in aliasCases)
+    {
+        var st = await StatusOf(() => client.DeletePathAsync(new DeletePathRequest { Path = path, Recursive = false }, deadline: Deadline(10)).ResponseAsync);
+        if (st == StatusCode.PermissionDenied) aliasOk++;
+        else failures.Add($"protected alias '{name}' ({path}) returned {st?.ToString() ?? "OK"} instead of PermissionDenied");
+    }
+    Console.WriteLine($"[test] Protected path aliases -> {aliasOk}/{aliasCases.Count} refused (8.3 alias {(shortProgramFiles is null ? "not available on this volume" : shortProgramFiles)})");
+
+    // 11d) a damaged pin store fails CLOSED (it used to read as "nothing pinned" and reopen pairing)
+    var damagedStore = Path.Combine(workDir, "damaged-pins.json");
+    File.WriteAllText(damagedStore, "{ this is not json");
+    var damagedRejects = !TrustedControllerStore.ValidateAgentPeer(sharedCtrlCert, caPublic, damagedStore)
+                         && TrustedControllerStore.HasPinned(damagedStore);
+    Console.WriteLine($"[test] Damaged pin store fails closed -> {damagedRejects}");
+    if (!damagedRejects) failures.Add("a damaged pin store let an unpinned controller through");
+
+    // 11e) atomic settings write leaves no temp files and replaces the content
+    var atomicPath = Path.Combine(workDir, "atomic.json");
+    AtomicFile.WriteAllText(atomicPath, "first");
+    AtomicFile.WriteAllText(atomicPath, "second");
+    var atomicOk = File.ReadAllText(atomicPath) == "second" && Directory.GetFiles(workDir, "*.tmp").Length == 0;
+    Console.WriteLine($"[test] AtomicFile -> {atomicOk}");
+    if (!atomicOk) failures.Add("AtomicFile did not replace the file cleanly");
+
     // 12) telemetry: at least two samples with sane values
     var samples = new List<TelemetrySample>();
     using (var cts = new CancellationTokenSource(TimeSpan.FromSeconds(15)))
@@ -477,6 +516,13 @@ return 1;
 
 static DateTime Deadline(int seconds) => DateTime.UtcNow.AddSeconds(seconds);
 
+static string? GetShortPath(string path)
+{
+    var buffer = new char[1024];
+    var n = NativeMethods.GetShortPathNameW(path, buffer, (uint)buffer.Length);
+    return n > 0 && n < buffer.Length ? new string(buffer, 0, (int)n) : null;
+}
+
 static async Task<StatusCode?> StatusOf(Func<Task> call)
 {
     try
@@ -520,6 +566,12 @@ static RemoteManagement.RemoteManagementClient CreateClient(int port, X509Certif
     var channel = GrpcChannel.ForAddress($"https://localhost:{port}",
         new GrpcChannelOptions { HttpHandler = handler, MaxReceiveMessageSize = 32 * 1024 * 1024 });
     return new RemoteManagement.RemoteManagementClient(channel);
+}
+
+static class NativeMethods
+{
+    [System.Runtime.InteropServices.DllImport("kernel32.dll", CharSet = System.Runtime.InteropServices.CharSet.Unicode)]
+    public static extern uint GetShortPathNameW(string longPath, char[] shortPath, uint bufferLength);
 }
 
 sealed class AutoApproveConsentUi : IConsentUi
