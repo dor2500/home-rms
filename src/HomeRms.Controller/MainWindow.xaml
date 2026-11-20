@@ -860,7 +860,7 @@
                                 <ComboBox x:Name="WingetPackCombo" Width="190" Margin="0,0,6,6" SelectionChanged="OnWingetPackSelectionChanged" ToolTip="Saved app packs"/>
                                 <Button Content="Load pack" Style="{StaticResource SmallPillButton}" Margin="0,0,4,6" ToolTip="Add the pack's apps to the queue" Click="OnApplyWingetPackClick"/>
                                 <Button x:Name="WingetDeletePackBtn" Content="Delete pack" Style="{StaticResource SmallPillButton}" Margin="0,0,12,6" IsEnabled="False" ToolTip="Delete the selected custom pack" Click="OnDeleteWingetPackClick"/>
-                                <TextBox x:Name="WingetPackNameBox" Width="150" Margin="0,0,4,6" ToolTip="Name for a new custom pack (saved from the current queue)"/>
+                                <TextBox x:Name="WingetPackNameBox" Style="{StaticResource HintBox}" Tag="New pack name" Width="150" Margin="0,0,4,6" ToolTip="Name for a new custom pack (Save pack stores the current queue under this name)"/>
                                 <Button Content="Save pack" Style="{StaticResource SmallPillButton}" Margin="0,0,12,6" Click="OnSaveWingetPackClick"/>
                                 <Button Content="Import pack…" Style="{StaticResource SmallPillButton}" Margin="0,0,0,6" ToolTip="Import a winstall pack URL, a winget script, JSON or an ID list" Click="OnToggleWingetImportClick"/>
                             </WrapPanel>
@@ -895,8 +895,8 @@
                         <DockPanel>
                             <DockPanel DockPanel.Dock="Top" Margin="0,0,0,8">
                                 <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
-                                    <TextBox x:Name="DeployFilePathBox" Width="190" FontFamily="{StaticResource MonoFont}" FontSize="{StaticResource FontSizeCaption}" Margin="0,0,6,0" ToolTip="Local .exe / .msi / .msp / .ps1 / .cmd / .bat path"/>
-                                    <TextBox x:Name="DeployArgsBox" Width="90" FontFamily="{StaticResource MonoFont}" FontSize="{StaticResource FontSizeCaption}" Text="AUTO" Margin="0,0,6,0" ToolTip="Installer arguments (AUTO = detect silent flags)"/>
+                                    <TextBox x:Name="DeployFilePathBox" Style="{StaticResource HintBox}" Tag="Installer or script path" Width="190" FontFamily="{StaticResource MonoFont}" FontSize="{StaticResource FontSizeCaption}" Margin="0,0,6,0" ToolTip="Local .exe / .msi / .msp / .ps1 / .cmd / .bat path"/>
+                                    <TextBox x:Name="DeployArgsBox" Style="{StaticResource HintBox}" Tag="Arguments" Width="90" FontFamily="{StaticResource MonoFont}" FontSize="{StaticResource FontSizeCaption}" Text="AUTO" Margin="0,0,6,0" ToolTip="Installer arguments (AUTO = detect silent flags)"/>
                                     <Button Content="Browse" Style="{StaticResource SmallPillButton}" Margin="0,0,4,0" Click="OnBrowseDeployFileClick"/>
                                     <Button x:Name="DeployRunBtn" Content="Run files" Style="{StaticResource SmallPillButton}" Margin="0,0,4,0" ToolTip="Upload and run every pending file on the connected agent" Click="OnStartDeployClick"/>
                                     <Button Content="Run script" Style="{StaticResource SmallPillButton}" Margin="0,0,4,0" Click="OnUploadAndRunScriptClick"/>
@@ -905,7 +905,7 @@
                                 </StackPanel>
                                 <StackPanel VerticalAlignment="Center">
                                     <TextBlock Text="File deploy &amp; live log" Style="{StaticResource SectionTitle}"/>
-                                    <TextBlock Text="Drop .exe, .msi, .msp or .ps1 files anywhere on this page" Style="{StaticResource MetaText}"/>
+                                    <TextBlock Text="Drop .exe, .msi, .msp, .ps1, .cmd or .bat files anywhere on this page" Style="{StaticResource MetaText}"/>
                                 </StackPanel>
                             </DockPanel>
                             <Grid>
@@ -931,6 +931,19 @@
                                         </DataTemplate>
                                     </ListBox.ItemTemplate>
                                 </ListBox>
+                                <TextBlock Grid.Column="0" Margin="16" IsHitTestVisible="False" TextWrapping="Wrap" TextAlignment="Center"
+                                           VerticalAlignment="Center" HorizontalAlignment="Center"
+                                           Text="No files yet. Drop installers or scripts on this page, or click Browse.">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock" BasedOn="{StaticResource MetaText}">
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding HasItems, ElementName=DeployFileList}" Value="True">
+                                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
                                 <TextBox x:Name="DeployOutputBox" Grid.Column="2" IsReadOnly="True" Background="{StaticResource SunkenBrush}" BorderBrush="{StaticResource BorderSubtleBrush}" BorderThickness="1" Padding="10,8"
                                          FontFamily="{StaticResource MonoFont}" FontSize="{StaticResource FontSizeCaption}" VerticalScrollBarVisibility="Auto" TextWrapping="Wrap" AcceptsReturn="True" VerticalContentAlignment="Top"/>
                             </Grid>
@@ -970,6 +983,19 @@
                                 <Button x:Name="WingetCancelDeployBtn" Content="Cancel" Style="{StaticResource DangerButton}" IsEnabled="False" Click="OnCancelWingetDeployClick"/>
                             </StackPanel>
 
+                            <Grid>
+                            <TextBlock Panel.ZIndex="1" IsHitTestVisible="False" TextWrapping="Wrap" TextAlignment="Center" VerticalAlignment="Center" Margin="12"
+                                       Text="The queue is empty. Tick apps in the catalog, load a pack or import one.">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock" BasedOn="{StaticResource MetaText}">
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding HasItems, ElementName=WingetQueueList}" Value="True">
+                                                <Setter Property="Visibility" Value="Collapsed"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
                             <ListBox x:Name="WingetQueueList" HorizontalContentAlignment="Stretch" ItemContainerStyle="{StaticResource FeedItem}"
                                      ScrollViewer.HorizontalScrollBarVisibility="Disabled">
                                 <ListBox.ItemTemplate>
@@ -995,6 +1021,7 @@
                                     </DataTemplate>
                                 </ListBox.ItemTemplate>
                             </ListBox>
+                            </Grid>
                         </DockPanel>
                     </Border>
 

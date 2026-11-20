@@ -101,12 +101,12 @@ public partial class MainWindow : Window
         ShellOutput.Text =
             "Home RMS Interactive PowerShell Console\r\n" +
             "Connected over Mutual TLS (HTTP/2). Every command executed here is recorded in the remote agent's visible activity log.\r\n" +
-            "--------------------------------------------------------------------------------------------------------------------\r\n";
+            "------------------------------------------------------------\r\n";
 
         DeployOutputBox.Text =
             "Home RMS Silent Software Deployment Console\r\n" +
-            "Select or drag & drop any .exe, .msi, .msp, or .ps1 file above to stream it over mTLS and install it silently on the remote computer.\r\n" +
-            "--------------------------------------------------------------------------------------------------------------------\r\n";
+            "Drop .exe, .msi, .msp, .ps1, .cmd or .bat files on this page to stream them over mTLS and run them silently on the remote computer.\r\n" +
+            "------------------------------------------------------------\r\n";
 
         Loaded += OnWindowLoaded;
     }

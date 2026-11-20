@@ -237,11 +237,19 @@ public partial class MainWindow
         var canPage = false;
         var problems = new List<string>();
 
-        if (query.Length == 0 && category == WingetCategories.All && !_wingetIndex.IsAvailable)
+        // Empty search box: show the curated featured apps (filtered by category) instead of the first
+        // page of the alphabetical index ("Al", "Ao", "Ax"...). A category with no featured apps still
+        // browses the index by tag.
+        var curated = query.Length == 0 && !append
+            ? _winget.BuiltIn.Where(a => category == WingetCategories.All || a.Category == category).ToList()
+            : null;
+        if (curated is not null && (curated.Count > 0 || !_wingetIndex.IsAvailable))
         {
-            page = _winget.BuiltIn;
+            page = curated;
             total = page.Count;
-            source = BuiltInSourceLabel;
+            source = _wingetIndex.IsAvailable
+                ? $"featured apps · type to search all {_wingetIndex.Status.PackageCount:N0} packages"
+                : BuiltInSourceLabel;
         }
         else
         {
