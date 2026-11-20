@@ -39,9 +39,15 @@ public static class ControllerIdentity
                         pfxPath, pw, X509KeyStorageFlags.Exportable);
                     return _cachedControllerCert;
                 }
-                catch
+                catch (Exception ex)
                 {
-                    // Regenerate if corrupted or moved from another user/machine (DPAPI mismatch)
+                    // Regenerate if corrupted or moved from another user/machine (DPAPI mismatch). Agents
+                    // pinned to the old identity will refuse the new one, so keep the old files for
+                    // recovery and record why the identity changed.
+                    AtomicFile.PreserveCorrupt(pfxPath);
+                    AtomicFile.PreserveCorrupt(keyPath);
+                    TwoFactorStore.LogSecurityEvent($"WARNING controller identity unreadable ({ex.GetType().Name}: {ex.Message}); " +
+                                                    "a new identity was generated (old files kept as *.corrupt-*). Re-pair your agents.");
                 }
             }
 

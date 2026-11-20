@@ -222,7 +222,14 @@ public partial class MainWindow
                     });
                 }
             }
-            catch { }
+            catch (Exception ex) when (!cts.IsCancellationRequested)
+            {
+                LogBus.Publish(LogBus.Activity, "SCREEN 2", $"Detached second-monitor stream stopped: {AgentErrors.Describe(ex)}", Themes.PaletteTone.Warning);
+            }
+            catch
+            {
+                // Window closed / console locked: the stream was cancelled on purpose.
+            }
         }, cts.Token);
     }
 
