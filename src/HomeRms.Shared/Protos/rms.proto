@@ -72,6 +72,12 @@ service RemoteManagement {
 
   // --- Live telemetry: one sample every interval_ms (clamped 1000-10000 ms). ---
   rpc GetTelemetry (TelemetryRequest) returns (stream TelemetrySample);
+
+  // --- Update All: upgrade every installed package (Windows: winget upgrade --all; Linux: the
+  // distribution's package manager). Streams one Queued row per package, per-package phases,
+  // raw output lines (log_line) and a final message (package_id "", done = true) with the overall
+  // exit code. Cancelling the call kills the whole process tree. One run at a time per agent. ---
+  rpc UpgradeAll (UpgradeAllRequest) returns (stream WingetProgress);
 }
 
 // ---------------- Winget ----------------
@@ -100,6 +106,11 @@ message WingetProgress {
   int32 exit_code = 5;               // winget exit code (HRESULT as signed int); set on terminal phases
   string exit_message = 6;           // readable meaning of exit_code
   bool done = 7;                     // true on the very last message of the stream (all packages processed)
+}
+
+message UpgradeAllRequest {
+  bool include_unknown = 1;          // winget --include-unknown (packages whose installed version is unknown)
+  bool silent = 2;                   // winget --silent (Linux runs are always non-interactive)
 }
 
 // ---------------- File manager ----------------
