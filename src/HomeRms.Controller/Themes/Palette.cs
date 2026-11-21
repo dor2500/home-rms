@@ -17,6 +17,17 @@ public static class Palette
 {
     private static readonly ConcurrentDictionary<string, Brush> Cache = new();
 
+    /// <summary>Raised on the UI thread after the active theme dictionary changes.</summary>
+    public static event Action? ThemeChanged;
+
+    /// <summary>Clears cached frozen brushes and re-warms from the active theme dictionary.</summary>
+    public static void Invalidate()
+    {
+        Cache.Clear();
+        Warm();
+        ThemeChanged?.Invoke();
+    }
+
     /// <summary>Resolves a brush token (e.g. "OkBrush", "DangerSoftBrush") as a frozen brush.</summary>
     public static Brush Get(string key)
     {

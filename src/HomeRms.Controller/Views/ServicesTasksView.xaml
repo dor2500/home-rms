@@ -23,7 +23,7 @@
 
         <!-- Status line -->
         <TextBlock x:Name="StatusLine" DockPanel.Dock="Bottom" Margin="0,8,0,0" FontFamily="{StaticResource MonoFont}" FontSize="11.5"
-                   Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap"/>
+                   Foreground="{DynamicResource MutedBrush}" TextWrapping="Wrap"/>
 
         <TabControl x:Name="Tabs" Background="Transparent" BorderThickness="0" SelectionChanged="OnTabChanged">
             <!-- ===== Services ===== -->
@@ -52,7 +52,7 @@
                         </DockPanel>
                         <DataGrid x:Name="ServicesGrid" AutoGenerateColumns="False" IsReadOnly="True" CanUserSortColumns="True"
                                   SelectionMode="Extended" HeadersVisibility="Column" GridLinesVisibility="None"
-                                  Background="{StaticResource FieldBrush}" BorderBrush="{StaticResource LineBrush}"
+                                  Background="{DynamicResource FieldBrush}" BorderBrush="{DynamicResource LineBrush}"
                                   SelectionChanged="OnServiceSelectionChanged">
                             <DataGrid.Columns>
                                 <DataGridTextColumn Header="Name" Binding="{Binding Name}" Width="170"/>
@@ -96,7 +96,7 @@
                         </DockPanel>
                         <DataGrid x:Name="TasksGrid" AutoGenerateColumns="False" IsReadOnly="True" CanUserSortColumns="True"
                                   SelectionMode="Extended" HeadersVisibility="Column" GridLinesVisibility="None"
-                                  Background="{StaticResource FieldBrush}" BorderBrush="{StaticResource LineBrush}"
+                                  Background="{DynamicResource FieldBrush}" BorderBrush="{DynamicResource LineBrush}"
                                   SelectionChanged="OnTaskSelectionChanged">
                             <DataGrid.Columns>
                                 <DataGridTextColumn Header="Folder" Binding="{Binding TaskPath}" Width="220"/>

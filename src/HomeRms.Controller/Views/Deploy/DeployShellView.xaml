@@ -2,7 +2,7 @@
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:local="clr-namespace:HomeRms.Controller.Views.Deploy"
-             Background="{StaticResource DeployCanvasBrush}" Foreground="{StaticResource TextPrimaryBrush}"
+             Background="{DynamicResource DeployCanvasBrush}" Foreground="{DynamicResource TextPrimaryBrush}"
              FontFamily="{StaticResource UiFont}">
     <Grid>
         <Grid.RowDefinitions>
@@ -11,7 +11,7 @@
         </Grid.RowDefinitions>
 
         <!-- Top bar: brand | Discover Apps Essentials Packs Files | status + search -->
-        <Border Grid.Row="0" BorderBrush="{StaticResource DeployBorderBrush}" BorderThickness="0,0,0,1" Padding="24,14,24,14">
+        <Border Grid.Row="0" BorderBrush="{DynamicResource DeployBorderBrush}" BorderThickness="0,0,0,1" Padding="24,14,24,14">
             <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto"/>
@@ -19,21 +19,21 @@
                     <ColumnDefinition Width="*" MinWidth="200"/>
                 </Grid.ColumnDefinitions>
                 <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,22,0">
-                    <Border Width="32" Height="32" CornerRadius="9" Background="{StaticResource DeployAccentBrush}">
-                        <Path Data="{StaticResource DGeoPackage}" Stroke="{StaticResource TextOnAccentBrush}" StrokeThickness="2" Width="16" Height="16"
+                    <Border Width="32" Height="32" CornerRadius="9" Background="{DynamicResource DeployAccentBrush}">
+                        <Path Data="{StaticResource DGeoPackage}" Stroke="{DynamicResource TextOnAccentBrush}" StrokeThickness="2" Width="16" Height="16"
                               Stretch="Uniform" StrokeLineJoin="Round"/>
                     </Border>
                     <StackPanel x:Name="BrandText" Margin="10,0,0,0" VerticalAlignment="Center">
                         <TextBlock Text="Deploy" FontSize="17" FontWeight="Bold" FontFamily="{StaticResource DisplayFont}"/>
-                        <TextBlock Text="Home RMS software catalog" FontSize="10.5" Foreground="{StaticResource DeployMutedTextBrush}"/>
+                        <TextBlock Text="Home RMS software catalog" FontSize="10.5" Foreground="{DynamicResource DeployMutedTextBrush}"/>
                     </StackPanel>
                 </StackPanel>
 
                 <DockPanel Grid.Column="2" VerticalAlignment="Center" Margin="12,0,0,0">
-                    <Border x:Name="StatusPill" DockPanel.Dock="Right" Background="{StaticResource DeployAccentSoftBrush}" CornerRadius="10" Padding="10,4" Margin="12,0,0,0"
+                    <Border x:Name="StatusPill" DockPanel.Dock="Right" Background="{DynamicResource DeployAccentSoftBrush}" CornerRadius="10" Padding="10,4" Margin="12,0,0,0"
                             VerticalAlignment="Center" ToolTip="Deployment status">
                         <TextBlock x:Name="StatusBadge" x:FieldModifier="public" Text="READY" FontSize="11" FontWeight="Bold"
-                                   Foreground="{StaticResource DeployAccentTextBrush}"/>
+                                   Foreground="{DynamicResource DeployAccentTextBrush}"/>
                     </Border>
                     <TextBox x:Name="TopSearchBox" x:FieldModifier="public" Style="{StaticResource DeploySearchBox}" MaxWidth="360" MinWidth="150"
                              HorizontalAlignment="Right" Tag="Search apps" ToolTip="Search the whole winget catalog (Enter)"/>

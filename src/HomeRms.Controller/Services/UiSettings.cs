@@ -11,6 +11,8 @@ public sealed class UiSettings
     public double ConsoleHeight { get; set; } = 220;
     public string ConsoleFilter { get; set; } = "All";
     public bool SidebarCollapsed { get; set; }
+    /// <summary>Active UI theme: "Dark" (default) or "Light".</summary>
+    public string Theme { get; set; } = "Dark";
 
     /// <summary>Remote-desktop quality preset chosen per endpoint (key: StreamPresets.EndpointKey, value: StreamPreset name).</summary>
     public Dictionary<string, string> StreamPresetByEndpoint { get; set; } = new();

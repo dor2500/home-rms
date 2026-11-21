@@ -4,8 +4,8 @@
              xmlns:local="clr-namespace:HomeRms.Controller.Views.Deploy">
     <StackPanel>
         <!-- "Click to view & edit": selected apps list -->
-        <Border x:Name="ListPanel" x:FieldModifier="public" Background="{StaticResource DeployCardBrush}" CornerRadius="16" Padding="18,14" Margin="0,0,0,10"
-                BorderBrush="{StaticResource DeployBorderHoverBrush}" BorderThickness="1" Visibility="Collapsed" Effect="{StaticResource ShadowPopup}">
+        <Border x:Name="ListPanel" x:FieldModifier="public" Background="{DynamicResource DeployCardBrush}" CornerRadius="16" Padding="18,14" Margin="0,0,0,10"
+                BorderBrush="{DynamicResource DeployBorderHoverBrush}" BorderThickness="1" Visibility="Collapsed" Effect="{StaticResource ShadowPopup}">
             <DockPanel>
                 <DockPanel DockPanel.Dock="Top" Margin="0,0,0,10">
                     <Button x:Name="CloseListBtn" x:FieldModifier="public" DockPanel.Dock="Right" Style="{StaticResource DeployRoundButton}" ToolTip="Close">
@@ -20,7 +20,7 @@
                         </ItemsControl.ItemsPanel>
                         <ItemsControl.ItemTemplate>
                             <DataTemplate>
-                                <Border Background="{StaticResource DeployFieldBrush}" CornerRadius="10" Padding="10,8" Margin="0,0,8,8">
+                                <Border Background="{DynamicResource DeployFieldBrush}" CornerRadius="10" Padding="10,8" Margin="0,0,8,8">
                                     <DockPanel>
                                         <Button DockPanel.Dock="Right" Style="{StaticResource DeployRoundButton}" Width="26" Height="26" ToolTip="Deselect"
                                                 Command="{x:Static local:DeployCommands.ToggleApp}" CommandParameter="{Binding}">
@@ -41,8 +41,8 @@
         </Border>
 
         <!-- "Add to Pack" popover -->
-        <Border x:Name="PackPanel" x:FieldModifier="public" Background="{StaticResource DeployCardBrush}" CornerRadius="16" Padding="18,14" Margin="0,0,0,10"
-                BorderBrush="{StaticResource DeployBorderHoverBrush}" BorderThickness="1" Visibility="Collapsed" HorizontalAlignment="Right" Width="420"
+        <Border x:Name="PackPanel" x:FieldModifier="public" Background="{DynamicResource DeployCardBrush}" CornerRadius="16" Padding="18,14" Margin="0,0,0,10"
+                BorderBrush="{DynamicResource DeployBorderHoverBrush}" BorderThickness="1" Visibility="Collapsed" HorizontalAlignment="Right" Width="420"
                 Effect="{StaticResource ShadowPopup}">
             <StackPanel>
                 <DockPanel Margin="0,0,0,10">
@@ -78,10 +78,10 @@
         </Border>
 
         <!-- The purple bar -->
-        <Border x:Name="Bar" Background="{StaticResource DeployAccentBrush}" CornerRadius="16" Height="70" Padding="12,0,14,0">
+        <Border x:Name="Bar" Background="{DynamicResource DeployAccentBrush}" CornerRadius="16" Height="70" Padding="12,0,14,0">
             <DockPanel>
                 <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
-                    <Button x:Name="ClearBtn" x:FieldModifier="public" Style="{StaticResource DeployRoundButton}" Width="40" Height="40" Foreground="{StaticResource TextOnAccentBrush}"
+                    <Button x:Name="ClearBtn" x:FieldModifier="public" Style="{StaticResource DeployRoundButton}" Width="40" Height="40" Foreground="{DynamicResource TextOnAccentBrush}"
                             ToolTip="Clear the selection">
                         <Path Data="{StaticResource DGeoTrash}" Style="{StaticResource DeployIcon}" Width="17" Height="17"/>
                     </Button>
@@ -107,10 +107,10 @@
                             </Border>
                             <ControlTemplate.Triggers>
                                 <Trigger Property="IsMouseOver" Value="True">
-                                    <Setter TargetName="Bd" Property="Background" Value="{StaticResource HoverLayerBrush}"/>
+                                    <Setter TargetName="Bd" Property="Background" Value="{DynamicResource HoverLayerBrush}"/>
                                 </Trigger>
                                 <Trigger Property="IsKeyboardFocused" Value="True">
-                                    <Setter TargetName="Bd" Property="Background" Value="{StaticResource HoverLayerBrush}"/>
+                                    <Setter TargetName="Bd" Property="Background" Value="{DynamicResource HoverLayerBrush}"/>
                                 </Trigger>
                             </ControlTemplate.Triggers>
                         </ControlTemplate>
@@ -122,20 +122,20 @@
                             </ItemsControl.ItemsPanel>
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate>
-                                    <Border Background="{StaticResource DeployAccentBrush}" CornerRadius="10" Padding="2" Margin="0,0,-8,0">
+                                    <Border Background="{DynamicResource DeployAccentBrush}" CornerRadius="10" Padding="2" Margin="0,0,-8,0">
                                         <local:AppIcon Size="36"/>
                                     </Border>
                                 </DataTemplate>
                             </ItemsControl.ItemTemplate>
                         </ItemsControl>
-                        <Border x:Name="OverflowBadge" x:FieldModifier="public" Width="36" Height="36" CornerRadius="8" Background="{StaticResource DeployOnAccentLayerBrush}"
+                        <Border x:Name="OverflowBadge" x:FieldModifier="public" Width="36" Height="36" CornerRadius="8" Background="{DynamicResource DeployOnAccentLayerBrush}"
                                 Margin="10,0,0,0" Visibility="Collapsed" VerticalAlignment="Center">
-                            <TextBlock x:Name="OverflowText" x:FieldModifier="public" Text="+0" FontSize="13" FontWeight="Bold" Foreground="{StaticResource TextOnAccentBrush}"
+                            <TextBlock x:Name="OverflowText" x:FieldModifier="public" Text="+0" FontSize="13" FontWeight="Bold" Foreground="{DynamicResource TextOnAccentBrush}"
                                        HorizontalAlignment="Center" VerticalAlignment="Center"/>
                         </Border>
                         <StackPanel VerticalAlignment="Center" Margin="14,0,0,0">
-                            <TextBlock x:Name="CountText" x:FieldModifier="public" Text="Selected 0 apps so far" FontSize="16" FontWeight="Bold" Foreground="{StaticResource TextOnAccentBrush}"/>
-                            <TextBlock x:Name="HintText" Text="Click to view &amp; edit" FontSize="13" Foreground="{StaticResource DeployOnAccentMutedBrush}"/>
+                            <TextBlock x:Name="CountText" x:FieldModifier="public" Text="Selected 0 apps so far" FontSize="16" FontWeight="Bold" Foreground="{DynamicResource TextOnAccentBrush}"/>
+                            <TextBlock x:Name="HintText" Text="Click to view &amp; edit" FontSize="13" Foreground="{DynamicResource DeployOnAccentMutedBrush}"/>
                         </StackPanel>
                     </StackPanel>
                 </Button>

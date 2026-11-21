@@ -19,7 +19,7 @@
                 <StackPanel VerticalAlignment="Center">
                     <TextBlock Text="Live telemetry (5 min)" Style="{StaticResource Caption}" Margin="0,0,0,2"/>
                     <TextBlock x:Name="FleetTotalsText" Text="No live agent telemetry yet." FontFamily="{StaticResource MonoFont}" FontSize="11"
-                               Foreground="{StaticResource MutedBrush}" TextTrimming="CharacterEllipsis"/>
+                               Foreground="{DynamicResource MutedBrush}" TextTrimming="CharacterEllipsis"/>
                 </StackPanel>
             </DockPanel>
 
@@ -33,7 +33,7 @@
                     <Grid>
                         <StackPanel x:Name="EmptyText" Margin="2,4,2,4">
                             <TextBlock Text="No agent is streaming telemetry yet." FontWeight="SemiBold" FontSize="12" Margin="0,0,0,4"/>
-                            <TextBlock Foreground="{StaticResource MutedBrush}" FontSize="11.5" TextWrapping="Wrap"
+                            <TextBlock Foreground="{DynamicResource MutedBrush}" FontSize="11.5" TextWrapping="Wrap"
                                        Text="A live CPU / RAM / disk / network tile appears here for every online Windows or Linux agent endpoint. Add endpoints or run Scan LAN, then connect to each agent once to pair it with this controller."/>
                         </StackPanel>
                         <ItemsControl x:Name="TilesList">
@@ -45,11 +45,11 @@
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate>
                                     <Border x:Name="Tile" Width="236" Margin="0,0,8,8" Padding="10,8" CornerRadius="5"
-                                            Background="{StaticResource FieldBrush}" BorderBrush="{StaticResource LineBrush}" BorderThickness="1">
+                                            Background="{DynamicResource FieldBrush}" BorderBrush="{DynamicResource LineBrush}" BorderThickness="1">
                                         <StackPanel>
                                             <DockPanel Margin="0,0,0,6">
                                                 <TextBlock x:Name="StatusTb" DockPanel.Dock="Right" Text="{Binding Status}" FontFamily="{StaticResource MonoFont}" FontSize="9.5"
-                                                           Foreground="{StaticResource MutedBrush}" MaxWidth="110" TextTrimming="CharacterEllipsis" ToolTip="{Binding Status}"/>
+                                                           Foreground="{DynamicResource MutedBrush}" MaxWidth="110" TextTrimming="CharacterEllipsis" ToolTip="{Binding Status}"/>
                                                 <TextBlock Text="{Binding Name}" FontWeight="SemiBold" FontSize="12" TextTrimming="CharacterEllipsis"/>
                                             </DockPanel>
                                             <Grid>
@@ -64,27 +64,27 @@
                                                     <RowDefinition Height="20"/>
                                                     <RowDefinition Height="20"/>
                                                 </Grid.RowDefinitions>
-                                                <TextBlock Grid.Row="0" Text="CPU" FontFamily="{StaticResource MonoFont}" FontSize="9.5" Foreground="{StaticResource MutedBrush}" VerticalAlignment="Center"/>
+                                                <TextBlock Grid.Row="0" Text="CPU" FontFamily="{StaticResource MonoFont}" FontSize="9.5" Foreground="{DynamicResource MutedBrush}" VerticalAlignment="Center"/>
                                                 <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding CpuText}" FontFamily="{StaticResource MonoFont}" FontSize="11" FontWeight="SemiBold" VerticalAlignment="Center"/>
-                                                <v:Sparkline Grid.Row="0" Grid.Column="2" Values="{Binding CpuSeries}" Stroke="{StaticResource AccentBrush}" Margin="0,2"/>
+                                                <v:Sparkline Grid.Row="0" Grid.Column="2" Values="{Binding CpuSeries}" Stroke="{DynamicResource AccentBrush}" Margin="0,2"/>
 
-                                                <TextBlock Grid.Row="1" Text="RAM" FontFamily="{StaticResource MonoFont}" FontSize="9.5" Foreground="{StaticResource MutedBrush}" VerticalAlignment="Center"/>
+                                                <TextBlock Grid.Row="1" Text="RAM" FontFamily="{StaticResource MonoFont}" FontSize="9.5" Foreground="{DynamicResource MutedBrush}" VerticalAlignment="Center"/>
                                                 <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding RamText}" FontFamily="{StaticResource MonoFont}" FontSize="11" FontWeight="SemiBold" VerticalAlignment="Center"/>
-                                                <v:Sparkline Grid.Row="1" Grid.Column="2" Values="{Binding RamSeries}" Stroke="{StaticResource IndigoBrush}" Margin="0,2"/>
+                                                <v:Sparkline Grid.Row="1" Grid.Column="2" Values="{Binding RamSeries}" Stroke="{DynamicResource IndigoBrush}" Margin="0,2"/>
 
-                                                <TextBlock Grid.Row="2" Text="DISK" FontFamily="{StaticResource MonoFont}" FontSize="9.5" Foreground="{StaticResource MutedBrush}" VerticalAlignment="Center"/>
+                                                <TextBlock Grid.Row="2" Text="DISK" FontFamily="{StaticResource MonoFont}" FontSize="9.5" Foreground="{DynamicResource MutedBrush}" VerticalAlignment="Center"/>
                                                 <TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding DiskText}" FontFamily="{StaticResource MonoFont}" FontSize="11" FontWeight="SemiBold" VerticalAlignment="Center"
                                                            ToolTip="Fullest fixed disk (% used)"/>
-                                                <v:Sparkline Grid.Row="2" Grid.Column="2" Values="{Binding DiskSeries}" Stroke="{StaticResource WarnBrush}" Margin="0,2"/>
+                                                <v:Sparkline Grid.Row="2" Grid.Column="2" Values="{Binding DiskSeries}" Stroke="{DynamicResource WarnBrush}" Margin="0,2"/>
 
-                                                <TextBlock Grid.Row="3" Text="NET" FontFamily="{StaticResource MonoFont}" FontSize="9.5" Foreground="{StaticResource MutedBrush}" VerticalAlignment="Center"/>
-                                                <v:Sparkline Grid.Row="3" Grid.Column="1" Grid.ColumnSpan="2" Values="{Binding NetSeries}" Maximum="0" Stroke="{StaticResource OkBrush}" Margin="0,2"
+                                                <TextBlock Grid.Row="3" Text="NET" FontFamily="{StaticResource MonoFont}" FontSize="9.5" Foreground="{DynamicResource MutedBrush}" VerticalAlignment="Center"/>
+                                                <v:Sparkline Grid.Row="3" Grid.Column="1" Grid.ColumnSpan="2" Values="{Binding NetSeries}" Maximum="0" Stroke="{DynamicResource OkBrush}" Margin="0,2"
                                                              ToolTip="{Binding NetText}"/>
                                             </Grid>
                                             <DockPanel Margin="0,4,0,0">
-                                                <TextBlock DockPanel.Dock="Right" Text="{Binding NetText}" FontFamily="{StaticResource MonoFont}" FontSize="9.5" Foreground="{StaticResource MutedBrush}"
+                                                <TextBlock DockPanel.Dock="Right" Text="{Binding NetText}" FontFamily="{StaticResource MonoFont}" FontSize="9.5" Foreground="{DynamicResource MutedBrush}"
                                                            ToolTip="Receive / transmit"/>
-                                                <TextBlock FontFamily="{StaticResource MonoFont}" FontSize="9.5" Foreground="{StaticResource MutedBrush}">
+                                                <TextBlock FontFamily="{StaticResource MonoFont}" FontSize="9.5" Foreground="{DynamicResource MutedBrush}">
                                                     <Run Text="up"/> <Run Text="{Binding UptimeText, Mode=OneWay}"/> <Run Text="· procs"/> <Run Text="{Binding ProcText, Mode=OneWay}"/>
                                                 </TextBlock>
                                             </DockPanel>
@@ -92,13 +92,13 @@
                                     </Border>
                                     <DataTemplate.Triggers>
                                         <DataTrigger Binding="{Binding IsHot}" Value="True">
-                                            <Setter TargetName="Tile" Property="BorderBrush" Value="{StaticResource DangerBrush}"/>
+                                            <Setter TargetName="Tile" Property="BorderBrush" Value="{DynamicResource DangerBrush}"/>
                                         </DataTrigger>
                                         <DataTrigger Binding="{Binding IsLive}" Value="False">
                                             <Setter TargetName="Tile" Property="Opacity" Value="0.6"/>
                                         </DataTrigger>
                                         <DataTrigger Binding="{Binding IsLive}" Value="True">
-                                            <Setter TargetName="StatusTb" Property="Foreground" Value="{StaticResource OkBrush}"/>
+                                            <Setter TargetName="StatusTb" Property="Foreground" Value="{DynamicResource OkBrush}"/>
                                         </DataTrigger>
                                     </DataTemplate.Triggers>
                                 </DataTemplate>
@@ -115,7 +115,7 @@
                                HorizontalAlignment="Left" VerticalAlignment="Top">
                         <TextBlock.Style>
                             <Style TargetType="TextBlock">
-                                <Setter Property="Foreground" Value="{StaticResource MutedBrush}"/>
+                                <Setter Property="Foreground" Value="{DynamicResource MutedBrush}"/>
                                 <Style.Triggers>
                                     <DataTrigger Binding="{Binding HasItems, ElementName=AlertsList}" Value="True">
                                         <Setter Property="Visibility" Value="Collapsed"/>
@@ -124,16 +124,16 @@
                             </Style>
                         </TextBlock.Style>
                     </TextBlock>
-                    <ListBox x:Name="AlertsList" Background="{StaticResource FieldBrush}" BorderBrush="{StaticResource LineBrush}"
+                    <ListBox x:Name="AlertsList" Background="{DynamicResource FieldBrush}" BorderBrush="{DynamicResource LineBrush}"
                              ScrollViewer.HorizontalScrollBarVisibility="Disabled">
                         <ListBox.ItemTemplate>
                             <DataTemplate>
                                 <StackPanel Margin="0,1">
                                     <DockPanel>
-                                        <TextBlock DockPanel.Dock="Right" Text="{Binding TimeText}" FontFamily="{StaticResource MonoFont}" FontSize="9.5" Foreground="{StaticResource MutedBrush}"/>
+                                        <TextBlock DockPanel.Dock="Right" Text="{Binding TimeText}" FontFamily="{StaticResource MonoFont}" FontSize="9.5" Foreground="{DynamicResource MutedBrush}"/>
                                         <TextBlock Text="{Binding Title}" FontSize="11" FontWeight="SemiBold" Foreground="{Binding SeverityBrush}" TextTrimming="CharacterEllipsis"/>
                                     </DockPanel>
-                                    <TextBlock Text="{Binding EndpointName}" FontSize="10.5" Foreground="{StaticResource MutedBrush}" TextTrimming="CharacterEllipsis" ToolTip="{Binding Detail}"/>
+                                    <TextBlock Text="{Binding EndpointName}" FontSize="10.5" Foreground="{DynamicResource MutedBrush}" TextTrimming="CharacterEllipsis" ToolTip="{Binding Detail}"/>
                                 </StackPanel>
                             </DataTemplate>
                         </ListBox.ItemTemplate>

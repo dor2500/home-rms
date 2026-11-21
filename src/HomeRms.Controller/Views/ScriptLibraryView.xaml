@@ -25,17 +25,17 @@
                         <Button Content="Duplicate" Style="{StaticResource SmallPillButton}" Margin="0,0,4,0" Click="OnDuplicateClick"/>
                         <Button Content="Delete" Style="{StaticResource SmallPillButton}" Click="OnDeleteClick"/>
                     </StackPanel>
-                    <ListBox x:Name="SnippetList" Background="{StaticResource FieldBrush}" BorderBrush="{StaticResource LineBrush}"
+                    <ListBox x:Name="SnippetList" Background="{DynamicResource FieldBrush}" BorderBrush="{DynamicResource LineBrush}"
                              ScrollViewer.HorizontalScrollBarVisibility="Disabled" SelectionChanged="OnSnippetSelected">
                         <ListBox.ItemTemplate>
                             <DataTemplate>
                                 <StackPanel Margin="0,2">
                                     <DockPanel>
                                         <TextBlock DockPanel.Dock="Right" Text="{Binding ShellText}" FontFamily="{StaticResource MonoFont}" FontSize="9.5"
-                                                   Foreground="{StaticResource AccentBrush}" VerticalAlignment="Center"/>
+                                                   Foreground="{DynamicResource AccentBrush}" VerticalAlignment="Center"/>
                                         <TextBlock Text="{Binding Name}" FontWeight="SemiBold" FontSize="12" TextTrimming="CharacterEllipsis"/>
                                     </DockPanel>
-                                    <TextBlock Text="{Binding TagsText}" FontSize="10.5" Foreground="{StaticResource MutedBrush}" TextTrimming="CharacterEllipsis"/>
+                                    <TextBlock Text="{Binding TagsText}" FontSize="10.5" Foreground="{DynamicResource MutedBrush}" TextTrimming="CharacterEllipsis"/>
                                 </StackPanel>
                             </DataTemplate>
                         </ListBox.ItemTemplate>
@@ -87,11 +87,11 @@
                                 <Button x:Name="RevertBtn" Content="Revert" Style="{StaticResource SmallPillButton}" Margin="0,0,5,0" Click="OnRevertClick"/>
                                 <Button x:Name="SaveBtn" Content="Save" Style="{StaticResource PrimaryButton}" Padding="12,4" Click="OnSaveClick"/>
                             </StackPanel>
-                            <TextBlock x:Name="EditorNote" FontSize="11" Foreground="{StaticResource MutedBrush}" VerticalAlignment="Center" TextWrapping="Wrap"/>
+                            <TextBlock x:Name="EditorNote" FontSize="11" Foreground="{DynamicResource MutedBrush}" VerticalAlignment="Center" TextWrapping="Wrap"/>
                         </DockPanel>
                         <TextBox x:Name="BodyBox" VerticalContentAlignment="Top" AcceptsReturn="True" AcceptsTab="True" TextWrapping="NoWrap"
                                  VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto"
-                                 FontFamily="{StaticResource MonoFont}" FontSize="12" Background="{StaticResource FieldBrush}"/>
+                                 FontFamily="{StaticResource MonoFont}" FontSize="12" Background="{DynamicResource FieldBrush}"/>
                     </DockPanel>
                 </Border>
 
@@ -115,7 +115,7 @@
                             <StackPanel DockPanel.Dock="Bottom" Margin="0,8,0,0">
                                 <DockPanel Margin="0,0,0,6">
                                     <TextBox x:Name="TimeoutBox" DockPanel.Dock="Right" Width="44" Text="15" FontFamily="{StaticResource MonoFont}" FontSize="11"/>
-                                    <TextBlock Text="Timeout (min)" FontSize="11" Foreground="{StaticResource MutedBrush}" VerticalAlignment="Center"/>
+                                    <TextBlock Text="Timeout (min)" FontSize="11" Foreground="{DynamicResource MutedBrush}" VerticalAlignment="Center"/>
                                 </DockPanel>
                                 <DockPanel>
                                     <Button x:Name="CancelRunBtn" DockPanel.Dock="Right" Content="Cancel" Style="{StaticResource SmallPillButton}" Margin="5,0,0,0"
@@ -123,7 +123,7 @@
                                     <Button x:Name="RunBtn" Content="Run" Style="{StaticResource PrimaryButton}" Padding="10,5" Click="OnRunClick"/>
                                 </DockPanel>
                             </StackPanel>
-                            <ListBox x:Name="TargetsList" Background="{StaticResource FieldBrush}" BorderBrush="{StaticResource LineBrush}"
+                            <ListBox x:Name="TargetsList" Background="{DynamicResource FieldBrush}" BorderBrush="{DynamicResource LineBrush}"
                                      ScrollViewer.HorizontalScrollBarVisibility="Disabled">
                                 <ListBox.ItemTemplate>
                                     <DataTemplate>
@@ -131,7 +131,7 @@
                                             <StackPanel Orientation="Horizontal">
                                                 <Ellipse Width="6" Height="6" Fill="{Binding Profile.DotBrush}" Margin="0,0,6,0" VerticalAlignment="Center"/>
                                                 <TextBlock Text="{Binding Profile.DisplayTitle}" FontSize="11.5"/>
-                                                <TextBlock Text="{Binding Profile.ModeBadge}" FontSize="10" Foreground="{StaticResource MutedBrush}" Margin="6,0,0,0" VerticalAlignment="Center"/>
+                                                <TextBlock Text="{Binding Profile.ModeBadge}" FontSize="10" Foreground="{DynamicResource MutedBrush}" Margin="6,0,0,0" VerticalAlignment="Center"/>
                                             </StackPanel>
                                         </CheckBox>
                                     </DataTemplate>
@@ -150,7 +150,7 @@
                             <TextBlock x:Name="RunCaption" Grid.Row="0" Text="Results" Style="{StaticResource Caption}"/>
                             <DataGrid x:Name="RunsGrid" Grid.Row="1" MaxHeight="150" AutoGenerateColumns="False" IsReadOnly="True"
                                       HeadersVisibility="Column" GridLinesVisibility="None" SelectionMode="Single"
-                                      Background="{StaticResource FieldBrush}" BorderBrush="{StaticResource LineBrush}"
+                                      Background="{DynamicResource FieldBrush}" BorderBrush="{DynamicResource LineBrush}"
                                       SelectionChanged="OnRunSelected">
                                 <DataGrid.Columns>
                                     <DataGridTextColumn Header="Endpoint" Binding="{Binding EndpointName}" Width="150"/>
@@ -161,7 +161,7 @@
                             </DataGrid>
                             <TextBox x:Name="OutputBox" VerticalContentAlignment="Top" Grid.Row="2" Margin="0,8,0,0" IsReadOnly="True" TextWrapping="NoWrap"
                                      VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto"
-                                     FontFamily="{StaticResource MonoFont}" FontSize="11.5" Background="{StaticResource FieldBrush}"
+                                     FontFamily="{StaticResource MonoFont}" FontSize="11.5" Background="{DynamicResource FieldBrush}"
                                      Text="Select a result row to see that endpoint's output."/>
                         </Grid>
                     </Border>

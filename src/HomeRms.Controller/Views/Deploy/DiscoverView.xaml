@@ -7,8 +7,8 @@
         <StackPanel Margin="24,20,10,120">
 
             <!-- Compact Home RMS hero (winstall's carousel slot) -->
-            <Border Background="{StaticResource DeployHeroBrush}" CornerRadius="20" Padding="30,26" Margin="0,0,14,30"
-                    BorderBrush="{StaticResource DeployBorderBrush}" BorderThickness="1">
+            <Border Background="{DynamicResource DeployHeroBrush}" CornerRadius="20" Padding="30,26" Margin="0,0,14,30"
+                    BorderBrush="{DynamicResource DeployBorderBrush}" BorderThickness="1">
                 <Grid>
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*"/>
@@ -47,11 +47,11 @@
                             </Button>
                         </WrapPanel>
                     </StackPanel>
-                    <Border Grid.Column="1" Background="{StaticResource DeployHeroPanelBrush}" CornerRadius="16" Padding="22,18" VerticalAlignment="Center" MinWidth="230" MaxWidth="320">
+                    <Border Grid.Column="1" Background="{DynamicResource DeployHeroPanelBrush}" CornerRadius="16" Padding="22,18" VerticalAlignment="Center" MinWidth="230" MaxWidth="320">
                         <StackPanel>
                             <TextBlock x:Name="PackageCountText" x:FieldModifier="public" Text="—" FontSize="34" FontWeight="Bold" FontFamily="{StaticResource DisplayFont}"/>
                             <TextBlock Text="packages in the official winget index" Style="{StaticResource DeployMeta}" FontSize="13" TextWrapping="Wrap"/>
-                            <Border Height="1" Background="{StaticResource DeployBorderBrush}" Margin="0,12"/>
+                            <Border Height="1" Background="{DynamicResource DeployBorderBrush}" Margin="0,12"/>
                             <TextBlock x:Name="IndexStatusText" x:FieldModifier="public" Style="{StaticResource DeployMeta}" TextWrapping="Wrap" TextTrimming="None"
                                        Text="Loading the official winget index..."/>
                         </StackPanel>
@@ -59,7 +59,7 @@
                 </Grid>
             </Border>
 
-            <TextBlock x:Name="OfflineNote" x:FieldModifier="public" Style="{StaticResource DeployMeta}" Foreground="{StaticResource WarnBrush}" TextWrapping="Wrap"
+            <TextBlock x:Name="OfflineNote" x:FieldModifier="public" Style="{StaticResource DeployMeta}" Foreground="{DynamicResource WarnBrush}" TextWrapping="Wrap"
                        Margin="0,-18,14,18" Visibility="Collapsed"/>
 
             <!-- Top Categories -->

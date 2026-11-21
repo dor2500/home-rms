@@ -33,13 +33,13 @@
                     </StackPanel>
                     <TextBlock x:Name="TransfersCaption" Text="Transfers" Style="{StaticResource Caption}" Margin="0" VerticalAlignment="Center"/>
                 </DockPanel>
-                <ListView x:Name="TransfersList" Background="{StaticResource FieldBrush}" BorderBrush="{StaticResource LineBrush}">
+                <ListView x:Name="TransfersList" Background="{DynamicResource FieldBrush}" BorderBrush="{DynamicResource LineBrush}">
                     <ListView.View>
                         <GridView>
                             <GridViewColumn Header="Dir" Width="56">
                                 <GridViewColumn.CellTemplate>
                                     <DataTemplate>
-                                        <TextBlock Text="{Binding DirectionText}" FontFamily="{StaticResource MonoFont}" FontSize="10.5" Foreground="{StaticResource AccentBrush}"/>
+                                        <TextBlock Text="{Binding DirectionText}" FontFamily="{StaticResource MonoFont}" FontSize="10.5" Foreground="{DynamicResource AccentBrush}"/>
                                     </DataTemplate>
                                 </GridViewColumn.CellTemplate>
                             </GridViewColumn>
@@ -72,7 +72,7 @@
                                         <TextBlock x:Name="StatusTb" Text="{Binding Status}" ToolTip="{Binding Status}" TextTrimming="CharacterEllipsis" FontSize="11.5"/>
                                         <DataTemplate.Triggers>
                                             <DataTrigger Binding="{Binding IsError}" Value="True">
-                                                <Setter TargetName="StatusTb" Property="Foreground" Value="{StaticResource DangerBrush}"/>
+                                                <Setter TargetName="StatusTb" Property="Foreground" Value="{DynamicResource DangerBrush}"/>
                                             </DataTrigger>
                                         </DataTemplate.Triggers>
                                     </DataTemplate>

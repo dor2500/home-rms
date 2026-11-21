@@ -54,35 +54,35 @@
         <Setter Property="FontFamily" Value="{StaticResource DisplayFont}"/>
         <Setter Property="FontSize" Value="28"/>
         <Setter Property="FontWeight" Value="Bold"/>
-        <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
+        <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}"/>
         <Setter Property="TextTrimming" Value="CharacterEllipsis"/>
     </Style>
     <Style x:Key="DeployH2" TargetType="TextBlock">
         <Setter Property="FontFamily" Value="{StaticResource DisplayFont}"/>
         <Setter Property="FontSize" Value="21"/>
         <Setter Property="FontWeight" Value="Bold"/>
-        <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
+        <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}"/>
     </Style>
     <Style x:Key="DeployLead" TargetType="TextBlock">
         <Setter Property="FontSize" Value="14"/>
-        <Setter Property="Foreground" Value="{StaticResource DeployMutedTextBrush}"/>
+        <Setter Property="Foreground" Value="{DynamicResource DeployMutedTextBrush}"/>
         <Setter Property="TextWrapping" Value="Wrap"/>
     </Style>
     <Style x:Key="DeployCardTitle" TargetType="TextBlock">
         <Setter Property="FontSize" Value="15"/>
         <Setter Property="FontWeight" Value="Bold"/>
-        <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
+        <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}"/>
         <Setter Property="TextTrimming" Value="CharacterEllipsis"/>
     </Style>
     <Style x:Key="DeployMeta" TargetType="TextBlock">
         <Setter Property="FontSize" Value="12.5"/>
-        <Setter Property="Foreground" Value="{StaticResource DeployMutedTextBrush}"/>
+        <Setter Property="Foreground" Value="{DynamicResource DeployMutedTextBrush}"/>
         <Setter Property="TextTrimming" Value="CharacterEllipsis"/>
     </Style>
     <Style x:Key="DeployLabel" TargetType="TextBlock">
         <Setter Property="FontSize" Value="13"/>
         <Setter Property="FontWeight" Value="SemiBold"/>
-        <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
+        <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}"/>
         <Setter Property="Margin" Value="0,0,0,8"/>
     </Style>
 
@@ -90,21 +90,21 @@
     <Style x:Key="DeployStatusText" TargetType="TextBlock">
         <Setter Property="FontSize" Value="11.5"/>
         <Setter Property="FontWeight" Value="SemiBold"/>
-        <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}"/>
+        <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}"/>
         <Style.Triggers>
-            <DataTrigger Binding="{Binding DeployStatus}" Value="Queued"><Setter Property="Foreground" Value="{StaticResource DeployAccentTextBrush}"/></DataTrigger>
-            <DataTrigger Binding="{Binding DeployStatus}" Value="Downloading"><Setter Property="Foreground" Value="{StaticResource InfoBrush}"/></DataTrigger>
-            <DataTrigger Binding="{Binding DeployStatus}" Value="Installing"><Setter Property="Foreground" Value="{StaticResource InfoBrush}"/></DataTrigger>
-            <DataTrigger Binding="{Binding DeployStatus}" Value="Success"><Setter Property="Foreground" Value="{StaticResource OkBrush}"/></DataTrigger>
-            <DataTrigger Binding="{Binding DeployStatus}" Value="Skipped"><Setter Property="Foreground" Value="{StaticResource TextMutedBrush}"/></DataTrigger>
-            <DataTrigger Binding="{Binding DeployStatus}" Value="Failed"><Setter Property="Foreground" Value="{StaticResource DangerBrush}"/></DataTrigger>
-            <DataTrigger Binding="{Binding DeployStatus}" Value="Cancelled"><Setter Property="Foreground" Value="{StaticResource WarnBrush}"/></DataTrigger>
+            <DataTrigger Binding="{Binding DeployStatus}" Value="Queued"><Setter Property="Foreground" Value="{DynamicResource DeployAccentTextBrush}"/></DataTrigger>
+            <DataTrigger Binding="{Binding DeployStatus}" Value="Downloading"><Setter Property="Foreground" Value="{DynamicResource InfoBrush}"/></DataTrigger>
+            <DataTrigger Binding="{Binding DeployStatus}" Value="Installing"><Setter Property="Foreground" Value="{DynamicResource InfoBrush}"/></DataTrigger>
+            <DataTrigger Binding="{Binding DeployStatus}" Value="Success"><Setter Property="Foreground" Value="{DynamicResource OkBrush}"/></DataTrigger>
+            <DataTrigger Binding="{Binding DeployStatus}" Value="Skipped"><Setter Property="Foreground" Value="{DynamicResource TextMutedBrush}"/></DataTrigger>
+            <DataTrigger Binding="{Binding DeployStatus}" Value="Failed"><Setter Property="Foreground" Value="{DynamicResource DangerBrush}"/></DataTrigger>
+            <DataTrigger Binding="{Binding DeployStatus}" Value="Cancelled"><Setter Property="Foreground" Value="{DynamicResource WarnBrush}"/></DataTrigger>
         </Style.Triggers>
     </Style>
 
     <!-- ===== Navigation tabs (Discover | Apps | Essentials | Packs | Files) ===== -->
     <Style x:Key="DeployNavTab" TargetType="RadioButton">
-        <Setter Property="Foreground" Value="{StaticResource DeployMutedTextBrush}"/>
+        <Setter Property="Foreground" Value="{DynamicResource DeployMutedTextBrush}"/>
         <Setter Property="FontSize" Value="15"/>
         <Setter Property="FontWeight" Value="SemiBold"/>
         <Setter Property="Cursor" Value="Hand"/>
@@ -118,15 +118,15 @@
                     </Border>
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsMouseOver" Value="True">
-                            <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
-                            <Setter TargetName="Bd" Property="Background" Value="{StaticResource DeployCardBrush}"/>
+                            <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}"/>
+                            <Setter TargetName="Bd" Property="Background" Value="{DynamicResource DeployCardBrush}"/>
                         </Trigger>
                         <Trigger Property="IsChecked" Value="True">
-                            <Setter Property="Foreground" Value="{StaticResource DeployAccentTextBrush}"/>
-                            <Setter TargetName="Bd" Property="Background" Value="{StaticResource DeployAccentSoftBrush}"/>
+                            <Setter Property="Foreground" Value="{DynamicResource DeployAccentTextBrush}"/>
+                            <Setter TargetName="Bd" Property="Background" Value="{DynamicResource DeployAccentSoftBrush}"/>
                         </Trigger>
                         <Trigger Property="IsKeyboardFocused" Value="True">
-                            <Setter TargetName="Bd" Property="BorderBrush" Value="{StaticResource DeployAccentBrush}"/>
+                            <Setter TargetName="Bd" Property="BorderBrush" Value="{DynamicResource DeployAccentBrush}"/>
                             <Setter TargetName="Bd" Property="BorderThickness" Value="1"/>
                         </Trigger>
                     </ControlTemplate.Triggers>
@@ -137,8 +137,8 @@
 
     <!-- Pill tabs / filter chips (Install view tabs, Install|Upgrade, category filters) -->
     <Style x:Key="DeployPillTab" TargetType="RadioButton">
-        <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
-        <Setter Property="Background" Value="{StaticResource DeployCardBrush}"/>
+        <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}"/>
+        <Setter Property="Background" Value="{DynamicResource DeployCardBrush}"/>
         <Setter Property="FontSize" Value="13.5"/>
         <Setter Property="FontWeight" Value="SemiBold"/>
         <Setter Property="Padding" Value="16,8"/>
@@ -154,14 +154,14 @@
                     </Border>
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsMouseOver" Value="True">
-                            <Setter TargetName="Bd" Property="Background" Value="{StaticResource DeployCardHoverBrush}"/>
+                            <Setter TargetName="Bd" Property="Background" Value="{DynamicResource DeployCardHoverBrush}"/>
                         </Trigger>
                         <Trigger Property="IsChecked" Value="True">
-                            <Setter TargetName="Bd" Property="Background" Value="{StaticResource DeployAccentBrush}"/>
-                            <Setter Property="Foreground" Value="{StaticResource TextOnAccentBrush}"/>
+                            <Setter TargetName="Bd" Property="Background" Value="{DynamicResource DeployAccentBrush}"/>
+                            <Setter Property="Foreground" Value="{DynamicResource TextOnAccentBrush}"/>
                         </Trigger>
                         <Trigger Property="IsKeyboardFocused" Value="True">
-                            <Setter TargetName="Bd" Property="BorderBrush" Value="{StaticResource DeployAccentLineBrush}"/>
+                            <Setter TargetName="Bd" Property="BorderBrush" Value="{DynamicResource DeployAccentLineBrush}"/>
                         </Trigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>
@@ -171,9 +171,9 @@
 
     <!-- ===== Buttons ===== -->
     <Style x:Key="DeployButtonBase" TargetType="Button">
-        <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
-        <Setter Property="Background" Value="{StaticResource DeployCardBrush}"/>
-        <Setter Property="BorderBrush" Value="{StaticResource DeployBorderBrush}"/>
+        <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}"/>
+        <Setter Property="Background" Value="{DynamicResource DeployCardBrush}"/>
+        <Setter Property="BorderBrush" Value="{DynamicResource DeployBorderBrush}"/>
         <Setter Property="BorderThickness" Value="1"/>
         <Setter Property="FontSize" Value="13.5"/>
         <Setter Property="FontWeight" Value="SemiBold"/>
@@ -190,11 +190,11 @@
                     </Border>
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsMouseOver" Value="True">
-                            <Setter TargetName="Bd" Property="Background" Value="{StaticResource DeployCardHoverBrush}"/>
-                            <Setter TargetName="Bd" Property="BorderBrush" Value="{StaticResource DeployBorderHoverBrush}"/>
+                            <Setter TargetName="Bd" Property="Background" Value="{DynamicResource DeployCardHoverBrush}"/>
+                            <Setter TargetName="Bd" Property="BorderBrush" Value="{DynamicResource DeployBorderHoverBrush}"/>
                         </Trigger>
                         <Trigger Property="IsKeyboardFocused" Value="True">
-                            <Setter TargetName="Bd" Property="BorderBrush" Value="{StaticResource DeployAccentBrush}"/>
+                            <Setter TargetName="Bd" Property="BorderBrush" Value="{DynamicResource DeployAccentBrush}"/>
                         </Trigger>
                         <Trigger Property="IsEnabled" Value="False">
                             <Setter Property="Opacity" Value="0.45"/>
@@ -207,9 +207,9 @@
     <Style x:Key="DeployDarkButton" TargetType="Button" BasedOn="{StaticResource DeployButtonBase}"/>
 
     <Style x:Key="DeployAccentButton" TargetType="Button" BasedOn="{StaticResource DeployButtonBase}">
-        <Setter Property="Foreground" Value="{StaticResource TextOnAccentBrush}"/>
-        <Setter Property="Background" Value="{StaticResource DeployAccentBrush}"/>
-        <Setter Property="BorderBrush" Value="{StaticResource DeployAccentBrush}"/>
+        <Setter Property="Foreground" Value="{DynamicResource TextOnAccentBrush}"/>
+        <Setter Property="Background" Value="{DynamicResource DeployAccentBrush}"/>
+        <Setter Property="BorderBrush" Value="{DynamicResource DeployAccentBrush}"/>
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="Button">
@@ -220,13 +220,13 @@
                     </Border>
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsMouseOver" Value="True">
-                            <Setter TargetName="Bd" Property="Background" Value="{StaticResource DeployAccentHoverBrush}"/>
+                            <Setter TargetName="Bd" Property="Background" Value="{DynamicResource DeployAccentHoverBrush}"/>
                         </Trigger>
                         <Trigger Property="IsPressed" Value="True">
-                            <Setter TargetName="Bd" Property="Background" Value="{StaticResource DeployAccentPressedBrush}"/>
+                            <Setter TargetName="Bd" Property="Background" Value="{DynamicResource DeployAccentPressedBrush}"/>
                         </Trigger>
                         <Trigger Property="IsKeyboardFocused" Value="True">
-                            <Setter TargetName="Bd" Property="BorderBrush" Value="{StaticResource TextPrimaryBrush}"/>
+                            <Setter TargetName="Bd" Property="BorderBrush" Value="{DynamicResource TextPrimaryBrush}"/>
                         </Trigger>
                         <Trigger Property="IsEnabled" Value="False">
                             <Setter Property="Opacity" Value="0.45"/>
@@ -239,7 +239,7 @@
 
     <!-- Text-only link button ("View all apps ›", "Back") -->
     <Style x:Key="DeployLinkButton" TargetType="Button">
-        <Setter Property="Foreground" Value="{StaticResource DeployAccentTextBrush}"/>
+        <Setter Property="Foreground" Value="{DynamicResource DeployAccentTextBrush}"/>
         <Setter Property="FontSize" Value="13.5"/>
         <Setter Property="FontWeight" Value="SemiBold"/>
         <Setter Property="Cursor" Value="Hand"/>
@@ -252,10 +252,10 @@
                     </Border>
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsMouseOver" Value="True">
-                            <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
+                            <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}"/>
                         </Trigger>
                         <Trigger Property="IsKeyboardFocused" Value="True">
-                            <Setter TargetName="Bd" Property="Background" Value="{StaticResource DeployAccentSoftBrush}"/>
+                            <Setter TargetName="Bd" Property="Background" Value="{DynamicResource DeployAccentSoftBrush}"/>
                         </Trigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>
@@ -265,8 +265,8 @@
 
     <!-- Dark pill buttons on the purple selection bar -->
     <Style x:Key="DeployBarButton" TargetType="Button">
-        <Setter Property="Foreground" Value="{StaticResource TextOnAccentBrush}"/>
-        <Setter Property="Background" Value="{StaticResource DeployBarButtonBrush}"/>
+        <Setter Property="Foreground" Value="{DynamicResource TextOnAccentBrush}"/>
+        <Setter Property="Background" Value="{DynamicResource DeployBarButtonBrush}"/>
         <Setter Property="FontSize" Value="14"/>
         <Setter Property="FontWeight" Value="Bold"/>
         <Setter Property="Padding" Value="18,10"/>
@@ -282,10 +282,10 @@
                     </Border>
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsMouseOver" Value="True">
-                            <Setter TargetName="Bd" Property="Background" Value="{StaticResource DeployBarButtonHoverBrush}"/>
+                            <Setter TargetName="Bd" Property="Background" Value="{DynamicResource DeployBarButtonHoverBrush}"/>
                         </Trigger>
                         <Trigger Property="IsKeyboardFocused" Value="True">
-                            <Setter TargetName="Bd" Property="BorderBrush" Value="{StaticResource TextPrimaryBrush}"/>
+                            <Setter TargetName="Bd" Property="BorderBrush" Value="{DynamicResource TextPrimaryBrush}"/>
                         </Trigger>
                         <Trigger Property="IsEnabled" Value="False">
                             <Setter Property="Opacity" Value="0.5"/>
@@ -298,7 +298,7 @@
 
     <!-- Small round icon button (remove ×, trash on the bar) -->
     <Style x:Key="DeployRoundButton" TargetType="Button">
-        <Setter Property="Foreground" Value="{StaticResource DeployMutedTextBrush}"/>
+        <Setter Property="Foreground" Value="{DynamicResource DeployMutedTextBrush}"/>
         <Setter Property="Background" Value="Transparent"/>
         <Setter Property="Width" Value="30"/>
         <Setter Property="Height" Value="30"/>
@@ -312,11 +312,11 @@
                     </Border>
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsMouseOver" Value="True">
-                            <Setter TargetName="Bd" Property="Background" Value="{StaticResource HoverLayerBrush}"/>
-                            <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
+                            <Setter TargetName="Bd" Property="Background" Value="{DynamicResource HoverLayerBrush}"/>
+                            <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}"/>
                         </Trigger>
                         <Trigger Property="IsKeyboardFocused" Value="True">
-                            <Setter TargetName="Bd" Property="BorderBrush" Value="{StaticResource DeployAccentBrush}"/>
+                            <Setter TargetName="Bd" Property="BorderBrush" Value="{DynamicResource DeployAccentBrush}"/>
                         </Trigger>
                         <Trigger Property="IsEnabled" Value="False">
                             <Setter Property="Opacity" Value="0.4"/>
@@ -329,8 +329,8 @@
 
     <!-- Clickable card (app cards, category tiles, pack cards): hover lifts with a light layer + border -->
     <Style x:Key="DeployCardButton" TargetType="Button">
-        <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
-        <Setter Property="Background" Value="{StaticResource DeployCardBrush}"/>
+        <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}"/>
+        <Setter Property="Background" Value="{DynamicResource DeployCardBrush}"/>
         <Setter Property="Padding" Value="18,16"/>
         <Setter Property="Margin" Value="0,0,14,14"/>
         <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
@@ -343,7 +343,7 @@
                     <Grid>
                         <Border x:Name="Bd" Background="{TemplateBinding Background}" CornerRadius="{StaticResource DeployRadiusCard}"
                                 BorderBrush="Transparent" BorderThickness="1.5" SnapsToDevicePixels="True"/>
-                        <Border x:Name="Hover" Background="{StaticResource HoverLayerBrush}" CornerRadius="{StaticResource DeployRadiusCard}" Opacity="0"/>
+                        <Border x:Name="Hover" Background="{DynamicResource HoverLayerBrush}" CornerRadius="{StaticResource DeployRadiusCard}" Opacity="0"/>
                         <ContentPresenter Margin="{TemplateBinding Padding}" HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
                                           VerticalAlignment="{TemplateBinding VerticalContentAlignment}"/>
                     </Grid>
@@ -359,10 +359,10 @@
                                     <Storyboard><DoubleAnimation Storyboard.TargetName="Hover" Storyboard.TargetProperty="Opacity" To="0" Duration="{StaticResource MotionBase}"/></Storyboard>
                                 </BeginStoryboard>
                             </Trigger.ExitActions>
-                            <Setter TargetName="Bd" Property="BorderBrush" Value="{StaticResource DeployBorderHoverBrush}"/>
+                            <Setter TargetName="Bd" Property="BorderBrush" Value="{DynamicResource DeployBorderHoverBrush}"/>
                         </Trigger>
                         <Trigger Property="IsKeyboardFocused" Value="True">
-                            <Setter TargetName="Bd" Property="BorderBrush" Value="{StaticResource DeployAccentBrush}"/>
+                            <Setter TargetName="Bd" Property="BorderBrush" Value="{DynamicResource DeployAccentBrush}"/>
                         </Trigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>
@@ -381,21 +381,21 @@
             <Setter.Value>
                 <ControlTemplate TargetType="Button">
                     <Grid Background="Transparent">
-                        <Ellipse x:Name="Ring" Stroke="{StaticResource DeployBorderHoverBrush}" StrokeThickness="2" Fill="Transparent"/>
-                        <Path x:Name="Tick" Data="{StaticResource DGeoCheck}" Stroke="{StaticResource TextOnAccentBrush}" StrokeThickness="2.6"
+                        <Ellipse x:Name="Ring" Stroke="{DynamicResource DeployBorderHoverBrush}" StrokeThickness="2" Fill="Transparent"/>
+                        <Path x:Name="Tick" Data="{StaticResource DGeoCheck}" Stroke="{DynamicResource TextOnAccentBrush}" StrokeThickness="2.6"
                               StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round" Stretch="Uniform"
                               Width="12" Height="12" Opacity="0" IsHitTestVisible="False"/>
                     </Grid>
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsMouseOver" Value="True">
-                            <Setter TargetName="Ring" Property="Stroke" Value="{StaticResource DeployAccentBrush}"/>
+                            <Setter TargetName="Ring" Property="Stroke" Value="{DynamicResource DeployAccentBrush}"/>
                         </Trigger>
                         <Trigger Property="IsKeyboardFocused" Value="True">
-                            <Setter TargetName="Ring" Property="Stroke" Value="{StaticResource DeployAccentBrush}"/>
+                            <Setter TargetName="Ring" Property="Stroke" Value="{DynamicResource DeployAccentBrush}"/>
                         </Trigger>
                         <DataTrigger Binding="{Binding IsSelected}" Value="True">
-                            <Setter TargetName="Ring" Property="Fill" Value="{StaticResource DeployAccentBrush}"/>
-                            <Setter TargetName="Ring" Property="Stroke" Value="{StaticResource DeployAccentBrush}"/>
+                            <Setter TargetName="Ring" Property="Fill" Value="{DynamicResource DeployAccentBrush}"/>
+                            <Setter TargetName="Ring" Property="Stroke" Value="{DynamicResource DeployAccentBrush}"/>
                             <DataTrigger.EnterActions>
                                 <BeginStoryboard>
                                     <Storyboard><DoubleAnimation Storyboard.TargetName="Tick" Storyboard.TargetProperty="Opacity" To="1" Duration="{StaticResource MotionFast}"/></Storyboard>
@@ -415,12 +415,12 @@
 
     <!-- ===== Inputs ===== -->
     <Style x:Key="DeploySearchBox" TargetType="TextBox">
-        <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
-        <Setter Property="Background" Value="{StaticResource DeployFieldBrush}"/>
-        <Setter Property="BorderBrush" Value="{StaticResource DeployBorderBrush}"/>
+        <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}"/>
+        <Setter Property="Background" Value="{DynamicResource DeployFieldBrush}"/>
+        <Setter Property="BorderBrush" Value="{DynamicResource DeployBorderBrush}"/>
         <Setter Property="BorderThickness" Value="1"/>
-        <Setter Property="CaretBrush" Value="{StaticResource TextPrimaryBrush}"/>
-        <Setter Property="SelectionBrush" Value="{StaticResource DeployAccentBrush}"/>
+        <Setter Property="CaretBrush" Value="{DynamicResource TextPrimaryBrush}"/>
+        <Setter Property="SelectionBrush" Value="{DynamicResource DeployAccentBrush}"/>
         <Setter Property="FontSize" Value="14"/>
         <Setter Property="Height" Value="42"/>
         <Setter Property="Padding" Value="40,0,12,0"/>
@@ -431,10 +431,10 @@
                     <Border x:Name="Bd" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}"
                             BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="12" SnapsToDevicePixels="True">
                         <Grid>
-                            <Path Data="{StaticResource DGeoSearch}" Stroke="{StaticResource DeployMutedTextBrush}" StrokeThickness="2"
+                            <Path Data="{StaticResource DGeoSearch}" Stroke="{DynamicResource DeployMutedTextBrush}" StrokeThickness="2"
                                   StrokeStartLineCap="Round" StrokeEndLineCap="Round" Width="15" Height="15" Stretch="Uniform"
                                   HorizontalAlignment="Left" VerticalAlignment="Center" Margin="14,0,0,0" IsHitTestVisible="False"/>
-                            <TextBlock x:Name="Hint" Text="{TemplateBinding Tag}" Foreground="{StaticResource DeployMutedTextBrush}"
+                            <TextBlock x:Name="Hint" Text="{TemplateBinding Tag}" Foreground="{DynamicResource DeployMutedTextBrush}"
                                        Margin="{TemplateBinding Padding}" Padding="2,0,0,0" VerticalAlignment="Center"
                                        IsHitTestVisible="False" Visibility="Collapsed" TextTrimming="CharacterEllipsis"/>
                             <ScrollViewer x:Name="PART_ContentHost" Margin="{TemplateBinding Padding}" Focusable="False" VerticalAlignment="Center"/>
@@ -445,10 +445,10 @@
                             <Setter TargetName="Hint" Property="Visibility" Value="Visible"/>
                         </Trigger>
                         <Trigger Property="IsMouseOver" Value="True">
-                            <Setter TargetName="Bd" Property="BorderBrush" Value="{StaticResource DeployBorderHoverBrush}"/>
+                            <Setter TargetName="Bd" Property="BorderBrush" Value="{DynamicResource DeployBorderHoverBrush}"/>
                         </Trigger>
                         <Trigger Property="IsKeyboardFocusWithin" Value="True">
-                            <Setter TargetName="Bd" Property="BorderBrush" Value="{StaticResource DeployAccentBrush}"/>
+                            <Setter TargetName="Bd" Property="BorderBrush" Value="{DynamicResource DeployAccentBrush}"/>
                         </Trigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>
@@ -458,12 +458,12 @@
 
     <!-- Plain rounded field with a placeholder (Tag) -->
     <Style x:Key="DeployField" TargetType="TextBox">
-        <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
-        <Setter Property="Background" Value="{StaticResource DeployFieldBrush}"/>
-        <Setter Property="BorderBrush" Value="{StaticResource DeployBorderBrush}"/>
+        <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}"/>
+        <Setter Property="Background" Value="{DynamicResource DeployFieldBrush}"/>
+        <Setter Property="BorderBrush" Value="{DynamicResource DeployBorderBrush}"/>
         <Setter Property="BorderThickness" Value="1"/>
-        <Setter Property="CaretBrush" Value="{StaticResource TextPrimaryBrush}"/>
-        <Setter Property="SelectionBrush" Value="{StaticResource DeployAccentBrush}"/>
+        <Setter Property="CaretBrush" Value="{DynamicResource TextPrimaryBrush}"/>
+        <Setter Property="SelectionBrush" Value="{DynamicResource DeployAccentBrush}"/>
         <Setter Property="FontSize" Value="13"/>
         <Setter Property="MinHeight" Value="36"/>
         <Setter Property="Padding" Value="10,0"/>
@@ -474,7 +474,7 @@
                     <Border x:Name="Bd" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}"
                             BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="{StaticResource DeployRadiusControl}" SnapsToDevicePixels="True">
                         <Grid>
-                            <TextBlock x:Name="Hint" Text="{TemplateBinding Tag}" Foreground="{StaticResource DeployMutedTextBrush}"
+                            <TextBlock x:Name="Hint" Text="{TemplateBinding Tag}" Foreground="{DynamicResource DeployMutedTextBrush}"
                                        Margin="{TemplateBinding Padding}" Padding="2,8,0,8" VerticalAlignment="{TemplateBinding VerticalContentAlignment}"
                                        IsHitTestVisible="False" Visibility="Collapsed" TextTrimming="CharacterEllipsis"/>
                             <ScrollViewer x:Name="PART_ContentHost" Margin="{TemplateBinding Padding}" Focusable="False"
@@ -486,10 +486,10 @@
                             <Setter TargetName="Hint" Property="Visibility" Value="Visible"/>
                         </Trigger>
                         <Trigger Property="IsMouseOver" Value="True">
-                            <Setter TargetName="Bd" Property="BorderBrush" Value="{StaticResource DeployBorderHoverBrush}"/>
+                            <Setter TargetName="Bd" Property="BorderBrush" Value="{DynamicResource DeployBorderHoverBrush}"/>
                         </Trigger>
                         <Trigger Property="IsKeyboardFocusWithin" Value="True">
-                            <Setter TargetName="Bd" Property="BorderBrush" Value="{StaticResource DeployAccentBrush}"/>
+                            <Setter TargetName="Bd" Property="BorderBrush" Value="{DynamicResource DeployAccentBrush}"/>
                         </Trigger>
                         <Trigger Property="IsEnabled" Value="False">
                             <Setter Property="Opacity" Value="0.45"/>
@@ -502,12 +502,12 @@
 
     <!-- Read-only code box (generated scripts, logs) -->
     <Style x:Key="DeployCodeBox" TargetType="TextBox">
-        <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
-        <Setter Property="Background" Value="{StaticResource DeployCodeBrush}"/>
-        <Setter Property="BorderBrush" Value="{StaticResource DeployBorderBrush}"/>
+        <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}"/>
+        <Setter Property="Background" Value="{DynamicResource DeployCodeBrush}"/>
+        <Setter Property="BorderBrush" Value="{DynamicResource DeployBorderBrush}"/>
         <Setter Property="BorderThickness" Value="1"/>
-        <Setter Property="SelectionBrush" Value="{StaticResource DeployAccentBrush}"/>
-        <Setter Property="CaretBrush" Value="{StaticResource TextPrimaryBrush}"/>
+        <Setter Property="SelectionBrush" Value="{DynamicResource DeployAccentBrush}"/>
+        <Setter Property="CaretBrush" Value="{DynamicResource TextPrimaryBrush}"/>
         <Setter Property="FontFamily" Value="{StaticResource MonoFont}"/>
         <Setter Property="FontSize" Value="12.5"/>
         <Setter Property="IsReadOnly" Value="True"/>
@@ -530,7 +530,7 @@
 
     <!-- Purple check box / radio (winstall options) -->
     <Style x:Key="DeployCheck" TargetType="CheckBox">
-        <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
+        <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}"/>
         <Setter Property="FontSize" Value="13.5"/>
         <Setter Property="Cursor" Value="Hand"/>
         <Setter Property="Margin" Value="0,0,0,10"/>
@@ -539,23 +539,23 @@
             <Setter.Value>
                 <ControlTemplate TargetType="CheckBox">
                     <StackPanel Orientation="Horizontal" Background="Transparent">
-                        <Border x:Name="Box" Width="20" Height="20" CornerRadius="6" Background="{StaticResource DeployFieldBrush}"
-                                BorderBrush="{StaticResource DeployBorderHoverBrush}" BorderThickness="1.5" VerticalAlignment="Center">
-                            <Path x:Name="Tick" Data="{StaticResource DGeoCheck}" Stroke="{StaticResource TextOnAccentBrush}" StrokeThickness="2.4"
+                        <Border x:Name="Box" Width="20" Height="20" CornerRadius="6" Background="{DynamicResource DeployFieldBrush}"
+                                BorderBrush="{DynamicResource DeployBorderHoverBrush}" BorderThickness="1.5" VerticalAlignment="Center">
+                            <Path x:Name="Tick" Data="{StaticResource DGeoCheck}" Stroke="{DynamicResource TextOnAccentBrush}" StrokeThickness="2.4"
                                   StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round" Stretch="Uniform" Width="11" Height="11" Visibility="Collapsed"/>
                         </Border>
                         <ContentPresenter Margin="10,0,0,0" VerticalAlignment="Center"/>
                     </StackPanel>
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsMouseOver" Value="True">
-                            <Setter TargetName="Box" Property="BorderBrush" Value="{StaticResource DeployAccentBrush}"/>
+                            <Setter TargetName="Box" Property="BorderBrush" Value="{DynamicResource DeployAccentBrush}"/>
                         </Trigger>
                         <Trigger Property="IsKeyboardFocused" Value="True">
-                            <Setter TargetName="Box" Property="BorderBrush" Value="{StaticResource DeployAccentBrush}"/>
+                            <Setter TargetName="Box" Property="BorderBrush" Value="{DynamicResource DeployAccentBrush}"/>
                         </Trigger>
                         <Trigger Property="IsChecked" Value="True">
-                            <Setter TargetName="Box" Property="Background" Value="{StaticResource DeployAccentBrush}"/>
-                            <Setter TargetName="Box" Property="BorderBrush" Value="{StaticResource DeployAccentBrush}"/>
+                            <Setter TargetName="Box" Property="Background" Value="{DynamicResource DeployAccentBrush}"/>
+                            <Setter TargetName="Box" Property="BorderBrush" Value="{DynamicResource DeployAccentBrush}"/>
                             <Setter TargetName="Tick" Property="Visibility" Value="Visible"/>
                         </Trigger>
                         <Trigger Property="IsEnabled" Value="False">
@@ -568,7 +568,7 @@
     </Style>
 
     <Style x:Key="DeployRadio" TargetType="RadioButton">
-        <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
+        <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}"/>
         <Setter Property="FontSize" Value="13.5"/>
         <Setter Property="Cursor" Value="Hand"/>
         <Setter Property="Margin" Value="0,0,20,0"/>
@@ -578,20 +578,20 @@
                 <ControlTemplate TargetType="RadioButton">
                     <StackPanel Orientation="Horizontal" Background="Transparent">
                         <Grid Width="20" Height="20" VerticalAlignment="Center">
-                            <Ellipse x:Name="Ring" Stroke="{StaticResource DeployBorderHoverBrush}" StrokeThickness="1.5" Fill="{StaticResource DeployFieldBrush}"/>
-                            <Ellipse x:Name="Dot" Width="10" Height="10" Fill="{StaticResource DeployAccentBrush}" Visibility="Collapsed"/>
+                            <Ellipse x:Name="Ring" Stroke="{DynamicResource DeployBorderHoverBrush}" StrokeThickness="1.5" Fill="{DynamicResource DeployFieldBrush}"/>
+                            <Ellipse x:Name="Dot" Width="10" Height="10" Fill="{DynamicResource DeployAccentBrush}" Visibility="Collapsed"/>
                         </Grid>
                         <ContentPresenter Margin="8,0,0,0" VerticalAlignment="Center"/>
                     </StackPanel>
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsMouseOver" Value="True">
-                            <Setter TargetName="Ring" Property="Stroke" Value="{StaticResource DeployAccentBrush}"/>
+                            <Setter TargetName="Ring" Property="Stroke" Value="{DynamicResource DeployAccentBrush}"/>
                         </Trigger>
                         <Trigger Property="IsKeyboardFocused" Value="True">
-                            <Setter TargetName="Ring" Property="Stroke" Value="{StaticResource DeployAccentBrush}"/>
+                            <Setter TargetName="Ring" Property="Stroke" Value="{DynamicResource DeployAccentBrush}"/>
                         </Trigger>
                         <Trigger Property="IsChecked" Value="True">
-                            <Setter TargetName="Ring" Property="Stroke" Value="{StaticResource DeployAccentBrush}"/>
+                            <Setter TargetName="Ring" Property="Stroke" Value="{DynamicResource DeployAccentBrush}"/>
                             <Setter TargetName="Dot" Property="Visibility" Value="Visible"/>
                         </Trigger>
                         <Trigger Property="IsEnabled" Value="False">
@@ -605,14 +605,14 @@
 
     <!-- Rounded card container (non-clickable) -->
     <Style x:Key="DeployPanelCard" TargetType="Border">
-        <Setter Property="Background" Value="{StaticResource DeployCardBrush}"/>
+        <Setter Property="Background" Value="{DynamicResource DeployCardBrush}"/>
         <Setter Property="CornerRadius" Value="{StaticResource DeployRadiusCard}"/>
         <Setter Property="Padding" Value="20,18"/>
     </Style>
 
     <!-- Tag chip on the app page -->
     <Style x:Key="DeployChip" TargetType="Border">
-        <Setter Property="Background" Value="{StaticResource DeployCardBrush}"/>
+        <Setter Property="Background" Value="{DynamicResource DeployCardBrush}"/>
         <Setter Property="CornerRadius" Value="{StaticResource DeployRadiusPill}"/>
         <Setter Property="Padding" Value="12,5"/>
         <Setter Property="Margin" Value="0,0,8,8"/>
@@ -639,7 +639,7 @@
                     <ProgressBar Style="{DynamicResource ThinProgressBar}" Value="{Binding ProgressValue, Mode=OneWay}" IsIndeterminate="{Binding IsIndeterminate, Mode=OneWay}"
                                  Visibility="{Binding ProgressVisibility}" VerticalAlignment="Center"/>
                 </DockPanel>
-                <TextBlock Text="{Binding Description}" FontSize="13.5" Foreground="{StaticResource DeployMutedTextBrush}" TextWrapping="Wrap"
+                <TextBlock Text="{Binding Description}" FontSize="13.5" Foreground="{DynamicResource DeployMutedTextBrush}" TextWrapping="Wrap"
                            TextTrimming="CharacterEllipsis" LineHeight="19" LineStackingStrategy="BlockLineHeight"/>
             </DockPanel>
         </Button>
@@ -671,7 +671,7 @@
                           StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"/>
                 </Border>
                 <TextBlock Text="{Binding Label}" FontSize="15" FontWeight="Bold" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"
-                           Foreground="{StaticResource TextPrimaryBrush}"/>
+                           Foreground="{DynamicResource TextPrimaryBrush}"/>
             </DockPanel>
         </Button>
     </DataTemplate>
@@ -695,8 +695,8 @@
                 </DockPanel>
                 <StackPanel>
                     <DockPanel Margin="0,0,0,4">
-                        <Border DockPanel.Dock="Right" Background="{StaticResource DeployAccentSoftBrush}" CornerRadius="8" Padding="8,2" VerticalAlignment="Center">
-                            <TextBlock Text="{Binding Badge}" FontSize="11" FontWeight="SemiBold" Foreground="{StaticResource DeployAccentTextBrush}"/>
+                        <Border DockPanel.Dock="Right" Background="{DynamicResource DeployAccentSoftBrush}" CornerRadius="8" Padding="8,2" VerticalAlignment="Center">
+                            <TextBlock Text="{Binding Badge}" FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource DeployAccentTextBrush}"/>
                         </Border>
                         <TextBlock Text="{Binding Title}" Style="{StaticResource DeployCardTitle}" FontSize="16" Margin="0,0,8,0"/>
                     </DockPanel>
@@ -707,7 +707,7 @@
                             <DataTemplate>
                                 <DockPanel Margin="0,0,0,8">
                                     <deploy:AppIcon Size="26" Margin="0,0,10,0"/>
-                                    <TextBlock Text="{Binding Name}" FontSize="13.5" Foreground="{StaticResource TextPrimaryBrush}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+                                    <TextBlock Text="{Binding Name}" FontSize="13.5" Foreground="{DynamicResource TextPrimaryBrush}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
                                 </DockPanel>
                             </DataTemplate>
                         </ItemsControl.ItemTemplate>

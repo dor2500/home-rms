@@ -34,7 +34,7 @@
                     <TextBlock Text="{Binding Name}" Style="{StaticResource DeployH1}" FontSize="30"/>
                     <TextBlock Style="{StaticResource DeployLead}" FontSize="15" Margin="0,4,0,0">
                         <Run Text="by"/>
-                        <Run Text="{Binding Publisher, Mode=OneWay}" Foreground="{StaticResource TextPrimaryBrush}" FontWeight="SemiBold"/>
+                        <Run Text="{Binding Publisher, Mode=OneWay}" Foreground="{DynamicResource TextPrimaryBrush}" FontWeight="SemiBold"/>
                     </TextBlock>
                 </StackPanel>
             </DockPanel>
@@ -45,7 +45,7 @@
                 <RadioButton x:Name="TabInstall" x:FieldModifier="public" Content="Install" Style="{StaticResource DeployPillTab}" GroupName="DetailVerb" IsChecked="True"/>
                 <RadioButton x:Name="TabUpgrade" x:FieldModifier="public" Content="Upgrade" Style="{StaticResource DeployPillTab}" GroupName="DetailVerb"/>
             </WrapPanel>
-            <Border Background="{StaticResource DeployCodeBrush}" BorderBrush="{StaticResource DeployBorderBrush}" BorderThickness="1" CornerRadius="14" Padding="8" Margin="0,0,0,24">
+            <Border Background="{DynamicResource DeployCodeBrush}" BorderBrush="{DynamicResource DeployBorderBrush}" BorderThickness="1" CornerRadius="14" Padding="8" Margin="0,0,0,24">
                 <DockPanel>
                     <Button x:Name="CopyBtn" x:FieldModifier="public" DockPanel.Dock="Right" Style="{StaticResource DeployAccentButton}" Padding="16,9" Margin="8,0,0,0">
                         <StackPanel Orientation="Horizontal">
@@ -56,9 +56,9 @@
                     <ComboBox x:Name="VersionCombo" x:FieldModifier="public" DockPanel.Dock="Right" Width="230" Margin="8,0,0,0" VerticalAlignment="Center"
                               ToolTip="Version" DisplayMemberPath="Label"/>
                     <TextBlock DockPanel.Dock="Right" Text="Version" Style="{StaticResource DeployMeta}" VerticalAlignment="Center" Margin="8,0,0,0"/>
-                    <TextBox x:Name="CommandBox" x:FieldModifier="public" IsReadOnly="True" Background="Transparent" BorderThickness="0" Foreground="{StaticResource TextPrimaryBrush}"
-                             FontFamily="{StaticResource MonoFont}" FontSize="14" VerticalAlignment="Center" Padding="8,0" SelectionBrush="{StaticResource DeployAccentBrush}"
-                             CaretBrush="{StaticResource TextPrimaryBrush}">
+                    <TextBox x:Name="CommandBox" x:FieldModifier="public" IsReadOnly="True" Background="Transparent" BorderThickness="0" Foreground="{DynamicResource TextPrimaryBrush}"
+                             FontFamily="{StaticResource MonoFont}" FontSize="14" VerticalAlignment="Center" Padding="8,0" SelectionBrush="{DynamicResource DeployAccentBrush}"
+                             CaretBrush="{DynamicResource TextPrimaryBrush}">
                         <TextBox.Template>
                             <ControlTemplate TargetType="TextBox">
                                 <ScrollViewer x:Name="PART_ContentHost" Focusable="False" HorizontalScrollBarVisibility="Hidden" VerticalScrollBarVisibility="Disabled"/>
@@ -69,7 +69,7 @@
             </Border>
 
             <!-- Description & tags -->
-            <TextBlock x:Name="DescriptionText" x:FieldModifier="public" Style="{StaticResource DeployLead}" FontSize="15" Foreground="{StaticResource TextPrimaryBrush}"
+            <TextBlock x:Name="DescriptionText" x:FieldModifier="public" Style="{StaticResource DeployLead}" FontSize="15" Foreground="{DynamicResource TextPrimaryBrush}"
                        LineHeight="23" Margin="0,0,0,16"/>
             <WrapPanel x:Name="TagsPanel" x:FieldModifier="public" Margin="0,0,0,22"/>
 
@@ -87,7 +87,7 @@
                                 <TextBlock Text="{Binding Value}" FontSize="14" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" Margin="0,3,0,0"
                                            Visibility="{Binding TextVisibility}" ToolTip="{Binding Value}"/>
                                 <TextBlock Visibility="{Binding LinkVisibility}" FontSize="14" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" Margin="0,3,0,0">
-                                    <Hyperlink NavigateUri="{Binding Url}" Foreground="{StaticResource DeployAccentTextBrush}" Command="{x:Static local:AppDetailView.OpenLink}"
+                                    <Hyperlink NavigateUri="{Binding Url}" Foreground="{DynamicResource DeployAccentTextBrush}" Command="{x:Static local:AppDetailView.OpenLink}"
                                                CommandParameter="{Binding Url}" ToolTip="{Binding Url}">
                                         <Run Text="{Binding Value, Mode=OneWay}"/>
                                     </Hyperlink>

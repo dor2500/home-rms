@@ -6,7 +6,7 @@
             <!-- Title -->
             <DockPanel DockPanel.Dock="Top" Margin="0,0,0,6">
                 <TextBlock x:Name="CountText" DockPanel.Dock="Right" FontFamily="{StaticResource MonoFont}" FontSize="10.5"
-                           Foreground="{StaticResource MutedBrush}" VerticalAlignment="Center"/>
+                           Foreground="{DynamicResource MutedBrush}" VerticalAlignment="Center"/>
                 <TextBlock x:Name="TitleText" Text="PANE" Style="{StaticResource Caption}" Margin="0" VerticalAlignment="Center"/>
             </DockPanel>
 
@@ -28,11 +28,11 @@
             </StackPanel>
 
             <!-- Inline error -->
-            <TextBlock x:Name="ErrorText" DockPanel.Dock="Top" Foreground="{StaticResource DangerBrush}" TextWrapping="Wrap"
+            <TextBlock x:Name="ErrorText" DockPanel.Dock="Top" Foreground="{DynamicResource DangerBrush}" TextWrapping="Wrap"
                        FontSize="11.5" Margin="0,0,0,6" Visibility="Collapsed"/>
 
             <ListView x:Name="FilesList" AllowDrop="True" SelectionMode="Extended"
-                      Background="{StaticResource FieldBrush}" BorderBrush="{StaticResource LineBrush}"
+                      Background="{DynamicResource FieldBrush}" BorderBrush="{DynamicResource LineBrush}"
                       MouseDoubleClick="OnRowDoubleClick" KeyDown="OnListKeyDown"
                       PreviewMouseLeftButtonDown="OnListMouseDown" PreviewMouseMove="OnListMouseMove"
                       DragOver="OnListDragOver" Drop="OnListDrop"
@@ -45,7 +45,7 @@
                                 <DataTemplate>
                                     <StackPanel Orientation="Horizontal">
                                         <TextBlock Text="{Binding Glyph}" FontFamily="{StaticResource MonoFont}" FontSize="10"
-                                                   Foreground="{StaticResource AccentBrush}" Width="22" VerticalAlignment="Center"/>
+                                                   Foreground="{DynamicResource AccentBrush}" Width="22" VerticalAlignment="Center"/>
                                         <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis"/>
                                     </StackPanel>
                                 </DataTemplate>
@@ -63,7 +63,7 @@
                             <GridViewColumnHeader Content="Modified" Tag="Modified"/>
                             <GridViewColumn.CellTemplate>
                                 <DataTemplate>
-                                    <TextBlock Text="{Binding ModifiedText}" FontFamily="{StaticResource MonoFont}" FontSize="11" Foreground="{StaticResource MutedBrush}"/>
+                                    <TextBlock Text="{Binding ModifiedText}" FontFamily="{StaticResource MonoFont}" FontSize="11" Foreground="{DynamicResource MutedBrush}"/>
                                 </DataTemplate>
                             </GridViewColumn.CellTemplate>
                         </GridViewColumn>
@@ -71,7 +71,7 @@
                             <GridViewColumnHeader Content="Type" Tag="TypeText"/>
                             <GridViewColumn.CellTemplate>
                                 <DataTemplate>
-                                    <TextBlock Text="{Binding TypeText}" FontSize="11" Foreground="{StaticResource MutedBrush}"/>
+                                    <TextBlock Text="{Binding TypeText}" FontSize="11" Foreground="{DynamicResource MutedBrush}"/>
                                 </DataTemplate>
                             </GridViewColumn.CellTemplate>
                         </GridViewColumn>

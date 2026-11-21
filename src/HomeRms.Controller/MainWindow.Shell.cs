@@ -30,6 +30,10 @@ public partial class MainWindow
     private void InitializeShell()
     {
         _ui = UiSettings.Load();
+        ThemeManager.Apply(_ui.Theme, this);
+        UpdateThemeToggleLabel();
+        SourceInitialized += (_, _) => ThemeManager.ApplyWindowChrome(this);
+        Palette.ThemeChanged += OnThemeChanged;
 
         _sidebarCollapsed = _ui.SidebarCollapsed;
         ApplySidebarState(animate: false);
@@ -44,11 +48,37 @@ public partial class MainWindow
         ConsoleList.ItemsSource = _consoleView;
 
         LogBus.Published += OnLogBusPublished;
-        Closed += (_, _) => LogBus.Published -= OnLogBusPublished;
+        Closed += (_, _) =>
+        {
+            LogBus.Published -= OnLogBusPublished;
+            Palette.ThemeChanged -= OnThemeChanged;
+        };
 
         SetConsoleOpen(_ui.ConsoleOpen, persist: false);
         UpdateConsoleCount();
         UpdateNavBadges();
+    }
+
+    private void OnToggleThemeClick(object sender, RoutedEventArgs e)
+    {
+        var next = ThemeManager.IsLight ? ThemeManager.Dark : ThemeManager.Light;
+        _ui.Theme = next;
+        _ui.Save();
+        ThemeManager.Apply(next, this);
+        UpdateThemeToggleLabel();
+    }
+
+    private void UpdateThemeToggleLabel()
+    {
+        if (ThemeToggleBtn is not null)
+            ThemeToggleBtn.Content = ThemeManager.IsLight ? "Dark mode" : "Light mode";
+    }
+
+    private void OnThemeChanged()
+    {
+        if (HubRelayDot is not null)
+            HubRelayDot.Fill = (Brush)FindResource(_centralHub.IsRunning ? "OkBrush" : "WarnBrush");
+        RefreshAlertBadge();
     }
 
     private void OnLogBusPublished(LogEntry entry)
