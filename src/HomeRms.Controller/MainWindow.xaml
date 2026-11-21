@@ -1207,7 +1207,8 @@
                                 <CheckBox x:Name="AlertRamCheck" Content="High RAM" Margin="0,2,12,2"/>
                                 <CheckBox x:Name="AlertDiskCheck" Content="Low disk" Margin="0,2,12,2"/>
                                 <CheckBox x:Name="AlertTempCheck" Content="Thermal" Margin="0,2,12,2"/>
-                                <CheckBox x:Name="AlertAgentWarnCheck" Content="Agent warnings" Margin="0,2,0,2"/>
+                                <CheckBox x:Name="AlertAgentWarnCheck" Content="Agent warnings" Margin="0,2,12,2"/>
+                                <CheckBox x:Name="AlertControllerUpdateCheck" Content="Console updates" Margin="0,2,0,2"/>
                             </WrapPanel>
 
                             <TextBlock Text="Notifications &amp; background LAN discovery" Style="{StaticResource Caption}" Margin="0,8,0,4"/>

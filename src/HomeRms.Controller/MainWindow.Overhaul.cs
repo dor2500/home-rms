@@ -50,6 +50,7 @@ public partial class MainWindow
         AlertDiskCheck.IsChecked = t.AlertOnLowDisk;
         AlertTempCheck.IsChecked = t.AlertOnThermal;
         AlertAgentWarnCheck.IsChecked = t.AlertOnAgentWarning;
+        AlertControllerUpdateCheck.IsChecked = t.AlertOnControllerUpdate;
 
         AlertToastCheck.IsChecked = t.DesktopToastEnabled;
         AlertSoundCheck.IsChecked = t.SoundEnabled;
@@ -68,7 +69,9 @@ public partial class MainWindow
         {
             try { System.Media.SystemSounds.Exclamation.Play(); } catch { }
         }
-        if (!_alerts.Thresholds.DesktopToastEnabled) return;
+        var showToast = _alerts.Thresholds.DesktopToastEnabled ||
+                        (item.Category == AlertCategory.ControllerUpdate && _alerts.Thresholds.AlertOnControllerUpdate);
+        if (!showToast) return;
 
         AlertToastTitle.Text = $"{item.Title} — {item.EndpointName}";
         AlertToastTitle.Foreground = item.SeverityBrush;
@@ -186,6 +189,7 @@ public partial class MainWindow
         t.AlertOnLowDisk = AlertDiskCheck.IsChecked == true;
         t.AlertOnThermal = AlertTempCheck.IsChecked == true;
         t.AlertOnAgentWarning = AlertAgentWarnCheck.IsChecked == true;
+        t.AlertOnControllerUpdate = AlertControllerUpdateCheck.IsChecked == true;
 
         t.DesktopToastEnabled = AlertToastCheck.IsChecked == true;
         t.SoundEnabled = AlertSoundCheck.IsChecked == true;

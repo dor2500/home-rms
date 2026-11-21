@@ -25,6 +25,7 @@ public enum AlertCategory
     Thermal,
     BlockedSite,
     AgentWarning,
+    ControllerUpdate,
 }
 
 public sealed class AlertThresholds
@@ -42,6 +43,7 @@ public sealed class AlertThresholds
     public bool AlertOnThermal { get; set; } = true;
     public bool AlertOnBlockedSite { get; set; } = true;
     public bool AlertOnAgentWarning { get; set; } = true;
+    public bool AlertOnControllerUpdate { get; set; } = true;
 
     // Optional notifications
     public bool DesktopToastEnabled { get; set; }
@@ -139,6 +141,7 @@ public sealed class AlertCenterService
         AlertCategory.Thermal => Thresholds.AlertOnThermal,
         AlertCategory.BlockedSite => Thresholds.AlertOnBlockedSite,
         AlertCategory.AgentWarning => Thresholds.AlertOnAgentWarning,
+        AlertCategory.ControllerUpdate => Thresholds.AlertOnControllerUpdate,
         _ => true,
     };
 

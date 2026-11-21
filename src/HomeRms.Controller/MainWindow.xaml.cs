@@ -156,6 +156,8 @@ public partial class MainWindow : Window
     }
 
     private AvailableUpdate? _pendingUpdate;
+    private string? _lastNotifiedUpdateTag;
+    private System.Windows.Threading.DispatcherTimer? _controllerUpdateTimer;
 
     private void StyleUpdateAvailable()
     {
@@ -166,9 +168,21 @@ public partial class MainWindow : Window
 
     private async Task CheckGitHubUpdateInBackgroundAsync()
     {
+        await CheckGitHubUpdateOnceAsync(initialDelayMs: 2500);
+        if (_controllerUpdateTimer is null && !IsScreenshotRun)
+        {
+            _controllerUpdateTimer = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromMinutes(30) };
+            _controllerUpdateTimer.Tick += async (_, _) => await CheckGitHubUpdateOnceAsync(initialDelayMs: 0);
+            _controllerUpdateTimer.Start();
+            Closed += (_, _) => _controllerUpdateTimer?.Stop();
+        }
+    }
+
+    private async Task CheckGitHubUpdateOnceAsync(int initialDelayMs)
+    {
         try
         {
-            await Task.Delay(2500);
+            if (initialDelayMs > 0) await Task.Delay(initialDelayMs);
             var update = await ControllerUpdater.CheckForUpdateAsync();
             if (update is not null)
             {
@@ -176,6 +190,23 @@ public partial class MainWindow : Window
                 UpdateBtn.Content = $"Update {update.Tag}";
                 StyleUpdateAvailable();
                 UpdateBtn.ToolTip = $"New version {update.Tag} available on GitHub. Click to update & restart.";
+
+                if (!string.Equals(_lastNotifiedUpdateTag, update.Tag, StringComparison.OrdinalIgnoreCase))
+                {
+                    _lastNotifiedUpdateTag = update.Tag;
+                    AddActivity("UPDATE", $"Controller update {update.Tag} is available on GitHub.");
+                    if (_alerts.Thresholds.AlertOnControllerUpdate)
+                    {
+                        _alerts.Raise(
+                            "Central Console",
+                            "GitHub Releases",
+                            AlertSeverity.Info,
+                            $"Console update available: {update.Tag}",
+                            $"Home RMS Console {update.Tag} is ready (running v{ControllerUpdater.CurrentVersion.Major}.{ControllerUpdater.CurrentVersion.Minor}.{ControllerUpdater.CurrentVersion.Build}). Click Updates in the top bar to install.",
+                            cooldownMinutes: 60,
+                            category: AlertCategory.ControllerUpdate);
+                    }
+                }
             }
             else
             {
