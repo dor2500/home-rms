@@ -1,4 +1,6 @@
+using System.Net;
 using System.Net.Http;
+using System.Net.Sockets;
 using System.Net.Security;
 using System.Security.Authentication;
 using System.Security.Cryptography.X509Certificates;
@@ -18,6 +20,12 @@ public sealed class RmsConnection : IDisposable
     public string Host { get; }
     public int Port { get; }
 
+    /// <summary>The address the last TCP connection actually reached (null until connected).</summary>
+    public IPAddress? RemoteAddress { get; private set; }
+
+    /// <summary>The agent certificate presented on the last TLS handshake that passed validation.</summary>
+    public X509Certificate2? ServerCertificate { get; private set; }
+
     public RmsConnection(string host, int port)
     {
         Host = host;
@@ -36,16 +44,38 @@ public sealed class RmsConnection : IDisposable
             KeepAlivePingTimeout = TimeSpan.FromSeconds(5),
             KeepAlivePingPolicy = HttpKeepAlivePingPolicy.Always,
             PooledConnectionIdleTimeout = Timeout.InfiniteTimeSpan,
+            // Our own connect step only to learn which address a computer name resolved to.
+            ConnectCallback = async (ctx, ct) =>
+            {
+                // Dual mode (IPv4 + IPv6) unless this PC has no IPv6 stack.
+                var socket = Socket.OSSupportsIPv6
+                    ? new Socket(SocketType.Stream, ProtocolType.Tcp) { NoDelay = true }
+                    : new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp) { NoDelay = true };
+                try
+                {
+                    await socket.ConnectAsync(ctx.DnsEndPoint, ct);
+                    if (socket.RemoteEndPoint is IPEndPoint ep)
+                        RemoteAddress = ep.Address.IsIPv4MappedToIPv6 ? ep.Address.MapToIPv4() : ep.Address;
+                    return new NetworkStream(socket, ownsSocket: true);
+                }
+                catch
+                {
+                    socket.Dispose();
+                    throw;
+                }
+            },
             SslOptions = new SslClientAuthenticationOptions
             {
                 EnabledSslProtocols = SslProtocols.Tls12 | SslProtocols.Tls13,
                 ClientCertificates = new X509CertificateCollection { clientCert },
                 RemoteCertificateValidationCallback = (_, cert, _, _) =>
-                    cert is not null && DevCertificates.ValidateAgainstCa(
-                        cert as X509Certificate2 ?? X509CertificateLoader.LoadCertificate(cert.Export(X509ContentType.Cert)),
-                        ca,
-                        DevCertificates.ServerAuthOid,
-                        warning => WarnOnce(host, port, warning))
+                {
+                    if (cert is null) return false;
+                    var x509 = X509CertificateLoader.LoadCertificate(cert.Export(X509ContentType.Cert));
+                    var ok = DevCertificates.ValidateAgainstCa(x509, ca, DevCertificates.ServerAuthOid, warning => WarnOnce(host, port, warning));
+                    if (ok) ServerCertificate = x509;
+                    return ok;
+                }
             }
         };
 

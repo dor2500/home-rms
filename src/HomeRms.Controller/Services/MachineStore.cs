@@ -48,8 +48,12 @@ public static class MachineStore
         return defaults;
     }
 
+    /// <summary>When set (screenshot runs), <see cref="Save"/> does nothing so sample data never reaches the real file.</summary>
+    public static bool ReadOnly { get; set; }
+
     public static void Save(IEnumerable<MachineProfile> machines)
     {
+        if (ReadOnly) return;
         try
         {
             AtomicFile.WriteAllText(FilePath, JsonSerializer.Serialize(machines.ToList(), Options));

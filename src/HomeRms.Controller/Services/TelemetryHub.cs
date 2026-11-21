@@ -211,6 +211,14 @@ public sealed class TelemetryHub : IDisposable
             catch (Exception ex)
             {
                 SetStatus(et, AgentErrors.Describe(ex), live: false);
+                // The endpoint may have moved: re-resolve once (rate-limited by the relocator) and reconnect at once.
+                if (EndpointLocator.IsTransportError(ex) && _pool.Relocate is { } relocate && !ct.IsCancellationRequested)
+                {
+                    bool moved;
+                    try { moved = await relocate(et.Profile, ct); }
+                    catch (OperationCanceledException) { break; }
+                    if (moved) continue;
+                }
             }
 
             if (!gotSample && backoff < TimeSpan.FromMinutes(2))

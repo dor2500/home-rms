@@ -321,7 +321,6 @@ public partial class MainWindow
     {
         var all = batches.SelectMany(b => b.Items).ToList();
         var finished = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        RmsConnection? owned = null;
         string? failure = null;
         var failureStatus = DeployItemStatus.Failed;
 
@@ -336,8 +335,8 @@ public partial class MainWindow
             }
             else if (p is not null)
             {
-                owned = new RmsConnection(p.Host, p.Port);
-                conn = owned;
+                // Pooled + paired; the pool also follows an endpoint whose IP changed (re-resolve, one retry).
+                conn = await _pool.GetPairedAsync(p, interactive: true, ct);
             }
             else
             {
@@ -423,11 +422,7 @@ public partial class MainWindow
         }
         catch (Exception ex)
         {
-            failure = ex.Message;
-        }
-        finally
-        {
-            owned?.Dispose();
+            failure = ex is AgentPairingException ? AgentErrors.Describe(ex) : ex.Message;
         }
 
         if (failure is not null)

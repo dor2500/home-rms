@@ -59,6 +59,7 @@ public sealed class AgentConnectionPool : IDisposable
         public RmsConnection Conn { get; } = conn;
         public SemaphoreSlim Gate { get; } = new(1, 1);
         public AgentInfo? Info { get; set; }
+        public bool Reported { get; set; }
     }
 
     private readonly ConcurrentDictionary<string, Entry> _entries = new(StringComparer.OrdinalIgnoreCase);
@@ -76,13 +77,44 @@ public sealed class AgentConnectionPool : IDisposable
     public RmsConnection Get(string host, int port) =>
         _entries.GetOrAdd(Key(host, port), _ => new Entry(new RmsConnection(host, port))).Conn;
 
-    public RmsConnection Get(MachineProfile m) => Get(m.Host, m.Port);
+    public RmsConnection Get(MachineProfile m) => Get(m.DialHost, m.Port);
 
     public AgentInfo? GetCachedInfo(MachineProfile m) =>
-        _entries.TryGetValue(Key(m.Host, m.Port), out var e) ? e.Info : null;
+        _entries.TryGetValue(Key(m.DialHost, m.Port), out var e) ? e.Info : null;
 
-    public Task<RmsConnection> GetPairedAsync(MachineProfile m, bool interactive, CancellationToken ct = default) =>
-        GetPairedAsync(m.Host, m.Port, interactive, ct);
+    /// <summary>
+    /// Called once when a connection to a profile fails with a transport error: re-resolves the endpoint
+    /// (name resolution, other known addresses, LAN discovery), updates the profile and returns true when
+    /// its dial address changed. The pool then drops the old connection and retries once.
+    /// </summary>
+    public Func<MachineProfile, CancellationToken, Task<bool>>? Relocate { get; set; }
+
+    /// <summary>Raised after a successful pairing handshake for a profile (computer name, address, certificate).</summary>
+    public Action<MachineProfile, RmsConnection, AgentInfo>? Paired { get; set; }
+
+    public async Task<RmsConnection> GetPairedAsync(MachineProfile m, bool interactive, CancellationToken ct = default)
+    {
+        var host = m.DialHost;
+        var port = m.Port;
+        RmsConnection conn;
+        try
+        {
+            conn = await GetPairedAsync(host, port, interactive, ct);
+        }
+        catch (Exception ex) when (Relocate is not null && EndpointLocator.IsTransportError(ex) && !ct.IsCancellationRequested)
+        {
+            if (!await Relocate(m, ct)) throw;
+            Evict(host, port);
+            conn = await GetPairedAsync(m.DialHost, m.Port, interactive, ct);
+        }
+        if (_entries.TryGetValue(Key(m.DialHost, m.Port), out var e) && e.Info is { } info && !e.Reported)
+        {
+            e.Reported = true;
+            try { Paired?.Invoke(m, conn, info); }
+            catch (Exception cbEx) { LogBus.Publish(LogBus.Activity, "CONNECT", $"Could not record agent details for {m.DisplayTitle}: {cbEx.Message}", Themes.PaletteTone.Warning); }
+        }
+        return conn;
+    }
 
     /// <summary>
     /// Returns a connection whose controller certificate is known to be pinned by the agent.
@@ -153,6 +185,8 @@ public sealed class AgentConnectionPool : IDisposable
         if (_entries.TryGetValue(Key(host, port), out var e)) e.Info = null;
     }
 
+    public void MarkUnpaired(MachineProfile m) => MarkUnpaired(m.DialHost, m.Port);
+
     public void Evict(string host, int port)
     {
         if (_entries.TryRemove(Key(host, port), out var e)) e.Conn.Dispose();
@@ -168,7 +202,7 @@ public sealed class AgentConnectionPool : IDisposable
         }
         catch (RpcException ex) when (ex.StatusCode == StatusCode.PermissionDenied)
         {
-            MarkUnpaired(m.Host, m.Port);
+            MarkUnpaired(m);
             throw;
         }
     }
