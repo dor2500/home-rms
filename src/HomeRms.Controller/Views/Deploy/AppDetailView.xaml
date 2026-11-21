@@ -1,0 +1,103 @@
+<UserControl x:Class="HomeRms.Controller.Views.Deploy.AppDetailView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:local="clr-namespace:HomeRms.Controller.Views.Deploy">
+    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Focusable="False">
+        <StackPanel Margin="24,16,24,120" MaxWidth="1040" HorizontalAlignment="Left">
+            <Button x:Name="BackBtn" x:FieldModifier="public" Style="{StaticResource DeployLinkButton}" HorizontalAlignment="Left" Margin="-6,0,0,14">
+                <StackPanel Orientation="Horizontal">
+                    <Path Data="{StaticResource DGeoBack}" Style="{StaticResource DeployIcon}" Width="11" Height="11" Margin="0,0,6,0"/>
+                    <TextBlock Text="Back"/>
+                </StackPanel>
+            </Button>
+
+            <!-- Header: big icon, name, "by Publisher", select / install actions -->
+            <DockPanel Margin="0,0,0,22">
+                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
+                    <Button x:Name="SelectBtn" x:FieldModifier="public" Style="{StaticResource DeployDarkButton}" Margin="10,0,0,0" Padding="16,10"
+                            Command="{x:Static local:DeployCommands.ToggleApp}" CommandParameter="{Binding}">
+                        <StackPanel Orientation="Horizontal">
+                            <Path x:Name="SelectIcon" Data="{StaticResource DGeoPlus}" Style="{StaticResource DeployIcon}" Width="13" Height="13" Margin="0,0,8,0"/>
+                            <TextBlock x:Name="SelectText" Text="Select app"/>
+                        </StackPanel>
+                    </Button>
+                    <Button x:Name="InstallNowBtn" x:FieldModifier="public" Style="{StaticResource DeployAccentButton}" Margin="10,0,0,0" Padding="16,10"
+                            ToolTip="Select this app and open the install / deploy screen">
+                        <StackPanel Orientation="Horizontal">
+                            <Path Data="{StaticResource DGeoDownload}" Style="{StaticResource DeployIcon}" Width="13" Height="13" Margin="0,0,8,0"/>
+                            <TextBlock Text="Install"/>
+                        </StackPanel>
+                    </Button>
+                </StackPanel>
+                <local:AppIcon Size="76" Margin="0,0,20,0"/>
+                <StackPanel VerticalAlignment="Center">
+                    <TextBlock Text="{Binding Name}" Style="{StaticResource DeployH1}" FontSize="30"/>
+                    <TextBlock Style="{StaticResource DeployLead}" FontSize="15" Margin="0,4,0,0">
+                        <Run Text="by"/>
+                        <Run Text="{Binding Publisher, Mode=OneWay}" Foreground="{StaticResource TextPrimaryBrush}" FontWeight="SemiBold"/>
+                    </TextBlock>
+                </StackPanel>
+            </DockPanel>
+
+            <!-- Command box -->
+            <TextBlock x:Name="InstallLabel" x:FieldModifier="public" Style="{StaticResource DeployLabel}" FontSize="14" Text="Install or upgrade with winget:"/>
+            <WrapPanel Margin="0,0,0,8">
+                <RadioButton x:Name="TabInstall" x:FieldModifier="public" Content="Install" Style="{StaticResource DeployPillTab}" GroupName="DetailVerb" IsChecked="True"/>
+                <RadioButton x:Name="TabUpgrade" x:FieldModifier="public" Content="Upgrade" Style="{StaticResource DeployPillTab}" GroupName="DetailVerb"/>
+            </WrapPanel>
+            <Border Background="{StaticResource DeployCodeBrush}" BorderBrush="{StaticResource DeployBorderBrush}" BorderThickness="1" CornerRadius="14" Padding="8" Margin="0,0,0,24">
+                <DockPanel>
+                    <Button x:Name="CopyBtn" x:FieldModifier="public" DockPanel.Dock="Right" Style="{StaticResource DeployAccentButton}" Padding="16,9" Margin="8,0,0,0">
+                        <StackPanel Orientation="Horizontal">
+                            <Path Data="{StaticResource DGeoCopy}" Style="{StaticResource DeployIcon}" Width="13" Height="13" Margin="0,0,8,0"/>
+                            <TextBlock x:Name="CopyText" x:FieldModifier="public" Text="Copy"/>
+                        </StackPanel>
+                    </Button>
+                    <ComboBox x:Name="VersionCombo" x:FieldModifier="public" DockPanel.Dock="Right" Width="230" Margin="8,0,0,0" VerticalAlignment="Center"
+                              ToolTip="Version" DisplayMemberPath="Label"/>
+                    <TextBlock DockPanel.Dock="Right" Text="Version" Style="{StaticResource DeployMeta}" VerticalAlignment="Center" Margin="8,0,0,0"/>
+                    <TextBox x:Name="CommandBox" x:FieldModifier="public" IsReadOnly="True" Background="Transparent" BorderThickness="0" Foreground="{StaticResource TextPrimaryBrush}"
+                             FontFamily="{StaticResource MonoFont}" FontSize="14" VerticalAlignment="Center" Padding="8,0" SelectionBrush="{StaticResource DeployAccentBrush}"
+                             CaretBrush="{StaticResource TextPrimaryBrush}">
+                        <TextBox.Template>
+                            <ControlTemplate TargetType="TextBox">
+                                <ScrollViewer x:Name="PART_ContentHost" Focusable="False" HorizontalScrollBarVisibility="Hidden" VerticalScrollBarVisibility="Disabled"/>
+                            </ControlTemplate>
+                        </TextBox.Template>
+                    </TextBox>
+                </DockPanel>
+            </Border>
+
+            <!-- Description & tags -->
+            <TextBlock x:Name="DescriptionText" x:FieldModifier="public" Style="{StaticResource DeployLead}" FontSize="15" Foreground="{StaticResource TextPrimaryBrush}"
+                       LineHeight="23" Margin="0,0,0,16"/>
+            <WrapPanel x:Name="TagsPanel" x:FieldModifier="public" Margin="0,0,0,22"/>
+
+            <!-- Information grid -->
+            <TextBlock Text="Information" Style="{StaticResource DeployH2}" Margin="0,0,0,14"/>
+            <Border Style="{StaticResource DeployPanelCard}" Padding="22,18">
+                <ItemsControl x:Name="InfoList" x:FieldModifier="public" Focusable="False">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate><UniformGrid Columns="3"/></ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <StackPanel Margin="0,4,18,14">
+                                <TextBlock Text="{Binding Label}" Style="{StaticResource DeployMeta}" FontSize="12"/>
+                                <TextBlock Text="{Binding Value}" FontSize="14" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" Margin="0,3,0,0"
+                                           Visibility="{Binding TextVisibility}" ToolTip="{Binding Value}"/>
+                                <TextBlock Visibility="{Binding LinkVisibility}" FontSize="14" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" Margin="0,3,0,0">
+                                    <Hyperlink NavigateUri="{Binding Url}" Foreground="{StaticResource DeployAccentTextBrush}" Command="{x:Static local:AppDetailView.OpenLink}"
+                                               CommandParameter="{Binding Url}" ToolTip="{Binding Url}">
+                                        <Run Text="{Binding Value, Mode=OneWay}"/>
+                                    </Hyperlink>
+                                </TextBlock>
+                            </StackPanel>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </Border>
+            <TextBlock x:Name="StatusText" x:FieldModifier="public" Style="{StaticResource DeployMeta}" Margin="0,12,0,0" TextWrapping="Wrap" TextTrimming="None"/>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

@@ -8,11 +8,12 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
+using System.Windows.Media;
 using System.Windows.Threading;
-using Grpc.Core;
 using HomeRms.Controller.Models;
 using HomeRms.Controller.Services;
-using HomeRms.Shared.Protocol;
+using HomeRms.Controller.Views.Deploy;
 using HomeRms.Shared.Server;
 
 namespace HomeRms.Controller;
@@ -79,55 +80,203 @@ public sealed class DeployFileItem : INotifyPropertyChanged
     private void Notify([CallerMemberName] string? p = null) => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(p));
 }
 
+/// <summary>
+/// Deploy tab, catalog side: winstall-style Discover / Apps / Essentials / app page / Packs and the shared
+/// selection (one <see cref="_selectedApps"/> collection for every sub-view). Data: api.winstall.app (cached),
+/// the official winget index, and the built-in curated list as the offline fallback.
+/// Install view, scripts, targets and the actual deployment live in MainWindow.DeployRun.cs.
+/// </summary>
 public partial class MainWindow
 {
-    private const int WingetPageSize = 50;
+    private const int AppsPageSize = 60;
+    private const int TrendingCount = 12;
+    private const int CommunityPageSize = 12;
     private const string BuiltInSourceLabel = "built-in curated list";
 
     private readonly WingetCatalogService _winget = new();
     private readonly WingetSourceIndex _wingetIndex = new();
     private readonly WingetIconCache _wingetIcons = new();
-    private readonly ObservableCollection<WingetAppItem> _filteredWingetApps = [];
-    private readonly ObservableCollection<WingetAppItem> _wingetQueue = [];
+    private readonly WinstallApiClient _winstall = new();
+
+    /// <summary>The selection shared by every Deploy sub-view (cards, bar, Install view, deploy queue).</summary>
+    private readonly ObservableCollection<WingetAppItem> _selectedApps = [];
+    private readonly ObservableCollection<WingetAppItem> _appsResults = [];
+    private readonly ObservableCollection<WingetAppItem> _trendingApps = [];
+    private readonly ObservableCollection<PackCard> _discoverPacks = [];
+    private readonly ObservableCollection<PackCard> _featuredPacks = [];
+    private readonly ObservableCollection<PackCard> _communityPacks = [];
     private readonly ObservableCollection<DeployTarget> _deployTargets = [];
     private readonly ObservableCollection<DeployFileItem> _deployFiles = [];
-    private readonly DispatcherTimer _wingetSearchDebounce = new() { Interval = TimeSpan.FromMilliseconds(250) };
+    private readonly DispatcherTimer _wingetSearchDebounce = new() { Interval = TimeSpan.FromMilliseconds(280) };
+    private readonly SemaphoreSlim _detailsGate = new(4, 4);
 
     private CancellationTokenSource? _wingetSearchCts;
     private CancellationTokenSource? _wingetDeployCts;
     private int _wingetSearchGeneration;
-    private int _wingetPageOffset;
+    private int _appsOffset;
+    private int _appsTotal;
+    private bool _appsCanPage;
+    private bool _appsLoading;
+    private bool _appsLoaded;
+    private int _communityOffset;
+    private int _communityTotal;
+    private bool _packsLoaded;
+    private bool _syncingSearch;
     private bool _wingetIndexLoadStarted;
+    private bool _discoverLoadStarted;
     private bool _deployInitialized;
+    private Task _discoverTask = Task.CompletedTask;
+    private Task _appsTask = Task.CompletedTask;
+    private Task _packsTask = Task.CompletedTask;
+    private Task _detailTask = Task.CompletedTask;
+
+    // Names the rest of MainWindow (file deploy, log, screenshots) has always used.
+    private TextBlock DeployStatusBadge => DeployShell.StatusBadge;
+    private TextBox DeployOutputBox => DeployShell.Install.OutputBox;
+    private TextBox DeployFilePathBox => DeployShell.Files.PathBox;
+    private TextBox DeployArgsBox => DeployShell.Files.ArgsBox;
+    private Button DeployRunBtn => DeployShell.Files.RunFilesBtn;
+
+    private DiscoverView DiscoverV => DeployShell.Discover;
+    private AppsView AppsV => DeployShell.Apps;
+    private AppDetailView DetailV => DeployShell.Detail;
+    private PacksView PacksV => DeployShell.Packs;
+    private InstallView InstallV => DeployShell.Install;
+    private FilesView FilesV => DeployShell.Files;
+    private SelectionBar BarV => DeployShell.Selection;
 
     private sealed record WingetTarget(string Label, MachineProfile? Profile, bool Agentless);
     private sealed record WingetOutcome(string Target, DeployItemStatus Status, string Detail);
 
     private void InitializeDeploy()
     {
-        WingetCatalogList.ItemsSource = _filteredWingetApps;
-        WingetQueueList.ItemsSource = _wingetQueue;
-        DeployTargetList.ItemsSource = _deployTargets;
-        DeployFileList.ItemsSource = _deployFiles;
-        WingetPackCombo.DisplayMemberPath = nameof(WingetPack.DisplayName);
-        ReloadWingetPackCombo(null);
-        WingetCategoryCombo.ItemsSource = WingetCategories.Names;
-        WingetCategoryCombo.SelectedIndex = 0;
+        // Lists
+        AppsV.AppsList.ItemsSource = _appsResults;
+        DiscoverV.TrendingList.ItemsSource = _trendingApps;
+        DiscoverV.FeaturedPacksList.ItemsSource = _discoverPacks;
+        DiscoverV.CategoryList.ItemsSource = DeployCategory.Top.Select(MakeTile).ToList();
+        PacksV.FeaturedPacksList.ItemsSource = _featuredPacks;
+        PacksV.CommunityPacksList.ItemsSource = _communityPacks;
+        InstallV.SelectedList.ItemsSource = _selectedApps;
+        InstallV.QueueList.ItemsSource = _selectedApps;
+        InstallV.TargetList.ItemsSource = _deployTargets;
+        FilesV.FileList.ItemsSource = _deployFiles;
+        BarV.Bind(_selectedApps);
+        DeployShell.Essentials.GroupsList.ItemsSource = _winget.BuiltIn
+            .GroupBy(a => a.Category)
+            .Select(g => new EssentialsGroup(EssentialsHeading(g.Key), g.ToList()))
+            .ToList();
+        foreach (var app in _winget.BuiltIn) _wingetIcons.Attach(app);
 
+        // Commands raised by cards anywhere in the shell
+        var shell = DeployShell;
+        shell.CommandBindings.Add(new CommandBinding(DeployCommands.OpenApp, (_, e) => { if (e.Parameter is WingetAppItem a) OpenAppPage(a); }));
+        shell.CommandBindings.Add(new CommandBinding(DeployCommands.ToggleApp, (_, e) => { if (e.Parameter is WingetAppItem a) SetQueued(a, !a.IsSelected); }));
+        shell.CommandBindings.Add(new CommandBinding(DeployCommands.OpenCategory, (_, e) => { if (e.Parameter is string s) OpenCategory(s); }));
+        shell.CommandBindings.Add(new CommandBinding(DeployCommands.SelectPack, async (_, e) => { if (e.Parameter is PackCard p) await SelectPackAsync(p); }));
+        shell.CommandBindings.Add(new CommandBinding(DeployCommands.DeletePack, (_, e) => { if (e.Parameter is PackCard p) DeleteCustomPack(p); }));
+        shell.CommandBindings.Add(new CommandBinding(DeployCommands.AddSelectionToPack, (_, e) => { if (e.Parameter is WingetPack p) AddSelectionToPack(p); }));
+        shell.ViewShown += OnDeployViewShown;
+
+        // Discover
+        DiscoverV.BrowseAppsBtn.Click += (_, _) => shell.Show(DeployView.Apps);
+        DiscoverV.ViewAllAppsBtn.Click += (_, _) => shell.Show(DeployView.Apps);
+        DiscoverV.OpenPacksBtn.Click += (_, _) => shell.Show(DeployView.Packs);
+        DiscoverV.ViewAllPacksBtn.Click += (_, _) => shell.Show(DeployView.Packs);
+        DiscoverV.RefreshIndexBtn.Click += OnRefreshWingetIndexClick;
+
+        // Search: the top-bar box and the Apps box stay in sync
+        shell.TopSearchBox.TextChanged += (_, _) =>
+        {
+            if (_syncingSearch) return;
+            _syncingSearch = true;
+            AppsV.SearchBox.Text = shell.TopSearchBox.Text;
+            _syncingSearch = false;
+            if (shell.Current != DeployView.Apps && shell.TopSearchBox.Text.Trim().Length > 0) shell.Show(DeployView.Apps);
+            RestartSearchDebounce();
+        };
+        shell.TopSearchBox.KeyDown += (_, e) =>
+        {
+            if (e.Key != Key.Enter) return;
+            shell.Show(DeployView.Apps);
+            _wingetSearchDebounce.Stop();
+            _appsTask = RunAppsSearchAsync(append: false);
+        };
+        AppsV.SearchBox.TextChanged += (_, _) =>
+        {
+            if (_syncingSearch) return;
+            _syncingSearch = true;
+            shell.TopSearchBox.Text = AppsV.SearchBox.Text;
+            _syncingSearch = false;
+            RestartSearchDebounce();
+        };
+        AppsV.CategoryChanged += (_, _) => { _wingetSearchDebounce.Stop(); _appsTask = RunAppsSearchAsync(append: false); };
+        AppsV.NearEnd += (_, _) => { if (_appsCanPage && !_appsLoading && _appsOffset < _appsTotal) _appsTask = RunAppsSearchAsync(append: true); };
+        AppsV.LoadMoreBtn.Click += (_, _) => _appsTask = RunAppsSearchAsync(append: true);
         _wingetSearchDebounce.Tick += (_, _) =>
         {
             _wingetSearchDebounce.Stop();
-            _ = RunWingetSearchAsync(append: false);
+            _appsTask = RunAppsSearchAsync(append: false);
         };
-        _wingetQueue.CollectionChanged += (_, _) => UpdateWingetSelectedCount();
+
+        // App page
+        DetailV.BackBtn.Click += (_, _) => shell.Show(shell.Previous);
+        DetailV.CopyBtn.Click += (_, _) => CopyText(DetailV.CommandBox.Text, () => DetailV.CopyText.Text = "Copied!");
+        DetailV.InstallNowBtn.Click += (_, _) =>
+        {
+            if (DetailV.Item is { } item) SetQueued(item, true);
+            shell.Show(DeployView.Install);
+        };
+
+        // Packs
+        PacksV.ImportToggleBtn.Click += OnToggleWingetImportClick;
+        PacksV.ImportCloseBtn.Click += OnToggleWingetImportClick;
+        PacksV.ImportPasteBtn.Click += OnPasteWingetImportClick;
+        PacksV.ImportRunBtn.Click += OnRunWingetImportClick;
+        PacksV.NewPackToggleBtn.Click += (_, _) => ToggleNewPackPanel(true);
+        PacksV.NewPackCloseBtn.Click += (_, _) => ToggleNewPackPanel(false);
+        PacksV.SavePackBtn.Click += (_, _) => SaveSelectionAsPack(PacksV.PackNameBox.Text, PacksV.StatusText);
+        PacksV.LoadMoreBtn.Click += (_, _) => _packsTask = LoadCommunityPacksAsync(append: true);
+
+        // Selection bar
+        BarV.ClearBtn.Click += OnClearWingetQueueClick;
+        BarV.InstallBtn.Click += (_, _) => { BarV.CloseFlyouts(); shell.Show(DeployView.Install); };
+        BarV.SaveNewPackBtn.Click += (_, _) => SaveSelectionAsPack(BarV.NewPackNameBox.Text, BarV.PackResultText);
+        BarV.NewPackNameBox.KeyDown += (_, e) => { if (e.Key == Key.Enter) SaveSelectionAsPack(BarV.NewPackNameBox.Text, BarV.PackResultText); };
+
+        InitializeInstallView(); // MainWindow.DeployRun.cs
+
+        _selectedApps.CollectionChanged += (_, e) =>
+        {
+            if (e.NewItems is not null) foreach (WingetAppItem a in e.NewItems) a.OptionsChanged += OnSelectedAppOptionsChanged;
+            if (e.OldItems is not null) foreach (WingetAppItem a in e.OldItems) a.OptionsChanged -= OnSelectedAppOptionsChanged;
+            UpdateWingetSelectedCount();
+        };
 
         if (_winget.PackLoadError is { } packErr)
             DeployLog("packs", null, packErr);
 
+        // Offline-first content until api.winstall.app answers
+        foreach (var app in _winget.BuiltIn.Take(TrendingCount)) _trendingApps.Add(app);
+        foreach (var card in _winget.Presets.Take(4).Select(CardFromPack)) _discoverPacks.Add(card);
+        RefreshPackLists();
+
         _deployInitialized = true;
         UpdateWingetSourceStatus();
-        _ = RunWingetSearchAsync(append: false);
+        UpdateWingetSelectedCount();
     }
+
+    private static string EssentialsHeading(string category) => category switch
+    {
+        "Developer" => "Developer Tools",
+        "Admin" => "Admin & Diagnostics",
+        "Media" => "Media & Entertainment",
+        _ => category,
+    };
+
+    private CategoryTile MakeTile(DeployCategory c) => new(c.Slug, c.Label,
+        Themes.Palette.Get($"DeployTone{c.Tone}FillBrush"), Themes.Palette.Get($"DeployTone{c.Tone}BadgeBrush"),
+        Themes.Palette.Get($"DeployTone{c.Tone}InkBrush"), (Geometry)FindResource(c.IconKey));
 
     private void OnDeployPanelVisibleChanged(object sender, DependencyPropertyChangedEventArgs e)
     {
@@ -138,12 +287,35 @@ public partial class MainWindow
             _wingetIndexLoadStarted = true;
             _ = EnsureWingetIndexAsync(force: false);
         }
+        if (!_discoverLoadStarted)
+        {
+            _discoverLoadStarted = true;
+            _discoverTask = LoadDiscoverAsync();
+        }
+    }
+
+    private void OnDeployViewShown(object? sender, DeployView view)
+    {
+        BarV.CloseFlyouts();
+        switch (view)
+        {
+            case DeployView.Apps when !_appsLoaded:
+                _appsTask = RunAppsSearchAsync(append: false);
+                break;
+            case DeployView.Packs:
+                RefreshPackLists();
+                if (!_packsLoaded) { _packsLoaded = true; _packsTask = LoadPacksAsync(); }
+                break;
+            case DeployView.Install:
+                PrepareInstallView(); // MainWindow.DeployRun.cs
+                break;
+        }
     }
 
     // ---------------- Catalog source (official index) ----------------
     private async Task EnsureWingetIndexAsync(bool force)
     {
-        WingetSourceStatusText.Text = force
+        DiscoverV.IndexStatusText.Text = force
             ? "Checking cdn.winget.microsoft.com for a newer winget index..."
             : "Loading the official winget index (downloads about 4 MB at most once a day)...";
         DeployStatusBadge.Text = "INDEX...";
@@ -154,13 +326,13 @@ public partial class MainWindow
         catch (Exception ex)
         {
             DeployLog("catalog", null, $"Official winget index refresh failed: {ex.Message}" +
-                (_wingetIndex.IsAvailable ? " (keeping the cached copy)" : " (falling back to api.winget.run / built-in list)"));
+                (_wingetIndex.IsAvailable ? " (keeping the cached copy)" : " (falling back to api.winstall.app / built-in list)"));
         }
 
         RefreshBuiltInVersionsFromIndex();
         UpdateWingetSourceStatus();
         DeployStatusBadge.Text = _wingetDeployCts is null ? "READY" : "DEPLOYING...";
-        await RunWingetSearchAsync(append: false);
+        if (_appsLoaded && _appsResults.Count == 0) _appsTask = RunAppsSearchAsync(append: false);
     }
 
     private void RefreshBuiltInVersionsFromIndex()
@@ -185,18 +357,22 @@ public partial class MainWindow
         if (s.Available)
         {
             var updated = s.UpdatedUtc is { } u ? u.ToLocalTime().ToString("yyyy-MM-dd HH:mm") : "unknown date";
-            text = $"Source: official winget index (cdn.winget.microsoft.com), updated {updated}, {s.PackageCount:N0} packages";
-            if (s.Error is not null) text += $"  ·  last refresh failed: {s.Error} (using the cached copy)";
+            text = $"Official winget index (cdn.winget.microsoft.com), updated {updated}.";
+            if (s.Error is not null) text += $" Last refresh failed: {s.Error} (using the cached copy).";
+            DiscoverV.PackageCountText.Text = s.PackageCount.ToString("N0");
+            DeployShell.TopSearchBox.Tag = $"Search {s.PackageCount / 50 * 50:N0}+ apps";
         }
         else if (s.Error is not null)
         {
-            text = $"Official winget index unavailable: {s.Error}  ·  search falls back to api.winget.run (community mirror, frozen since 2023), then the built-in list.";
+            text = $"Official winget index unavailable: {s.Error}. Browsing uses api.winstall.app, then the built-in list.";
+            DiscoverV.PackageCountText.Text = _appsTotal > 0 ? _appsTotal.ToString("N0") : "—";
         }
         else
         {
-            text = "Official winget index not downloaded yet  ·  showing the built-in list.";
+            text = "Official winget index not downloaded yet; it loads when this tab opens.";
         }
-        WingetSourceStatusText.Text = text;
+        DiscoverV.IndexStatusText.Text = text;
+        DiscoverV.IndexStatusText.ToolTip = text;
     }
 
     private void OnRefreshWingetIndexClick(object sender, RoutedEventArgs e)
@@ -205,31 +381,82 @@ public partial class MainWindow
         _ = EnsureWingetIndexAsync(force: true);
     }
 
-    // ---------------- Search ----------------
-    private void OnWingetSearchChanged(object sender, TextChangedEventArgs e)
+    // ---------------- Discover ----------------
+    private async Task LoadDiscoverAsync()
+    {
+        var notes = new List<string>();
+        try
+        {
+            var page = await _winstall.TrendingAppsAsync();
+            var items = page.Items.Select(_winget.FromWinstall).Take(TrendingCount).ToList();
+            if (items.Count > 0)
+            {
+                _trendingApps.Clear();
+                foreach (var i in items) { _trendingApps.Add(i); _wingetIcons.Attach(i); }
+                DiscoverV.TrendingSubtitle.Text = "Popular downloads this week.";
+            }
+            if (page.Stale) notes.Add("trending apps are from the offline cache");
+        }
+        catch (Exception ex)
+        {
+            DiscoverV.TrendingSubtitle.Text = "Curated favourites (winstall trending is unavailable).";
+            notes.Add($"trending apps unavailable ({Reason(ex)}), showing the built-in list");
+        }
+
+        try
+        {
+            var packs = await _winstall.TrendingPacksAsync();
+            var cards = packs.Items.Take(4).Select(CardFromWinstall).ToList();
+            if (cards.Count > 0)
+            {
+                _discoverPacks.Clear();
+                foreach (var c in cards) _discoverPacks.Add(c);
+            }
+            if (packs.Stale) notes.Add("featured packs are from the offline cache");
+        }
+        catch (Exception ex)
+        {
+            notes.Add($"featured packs unavailable ({Reason(ex)}), showing Home RMS presets");
+        }
+
+        DiscoverV.OfflineNote.Text = notes.Count == 0 ? "" : "Offline: " + string.Join("; ", notes) + ".";
+        DiscoverV.OfflineNote.Visibility = notes.Count == 0 ? Visibility.Collapsed : Visibility.Visible;
+        foreach (var n in notes) DeployLog("catalog", null, n);
+    }
+
+    private static string Reason(Exception ex) => ex is TaskCanceledException ? "timed out" : ex.Message;
+
+    private void OpenCategory(string slug)
+    {
+        AppsV.SetCategory(slug);
+        _syncingSearch = true;
+        AppsV.SearchBox.Text = "";
+        DeployShell.TopSearchBox.Text = "";
+        _syncingSearch = false;
+        DeployShell.Show(DeployView.Apps);
+        _wingetSearchDebounce.Stop();
+        _appsTask = RunAppsSearchAsync(append: false);
+    }
+
+    // ---------------- Apps (search / browse) ----------------
+    private void RestartSearchDebounce()
     {
         if (!_deployInitialized) return;
         _wingetSearchDebounce.Stop();
         _wingetSearchDebounce.Start();
     }
 
-    private void OnWingetCategoryChanged(object sender, SelectionChangedEventArgs e)
+    private async Task RunAppsSearchAsync(bool append)
     {
-        if (!_deployInitialized) return;
-        _wingetSearchDebounce.Stop();
-        _ = RunWingetSearchAsync(append: false);
-    }
-
-    private void OnWingetLoadMoreClick(object sender, RoutedEventArgs e) => _ = RunWingetSearchAsync(append: true);
-
-    private async Task RunWingetSearchAsync(bool append)
-    {
-        var query = WingetSearchBox.Text.Trim();
-        var category = WingetCategoryCombo.SelectedItem as string ?? WingetCategories.All;
+        var query = AppsV.SearchBox.Text.Trim();
+        var category = DeployCategory.Find(AppsV.CategorySlug);
         var gen = ++_wingetSearchGeneration;
         _wingetSearchCts?.Cancel();
         var cts = _wingetSearchCts = new CancellationTokenSource();
-        var offset = append ? _wingetPageOffset : 0;
+        var offset = append ? _appsOffset : 0;
+        _appsLoading = true;
+        _appsLoaded = true;
+        if (!append) AppsV.ResultText.Text = "Loading...";
 
         List<WingetAppItem>? page = null;
         var total = 0;
@@ -237,62 +464,66 @@ public partial class MainWindow
         var canPage = false;
         var problems = new List<string>();
 
-        // Empty search box: show the curated featured apps (filtered by category) instead of the first
-        // page of the alphabetical index ("Al", "Ao", "Ax"...). A category with no featured apps still
-        // browses the index by tag.
-        var curated = query.Length == 0 && !append
-            ? _winget.BuiltIn.Where(a => category == WingetCategories.All || a.Category == category).ToList()
-            : null;
-        if (curated is not null && (curated.Count > 0 || !_wingetIndex.IsAvailable))
+        try
         {
-            page = curated;
-            total = page.Count;
-            source = _wingetIndex.IsAvailable
-                ? $"featured apps · type to search all {_wingetIndex.Status.PackageCount:N0} packages"
-                : BuiltInSourceLabel;
-        }
-        else
-        {
-            if (_wingetIndex.IsAvailable)
+            // 1. api.winstall.app (descriptions, popularity order) - cached on disk.
+            try
+            {
+                var result = query.Length > 0 ? await _winstall.SearchAppsAsync(query, offset, AppsPageSize, cts.Token)
+                    : category is not null ? await _winstall.CategoryAppsAsync(category.Slug, offset, AppsPageSize, cts.Token)
+                    : await _winstall.ListAppsAsync(offset, AppsPageSize, cts.Token);
+                if (gen != _wingetSearchGeneration) return;
+                page = result.Items.Select(_winget.FromWinstall).ToList();
+                total = result.Total;
+                canPage = true;
+                source = result.Stale ? "api.winstall.app (offline cache)" : "api.winstall.app";
+                if (query.Length > 0 && category is not null)
+                {
+                    page = page.Where(a => a.Category == category.Label).ToList();
+                    source += $" · filtered to {category.Label}";
+                }
+            }
+            catch (OperationCanceledException) when (cts.IsCancellationRequested) { return; }
+            catch (Exception ex)
+            {
+                problems.Add($"api.winstall.app: {Reason(ex)}");
+            }
+
+            // 2. Official winget index (offline after the first download).
+            if (page is null && _wingetIndex.IsAvailable)
             {
                 try
                 {
-                    var tags = category == WingetCategories.All ? null : WingetCategories.TagsFor(category);
-                    var (rows, t) = await Task.Run(() => _wingetIndex.Search(query, tags, offset, WingetPageSize), cts.Token);
+                    var (rows, t) = await Task.Run(() => _wingetIndex.Search(query, category?.FallbackTags, offset, AppsPageSize), cts.Token);
                     if (gen != _wingetSearchGeneration) return;
                     page = rows.Select(_winget.FromIndex).ToList();
                     total = t;
-                    source = "official winget index";
                     canPage = true;
+                    source = "official winget index";
                 }
                 catch (OperationCanceledException) { return; }
-                catch (Exception ex)
-                {
-                    problems.Add($"official index search failed: {ex.Message}");
-                }
+                catch (Exception ex) { problems.Add($"official index search failed: {ex.Message}"); }
             }
 
+            // 3. api.winget.run (community mirror) for searches, then the built-in list.
             if (page is null && query.Length > 0 && !append)
             {
                 try
                 {
-                    var found = await _winget.SearchWingetRunAsync(query, cts.Token);
+                    page = await _winget.SearchWingetRunAsync(query, cts.Token);
                     if (gen != _wingetSearchGeneration) return;
-                    page = category == WingetCategories.All ? found : found.Where(a => a.Category == category).ToList();
                     total = page.Count;
                     source = "api.winget.run (community mirror, data frozen since 2023)";
                 }
                 catch (OperationCanceledException) when (cts.IsCancellationRequested) { return; }
-                catch (Exception ex)
-                {
-                    problems.Add($"api.winget.run failed: {(ex is TaskCanceledException ? "timed out" : ex.Message)}");
-                }
+                catch (Exception ex) { problems.Add($"api.winget.run: {Reason(ex)}"); }
             }
 
             if (page is null)
             {
+                if (append) return;
                 page = _winget.BuiltIn.Where(a =>
-                        (category == WingetCategories.All || a.Category == category) &&
+                        (category is null || a.Category == category.Label || (category.Slug == "development" && a.Category == "Developer")) &&
                         (query.Length == 0 ||
                          a.Name.Contains(query, StringComparison.OrdinalIgnoreCase) ||
                          a.Id.Contains(query, StringComparison.OrdinalIgnoreCase) ||
@@ -301,43 +532,97 @@ public partial class MainWindow
                 total = page.Count;
                 source = BuiltInSourceLabel;
             }
+
+            if (gen != _wingetSearchGeneration) return;
+            if (!append)
+            {
+                _appsResults.Clear();
+                AppsV.Scroll.ScrollToTop();
+            }
+            foreach (var item in page)
+            {
+                if (_appsResults.Contains(item)) continue;
+                _appsResults.Add(item);
+                _wingetIcons.Attach(item);
+            }
+            _appsOffset = offset + page.Count;
+            _appsTotal = Math.Max(total, _appsResults.Count);
+            _appsCanPage = canPage && page.Count > 0;
+            AppsV.LoadMoreBtn.Visibility = _appsCanPage && _appsOffset < _appsTotal ? Visibility.Visible : Visibility.Collapsed;
+            AppsV.EmptyText.Visibility = _appsResults.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+
+            AppsV.TitleText.Text = query.Length > 0 ? $"Results for “{query}” ({_appsTotal:N0})"
+                : category is not null ? $"{category.Label} ({_appsTotal:N0})"
+                : $"All apps ({_appsTotal:N0})";
+            if (query.Length == 0 && category is null && source.StartsWith("api.winstall", StringComparison.Ordinal) && !_wingetIndex.IsAvailable)
+                DiscoverV.PackageCountText.Text = _appsTotal.ToString("N0");
+
+            var summary = $"Showing {_appsResults.Count:N0} of {_appsTotal:N0} · source: {source}";
+            if (problems.Count > 0)
+            {
+                summary += " · " + string.Join("; ", problems);
+                foreach (var p in problems) DeployLog("catalog", null, p);
+            }
+            AppsV.ResultText.Text = summary;
+
+            // Keep only what is visible, selected, busy or built-in (search results never accumulate).
+            if (!append) _winget.Prune(_appsResults.Concat(_selectedApps).Concat(_trendingApps).Concat(PackPreviewItems()));
         }
-
-        if (gen != _wingetSearchGeneration) return;
-
-        if (!append)
+        finally
         {
-            _filteredWingetApps.Clear();
-            WingetCatalogScroll.ScrollToTop();
+            if (gen == _wingetSearchGeneration) _appsLoading = false;
         }
-        foreach (var item in page)
-        {
-            if (_filteredWingetApps.Contains(item)) continue;
-            _filteredWingetApps.Add(item);
-            _wingetIcons.Attach(item);
-        }
-        _wingetPageOffset = offset + page.Count;
-        WingetLoadMoreBtn.Visibility = canPage && _wingetPageOffset < total ? Visibility.Visible : Visibility.Collapsed;
-
-        var summary = $"Showing {_filteredWingetApps.Count:N0} of {total:N0}  ·  source: {source}";
-        if (problems.Count > 0)
-        {
-            summary += "  ·  " + string.Join("; ", problems);
-            foreach (var p in problems) DeployLog("catalog", null, p);
-        }
-        WingetResultCountText.Text = summary;
-        WingetResultCountText.ToolTip = summary;
-
-        // Keep only what is visible, queued, busy or built-in (search results never accumulate).
-        if (!append) _winget.Prune(_filteredWingetApps.Concat(_wingetQueue));
     }
 
-    // ---------------- Queue ----------------
+    private IEnumerable<WingetAppItem> PackPreviewItems() =>
+        _discoverPacks.Concat(_featuredPacks).Concat(_communityPacks).SelectMany(p => p.Apps);
+
+    // ---------------- App page ----------------
+    private void OpenAppPage(WingetAppItem item)
+    {
+        _wingetIcons.Attach(item);
+        DetailV.ShowItem(item);
+        DeployShell.Show(DeployView.Detail);
+        _detailTask = LoadAppDetailsAsync(item, toPage: true);
+    }
+
+    /// <summary>Fetches winstall details (versions, licence, homepage...) into the item; index-only data when offline.</summary>
+    private async Task LoadAppDetailsAsync(WingetAppItem item, bool toPage)
+    {
+        await _detailsGate.WaitAsync();
+        try
+        {
+            var (d, stale) = await _winstall.GetAppAsync(item.Id);
+            item.SetVersions(d.Versions, d.LatestVersion);
+            if (!item.IsBuiltIn && d.Description.Length > 0) item.Description = d.Description;
+            if (d.LatestVersion.Length > 0 && !item.IsBuiltIn) item.Version = d.LatestVersion;
+            item.DetailsLoaded = true;
+            if (toPage) DetailV.SetDetails(item, d, stale ? "Details from the offline cache (api.winstall.app is unreachable)." : null);
+        }
+        catch (Exception ex)
+        {
+            item.EnsureVersionOptions();
+            var note = ex is System.Net.Http.HttpRequestException { StatusCode: System.Net.HttpStatusCode.NotFound }
+                ? "winstall has no page for this package; showing what the winget index knows."
+                : $"Details unavailable ({Reason(ex)}); showing what the winget index knows.";
+            if (toPage) DetailV.SetDetails(item, null, note);
+        }
+        finally
+        {
+            _detailsGate.Release();
+        }
+    }
+
+    // ---------------- Selection ----------------
     private void UpdateWingetSelectedCount()
     {
-        if (WingetDeploySelectedBtn is null) return;
-        WingetDeploySelectedBtn.Content = $"Deploy Queue ({_wingetQueue.Count})";
-        WingetQueueCountText.Text = $"Deployment queue ({_wingetQueue.Count})";
+        var n = _selectedApps.Count;
+        InstallV.SelectedTitle.Text = $"Selected apps ({n})";
+        InstallV.SelectedEmptyText.Visibility = n == 0 ? Visibility.Visible : Visibility.Collapsed;
+        InstallV.QueueEmptyText.Visibility = n == 0 ? Visibility.Visible : Visibility.Collapsed;
+        InstallV.DeployBtnText.Text = n == 0 ? "Deploy" : $"Deploy {n} app{(n == 1 ? "" : "s")}";
+        PacksV.NewPackHint.Text = $"Saves the {n} selected app{(n == 1 ? "" : "s")} under a name (stored in winget-packs.json). Saving under an existing custom pack name replaces it.";
+        RegenerateScript(); // MainWindow.DeployRun.cs
     }
 
     private void SetQueued(WingetAppItem item, bool queued)
@@ -345,10 +630,11 @@ public partial class MainWindow
         if (queued)
         {
             item.IsSelected = true;
-            if (!_wingetQueue.Contains(item))
+            if (!_selectedApps.Contains(item))
             {
-                _wingetQueue.Add(item);
+                _selectedApps.Add(item);
                 _wingetIcons.Attach(item);
+                item.EnsureVersionOptions();
             }
             return;
         }
@@ -360,28 +646,16 @@ public partial class MainWindow
             return;
         }
         item.IsSelected = false;
-        _wingetQueue.Remove(item);
-    }
-
-    private void OnWingetCardSelectionChanged(object sender, RoutedEventArgs e)
-    {
-        if ((sender as FrameworkElement)?.DataContext is WingetAppItem item)
-            SetQueued(item, item.IsSelected);
-    }
-
-    private void OnRemoveWingetQueueItemClick(object sender, RoutedEventArgs e)
-    {
-        if ((sender as FrameworkElement)?.DataContext is WingetAppItem item)
-            SetQueued(item, false);
+        _selectedApps.Remove(item);
     }
 
     private void OnClearWingetQueueClick(object sender, RoutedEventArgs e)
     {
-        foreach (var item in _wingetQueue.ToList())
+        foreach (var item in _selectedApps.ToList())
             SetQueued(item, false);
     }
 
-    /// <summary>Adds validated IDs to the queue, resolving names/versions from the index when possible.</summary>
+    /// <summary>Selects validated IDs, resolving names/versions from the index when possible.</summary>
     private (int Added, List<string> NotInIndex) AddIdsToQueue(IEnumerable<string> ids, PackImportResult? info)
     {
         var list = ids.Where(WingetRules.IsValidPackageId).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
@@ -421,84 +695,205 @@ public partial class MainWindow
                 });
             }
 
-            if (!_wingetQueue.Contains(item)) added++;
+            if (!_selectedApps.Contains(item)) added++;
             SetQueued(item, true);
         }
         return (added, notInIndex);
     }
 
     // ---------------- Packs ----------------
-    private void ReloadWingetPackCombo(string? selectName)
-    {
-        var packs = _winget.Packs;
-        WingetPackCombo.ItemsSource = packs;
-        var idx = selectName is null ? 0 : packs.FindIndex(p => p.IsCustom && p.Name.Equals(selectName, StringComparison.OrdinalIgnoreCase));
-        WingetPackCombo.SelectedIndex = packs.Count == 0 ? -1 : Math.Max(0, idx);
-    }
+    private WingetAppItem ResolvePreview(string id, IReadOnlyDictionary<string, IndexPackage> found) =>
+        _winget.Find(id) ?? (found.TryGetValue(id, out var p) ? _winget.FromIndex(p)
+            : _winget.FromPackApp(new WinstallPackApp(id, id.Contains('.') ? id[(id.IndexOf('.') + 1)..] : id, "", null)));
 
-    private void OnWingetPackSelectionChanged(object sender, SelectionChangedEventArgs e)
+    private PackCard CardFromPack(WingetPack pack)
     {
-        WingetDeletePackBtn.IsEnabled = WingetPackCombo.SelectedItem is WingetPack { IsCustom: true };
-        if (WingetPackCombo.SelectedItem is WingetPack p)
-            WingetPackCombo.ToolTip = $"{p.Description}\n{string.Join(", ", p.PackageIds)}";
-    }
-
-    private void OnApplyWingetPackClick(object sender, RoutedEventArgs e)
-    {
-        if (WingetPackCombo.SelectedItem is not WingetPack pack) return;
-        var (added, notInIndex) = AddIdsToQueue(pack.PackageIds, null);
-        var msg = $"Pack '{pack.Name}': {pack.PackageIds.Count} apps, {added} added to the queue.";
-        if (notInIndex.Count > 0) msg += $" Not in the official index: {string.Join(", ", notInIndex)}.";
-        DeployLog("packs", null, msg);
-        StatusText.Text = msg;
-    }
-
-    private void OnSaveWingetPackClick(object sender, RoutedEventArgs e)
-    {
-        var name = WingetPackNameBox.Text.Trim();
-        if (name.Length == 0)
+        Dictionary<string, IndexPackage> found = new(StringComparer.OrdinalIgnoreCase);
+        var preview = pack.PackageIds.Take(5).ToList();
+        if (_wingetIndex.IsAvailable)
         {
-            StatusText.Text = "Enter a pack name in the box next to Save Pack.";
-            WingetPackNameBox.Focus();
-            return;
+            try { found = _wingetIndex.Lookup(preview.Where(id => _winget.Find(id) is null)); } catch { }
         }
+        var apps = preview.Select(id => ResolvePreview(id, found)).ToList();
+        foreach (var a in apps) _wingetIcons.Attach(a);
+        return new PackCard
+        {
+            Title = pack.Name,
+            Description = pack.Description,
+            Apps = apps,
+            AppCount = pack.PackageIds.Count,
+            PackageIds = pack.PackageIds,
+            Pack = pack,
+            Badge = pack.IsCustom ? "Custom" : "Preset",
+        };
+    }
+
+    private PackCard CardFromWinstall(WinstallPack p)
+    {
+        var apps = p.Apps.Take(5).Select(_winget.FromPackApp).ToList();
+        foreach (var a in apps) _wingetIcons.Attach(a);
+        return new PackCard
+        {
+            Title = p.Name,
+            Description = p.Description,
+            Apps = apps,
+            AppCount = p.AppCount,
+            WinstallId = p.Id,
+            Badge = $"{p.AppCount} apps",
+        };
+    }
+
+    private void RefreshPackLists()
+    {
+        PacksV.CustomPacksList.ItemsSource = _winget.CustomPacks.Select(CardFromPack).ToList();
+        PacksV.CustomEmpty.Visibility = _winget.CustomPacks.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+        PacksV.PresetPacksList.ItemsSource = _winget.Presets.Select(CardFromPack).ToList();
+        BarV.SetCustomPacks(_winget.CustomPacks);
+    }
+
+    private async Task LoadPacksAsync()
+    {
+        try
+        {
+            var page = await _winstall.TrendingPacksAsync();
+            _featuredPacks.Clear();
+            foreach (var p in page.Items) _featuredPacks.Add(CardFromWinstall(p));
+            PacksV.FeaturedSubtitle.Text = page.Stale ? "Trending public packs on winstall.app (offline cache)." : "Trending public packs on winstall.app.";
+        }
+        catch (Exception ex)
+        {
+            PacksV.FeaturedSubtitle.Text = $"winstall packs are unavailable ({Reason(ex)}). Presets and your packs still work.";
+        }
+        await LoadCommunityPacksAsync(append: false);
+    }
+
+    private async Task LoadCommunityPacksAsync(bool append)
+    {
+        var offset = append ? _communityOffset : 0;
+        try
+        {
+            var page = await _winstall.ListPacksAsync(offset, CommunityPageSize);
+            if (!append) _communityPacks.Clear();
+            var featuredIds = _featuredPacks.Select(f => f.WinstallId).ToHashSet();
+            foreach (var p in page.Items.Where(p => !featuredIds.Contains(p.Id) && p.AppCount > 0))
+                _communityPacks.Add(CardFromWinstall(p));
+            _communityOffset = offset + page.Items.Count;
+            _communityTotal = page.Total;
+            PacksV.CommunityTitle.Text = $"Community packs ({_communityTotal:N0})";
+            PacksV.LoadMoreBtn.Visibility = _communityOffset < _communityTotal && page.Items.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+        }
+        catch (Exception ex)
+        {
+            PacksV.CommunityTitle.Text = $"Community packs (unavailable: {Reason(ex)})";
+            PacksV.LoadMoreBtn.Visibility = Visibility.Collapsed;
+        }
+    }
+
+    private async Task SelectPackAsync(PackCard card)
+    {
+        try
+        {
+            PackImportResult? info = null;
+            IReadOnlyList<string> ids;
+            if (card.PackageIds is not null)
+            {
+                ids = card.PackageIds;
+            }
+            else if (card.WinstallId is not null)
+            {
+                SetPackStatus($"Fetching winstall pack '{card.Title}'...");
+                info = await WinstallImporter.FetchPackAsync(card.WinstallId);
+                ids = info.Ids;
+            }
+            else return;
+
+            var (added, notInIndex) = AddIdsToQueue(ids, info);
+            var msg = $"Pack '{card.Title}': {ids.Count} apps, {added} added to the selection.";
+            if (notInIndex.Count > 0) msg += $" Not in the official index: {string.Join(", ", notInIndex)}.";
+            DeployLog("packs", null, msg);
+            SetPackStatus(msg);
+        }
+        catch (Exception ex)
+        {
+            var msg = $"Could not load pack '{card.Title}': {Reason(ex)}";
+            DeployLog("packs", null, msg);
+            SetPackStatus(msg);
+        }
+    }
+
+    private void SetPackStatus(string msg)
+    {
+        StatusText.Text = msg;
+        PacksV.StatusText.Text = msg;
+        PacksV.StatusText.Visibility = Visibility.Visible;
+    }
+
+    private void ToggleNewPackPanel(bool show)
+    {
+        PacksV.NewPackPanel.Visibility = show ? Visibility.Visible : Visibility.Collapsed;
+        if (show) { PacksV.ImportPanel.Visibility = Visibility.Collapsed; PacksV.PackNameBox.Focus(); }
+    }
+
+    private void SaveSelectionAsPack(string rawName, TextBlock result)
+    {
+        var name = rawName.Trim();
+        void Report(string msg) { result.Text = msg; result.Visibility = Visibility.Visible; StatusText.Text = msg; }
+        if (name.Length == 0) { Report("Enter a pack name first."); return; }
         if (_winget.Presets.Any(p => p.Name.Equals(name, StringComparison.OrdinalIgnoreCase)))
         {
-            StatusText.Text = $"'{name}' is a built-in preset name; choose another name.";
+            Report($"'{name}' is a built-in preset name; choose another name.");
             return;
         }
         try
         {
             var replaced = _winget.CustomPacks.Any(p => p.Name.Equals(name, StringComparison.OrdinalIgnoreCase));
-            var pack = _winget.SaveCustomPack(name, _wingetQueue.Select(a => a.Id).ToList());
-            ReloadWingetPackCombo(pack.Name);
+            var pack = _winget.SaveCustomPack(name, _selectedApps.Select(a => a.Id).ToList());
+            RefreshPackLists();
             var msg = $"{(replaced ? "Updated" : "Saved")} custom pack '{pack.Name}' with {pack.PackageIds.Count} apps.";
             DeployLog("packs", null, msg);
-            StatusText.Text = msg;
+            Report(msg);
         }
         catch (Exception ex)
         {
-            StatusText.Text = $"Could not save pack: {ex.Message}";
+            Report($"Could not save pack: {ex.Message}");
             DeployLog("packs", null, $"Save failed: {ex.Message}");
         }
     }
 
-    private void OnDeleteWingetPackClick(object sender, RoutedEventArgs e)
+    private void AddSelectionToPack(WingetPack pack)
     {
-        if (WingetPackCombo.SelectedItem is not WingetPack { IsCustom: true } pack) return;
+        try
+        {
+            var ids = pack.PackageIds.Concat(_selectedApps.Select(a => a.Id)).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+            var saved = _winget.SaveCustomPack(pack.Name, ids);
+            RefreshPackLists();
+            var msg = $"Pack '{saved.Name}' now has {saved.PackageIds.Count} apps.";
+            BarV.PackResultText.Text = msg;
+            StatusText.Text = msg;
+            DeployLog("packs", null, msg);
+        }
+        catch (Exception ex)
+        {
+            BarV.PackResultText.Text = $"Could not update the pack: {ex.Message}";
+        }
+    }
+
+    private void DeleteCustomPack(PackCard card)
+    {
+        if (card.Pack is not { IsCustom: true } pack) return;
         if (MessageBox.Show(this, $"Delete the custom pack '{pack.Name}'?", "Home RMS - Packs",
                 MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes)
             return;
         try
         {
             _winget.DeleteCustomPack(pack.Name);
-            ReloadWingetPackCombo(null);
-            StatusText.Text = $"Deleted custom pack '{pack.Name}'.";
-            DeployLog("packs", null, StatusText.Text);
+            RefreshPackLists();
+            SetPackStatus($"Deleted custom pack '{pack.Name}'.");
+            DeployLog("packs", null, $"Deleted custom pack '{pack.Name}'.");
         }
         catch (Exception ex)
         {
-            StatusText.Text = $"Could not delete pack: {ex.Message}";
+            SetPackStatus($"Could not delete pack: {ex.Message}");
             DeployLog("packs", null, $"Delete failed: {ex.Message}");
         }
     }
@@ -506,9 +901,9 @@ public partial class MainWindow
     // ---------------- Import ----------------
     private void OnToggleWingetImportClick(object sender, RoutedEventArgs e)
     {
-        var show = WingetImportPanel.Visibility != Visibility.Visible;
-        WingetImportPanel.Visibility = show ? Visibility.Visible : Visibility.Collapsed;
-        if (show) WingetImportBox.Focus();
+        var show = PacksV.ImportPanel.Visibility != Visibility.Visible;
+        PacksV.ImportPanel.Visibility = show ? Visibility.Visible : Visibility.Collapsed;
+        if (show) { PacksV.NewPackPanel.Visibility = Visibility.Collapsed; PacksV.ImportBox.Focus(); }
     }
 
     private void OnPasteWingetImportClick(object sender, RoutedEventArgs e)
@@ -518,33 +913,33 @@ public partial class MainWindow
             var text = Clipboard.GetText();
             if (string.IsNullOrWhiteSpace(text))
             {
-                WingetImportResultText.Text = "The clipboard has no text.";
+                PacksV.ImportResultText.Text = "The clipboard has no text.";
                 return;
             }
-            WingetImportBox.Text = text;
+            PacksV.ImportBox.Text = text;
         }
         catch (Exception ex)
         {
-            WingetImportResultText.Text = $"Could not read the clipboard: {ex.Message}";
+            PacksV.ImportResultText.Text = $"Could not read the clipboard: {ex.Message}";
         }
     }
 
     private async void OnRunWingetImportClick(object sender, RoutedEventArgs e)
     {
-        var text = WingetImportBox.Text.Trim();
+        var text = PacksV.ImportBox.Text.Trim();
         if (text.Length == 0)
         {
-            WingetImportResultText.Text = "Paste a winstall pack URL, a winget script, JSON or a list of IDs first.";
+            PacksV.ImportResultText.Text = "Paste a winstall pack URL, a winget script, JSON or a list of IDs first.";
             return;
         }
 
         PackImportResult result;
-        WingetImportRunBtn.IsEnabled = false;
+        PacksV.ImportRunBtn.IsEnabled = false;
         try
         {
             if (WinstallImporter.TryGetPackId(text, out var packId))
             {
-                WingetImportResultText.Text = $"Fetching winstall pack {packId}...";
+                PacksV.ImportResultText.Text = $"Fetching winstall pack {packId}...";
                 result = await WinstallImporter.FetchPackAsync(packId);
             }
             else
@@ -555,456 +950,49 @@ public partial class MainWindow
         catch (Exception ex)
         {
             var msg = ex is TaskCanceledException ? "winstall did not answer in time. Paste the pack's generated winget script instead." : ex.Message;
-            WingetImportResultText.Text = $"Import failed: {msg}";
+            PacksV.ImportResultText.Text = $"Import failed: {msg}";
             DeployLog("import", null, $"Import failed: {msg}");
             return;
         }
         finally
         {
-            WingetImportRunBtn.IsEnabled = true;
+            PacksV.ImportRunBtn.IsEnabled = true;
         }
 
         if (result.Ids.Count == 0 && result.Rejected.Count == 0)
         {
-            WingetImportResultText.Text = $"No package IDs found ({result.Format}). Supported: winstall pack URL, 'winget install --id=X -e' scripts, winget export JSON, {{\"apps\":[{{\"id\":...}}]}} JSON, one ID per line.";
+            PacksV.ImportResultText.Text = $"No package IDs found ({result.Format}). Supported: winstall pack URL, 'winget install --id=X -e' scripts, winget export JSON, {{\"apps\":[{{\"id\":...}}]}} JSON, one ID per line.";
             return;
         }
 
         var (added, notInIndex) = AddIdsToQueue(result.Ids, result);
         var parts = new List<string>
         {
-            $"{result.Format}{(string.IsNullOrWhiteSpace(result.PackName) ? "" : $" '{result.PackName}'")}: {result.Ids.Count} valid ID(s), {added} added to the queue.",
+            $"{result.Format}{(string.IsNullOrWhiteSpace(result.PackName) ? "" : $" '{result.PackName}'")}: {result.Ids.Count} valid ID(s), {added} added to the selection.",
         };
         if (notInIndex.Count > 0)
-            parts.Add($"Not in the official index (queued anyway): {string.Join(", ", notInIndex)}.");
+            parts.Add($"Not in the official index (selected anyway): {string.Join(", ", notInIndex)}.");
         if (result.Rejected.Count > 0)
             parts.Add($"Rejected (not valid winget IDs): {string.Join(", ", result.Rejected)}.");
         var summary = string.Join(" ", parts);
-        WingetImportResultText.Text = summary;
+        PacksV.ImportResultText.Text = summary;
         DeployLog("import", null, summary);
 
-        if (!string.IsNullOrWhiteSpace(result.PackName) && string.IsNullOrWhiteSpace(WingetPackNameBox.Text))
-            WingetPackNameBox.Text = result.PackName!.Length > 60 ? result.PackName[..60] : result.PackName;
+        if (!string.IsNullOrWhiteSpace(result.PackName) && string.IsNullOrWhiteSpace(PacksV.PackNameBox.Text))
+            PacksV.PackNameBox.Text = result.PackName!.Length > 60 ? result.PackName[..60] : result.PackName;
     }
 
-    // ---------------- Targets ----------------
-    private void OnRefreshDeployTargetsClick(object sender, RoutedEventArgs e) => RefreshDeployTargets();
-
-    private void RefreshDeployTargets()
+    private void CopyText(string text, Action onCopied)
     {
-        var wasChecked = _deployTargets.Where(t => t.IsChecked).Select(t => t.Profile).ToHashSet();
-        _deployTargets.Clear();
-        foreach (var m in _machines.Where(m => m.IsWindows))
-        {
-            var mode = m.IsAgentless ? "WinRM" : "agent";
-            var state = m.IsConnected ? "connected" : m.IsOnline ? "online" : "offline";
-            _deployTargets.Add(new DeployTarget { Profile = m, Detail = $"  {mode} · {state}", IsChecked = wasChecked.Contains(m) });
-        }
-        DeployTargetHintText.Text = _deployTargets.Count == 0
-            ? "No saved Windows endpoints: deploys go to the connected session."
-            : "Nothing checked = the connected (or selected WinRM) endpoint. Check several to deploy to each in turn.";
-    }
-
-    private async Task<List<WingetTarget>?> ResolveWingetTargetsAsync()
-    {
-        var picked = _deployTargets.Where(t => t.IsChecked).Select(t => t.Profile).ToList();
-        if (picked.Count > 0)
-            return picked.Select(p => new WingetTarget(p.DisplayTitle, p, p.IsAgentless)).ToList();
-
-        if (SelectedMachine is { IsAgentless: true } agentless)
-            return [new WingetTarget(agentless.DisplayTitle, agentless, true)];
-
-        if (_conn is null && !await ConnectToCurrentFieldsAsync())
-            return null;
-        return [new WingetTarget(_agentInfo?.MachineName ?? _connectedProfile?.DisplayTitle ?? _conn!.Host, _connectedProfile, false)];
-    }
-
-    // ---------------- Deploy ----------------
-    private void OnCancelWingetDeployClick(object sender, RoutedEventArgs e)
-    {
-        if (_wingetDeployCts is null) return;
-        _wingetDeployCts.Cancel();
-        WingetCancelDeployBtn.IsEnabled = false;
-        DeployStatusBadge.Text = "CANCELLING...";
-        DeployLog("winget", null, "Cancellation requested.");
-    }
-
-    private async void OnDeploySelectedWingetClick(object sender, RoutedEventArgs e)
-    {
-        if (_wingetDeployCts is not null) return;
-        var items = _wingetQueue.Where(i => WingetRules.IsValidPackageId(i.Id)).ToList();
-        if (items.Count == 0)
-        {
-            StatusText.Text = "Add at least one app to the deployment queue.";
-            return;
-        }
-
-        List<WingetTarget>? targets;
+        if (string.IsNullOrEmpty(text)) return;
         try
         {
-            targets = await ResolveWingetTargetsAsync();
+            Clipboard.SetText(text);
+            onCopied();
         }
         catch (Exception ex)
         {
-            StatusText.Text = $"Could not resolve deployment targets: {ex.Message}";
-            return;
-        }
-        if (targets is null || targets.Count == 0) return;
-        var targetCount = targets.Count;
-
-        var silent = WingetSilentCheck.IsChecked == true;
-        var machineScope = WingetMachineScopeCheck.IsChecked == true;
-        var upgrade = WingetUpgradeCheck.IsChecked == true;
-
-        var cts = _wingetDeployCts = new CancellationTokenSource();
-        WingetDeploySelectedBtn.IsEnabled = false;
-        WingetCancelDeployBtn.IsEnabled = true;
-        DeployStatusBadge.Text = "DEPLOYING...";
-
-        var outcomes = items.ToDictionary(i => i, _ => new List<WingetOutcome>());
-        void Record(WingetAppItem item, string target, DeployItemStatus status, string detail)
-        {
-            if (outcomes.TryGetValue(item, out var l)) l.Add(new WingetOutcome(target, status, detail));
-            item.DeployStatus = status;
-            item.Percent = -1;
-            item.StatusDetail = targetCount > 1 ? $"{target}: {detail}" : detail;
-        }
-
-        foreach (var item in items)
-        {
-            item.ResetDeployState();
-            item.DeployStatus = DeployItemStatus.Queued;
-        }
-        DeployLog("winget", null, $"Deploying {items.Count} package(s) to {targets.Count} endpoint(s): {string.Join(", ", targets.Select(t => t.Label))} " +
-                                  $"(silent={silent}, machine scope={machineScope}, upgrade if installed={upgrade}).");
-
-        try
-        {
-            foreach (var target in targets)
-            {
-                if (cts.IsCancellationRequested) break;
-                foreach (var item in items)
-                {
-                    item.Percent = -1;
-                    item.DeployStatus = DeployItemStatus.Queued;
-                }
-
-                if (target.Agentless)
-                    await DeployWingetAgentlessAsync(target, items, silent, machineScope, upgrade, Record, cts.Token);
-                else
-                    await DeployWingetViaAgentAsync(target, items, silent, machineScope, upgrade, Record, cts.Token);
-            }
-        }
-        catch (Exception ex)
-        {
-            DeployLog("winget", null, $"Deployment aborted: {ex.Message}");
-        }
-        finally
-        {
-            int ok = 0, skipped = 0, failed = 0, cancelled = 0;
-            foreach (var item in items)
-            {
-                var list = outcomes[item];
-                var reported = list.Select(o => o.Target).ToHashSet();
-                foreach (var t in targets.Where(t => !reported.Contains(t.Label)))
-                    list.Add(new WingetOutcome(t.Label, DeployItemStatus.Cancelled, "Not run (cancelled)"));
-
-                var status = list.Any(o => o.Status == DeployItemStatus.Failed) ? DeployItemStatus.Failed
-                    : list.Any(o => o.Status == DeployItemStatus.Cancelled) ? DeployItemStatus.Cancelled
-                    : list.All(o => o.Status == DeployItemStatus.Skipped) ? DeployItemStatus.Skipped
-                    : DeployItemStatus.Success;
-                item.Percent = -1;
-                item.DeployStatus = status;
-                item.StatusDetail = targets.Count > 1
-                    ? string.Join("\n", list.Select(o => $"{o.Target}: {o.Detail}"))
-                    : list.FirstOrDefault()?.Detail ?? "";
-
-                switch (status)
-                {
-                    case DeployItemStatus.Success: ok++; break;
-                    case DeployItemStatus.Skipped: skipped++; break;
-                    case DeployItemStatus.Failed: failed++; break;
-                    default: cancelled++; break;
-                }
-            }
-
-            var wasCancelled = cts.IsCancellationRequested;
-            _wingetDeployCts = null;
-            cts.Dispose();
-            WingetDeploySelectedBtn.IsEnabled = true;
-            WingetCancelDeployBtn.IsEnabled = false;
-            DeployStatusBadge.Text = wasCancelled ? "CANCELLED" : failed > 0 ? "COMPLETED WITH ERRORS" : "COMPLETE";
-            var summary = $"Finished: {ok} installed, {skipped} up to date, {failed} failed, {cancelled} cancelled.";
-            DeployLog("winget", null, summary);
-            StatusText.Text = $"Winget deployment {summary}";
+            StatusText.Text = $"Could not copy to the clipboard: {ex.Message}";
         }
     }
-
-    private async Task DeployWingetViaAgentAsync(WingetTarget target, List<WingetAppItem> items,
-        bool silent, bool machineScope, bool upgrade,
-        Action<WingetAppItem, string, DeployItemStatus, string> record, CancellationToken ct)
-    {
-        var byId = items.ToDictionary(i => i.Id, StringComparer.OrdinalIgnoreCase);
-        var finished = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        RmsConnection? owned = null;
-        string? failure = null;
-        var failureStatus = DeployItemStatus.Failed;
-
-        try
-        {
-            RmsConnection conn;
-            var p = target.Profile;
-            if (_conn is not null && (p is null || p == _connectedProfile ||
-                                      (string.Equals(_conn.Host, p.Host, StringComparison.OrdinalIgnoreCase) && _conn.Port == p.Port)))
-            {
-                conn = _conn;
-            }
-            else if (p is not null)
-            {
-                owned = new RmsConnection(p.Host, p.Port);
-                conn = owned;
-            }
-            else
-            {
-                failure = "Not connected to an agent.";
-                return;
-            }
-
-            foreach (var chunk in items.Chunk(WingetRules.MaxPackagesPerRequest))
-            {
-                ct.ThrowIfCancellationRequested();
-                var request = new WingetRequest { Silent = silent, MachineScope = machineScope, UpgradeIfInstalled = upgrade };
-                request.PackageIds.AddRange(chunk.Select(i => i.Id));
-                DeployLog(target.Label, null, $"RunWinget: {string.Join(", ", chunk.Select(i => i.Id))}");
-
-                using var call = conn.Client.RunWinget(request, cancellationToken: ct);
-                await foreach (var progress in call.ResponseStream.ReadAllAsync(ct))
-                {
-                    byId.TryGetValue(progress.PackageId ?? "", out var item);
-                    if (!string.IsNullOrEmpty(progress.LogLine))
-                        DeployLog(target.Label, string.IsNullOrEmpty(progress.PackageId) ? null : progress.PackageId, progress.LogLine);
-
-                    if (item is not null)
-                    {
-                        switch (progress.Phase)
-                        {
-                            case WingetPhase.Queued:
-                                item.DeployStatus = DeployItemStatus.Queued;
-                                break;
-                            case WingetPhase.Downloading:
-                                item.DeployStatus = DeployItemStatus.Downloading;
-                                item.Percent = progress.Percent;
-                                break;
-                            case WingetPhase.Installing:
-                                item.DeployStatus = DeployItemStatus.Installing;
-                                item.Percent = progress.Percent;
-                                break;
-                            case WingetPhase.Succeeded:
-                            case WingetPhase.Failed:
-                            case WingetPhase.Skipped:
-                                if (finished.Add(item.Id))
-                                {
-                                    var status = progress.Phase switch
-                                    {
-                                        WingetPhase.Succeeded => DeployItemStatus.Success,
-                                        WingetPhase.Skipped => DeployItemStatus.Skipped,
-                                        _ => DeployItemStatus.Failed,
-                                    };
-                                    var detail = DescribeExit(progress.ExitCode, progress.ExitMessage);
-                                    record(item, target.Label, status, detail);
-                                    DeployLog(target.Label, item.Id, $"{progress.Phase}: {detail}");
-                                }
-                                break;
-                        }
-                    }
-                    if (progress.Done) break;
-                }
-            }
-        }
-        catch (RpcException ex) when (ex.StatusCode is StatusCode.PermissionDenied or StatusCode.Unauthenticated)
-        {
-            failure = $"Endpoint refused the request ({ex.StatusCode}): pair this endpoint first. Connect to it from Fleet and enter the 2FA code shown on the agent so it pins this Controller, then retry.";
-        }
-        catch (RpcException ex) when (ex.StatusCode == StatusCode.Cancelled || ct.IsCancellationRequested)
-        {
-            failure = "Cancelled.";
-            failureStatus = DeployItemStatus.Cancelled;
-        }
-        catch (OperationCanceledException)
-        {
-            failure = "Cancelled.";
-            failureStatus = DeployItemStatus.Cancelled;
-        }
-        catch (RpcException ex) when (ex.StatusCode == StatusCode.Unimplemented)
-        {
-            failure = "This agent does not support RunWinget; update the agent to v2.1 or newer.";
-        }
-        catch (RpcException ex)
-        {
-            failure = $"{ex.StatusCode}: {ex.Status.Detail}";
-        }
-        catch (Exception ex)
-        {
-            failure = ex.Message;
-        }
-        finally
-        {
-            owned?.Dispose();
-        }
-
-        if (failure is not null)
-            DeployLog(target.Label, null, failure);
-        foreach (var item in items.Where(i => !finished.Contains(i.Id)))
-            record(item, target.Label, failure is null ? DeployItemStatus.Failed : failureStatus,
-                failure ?? "The agent ended the stream without a result for this package.");
-    }
-
-    private async Task DeployWingetAgentlessAsync(WingetTarget target, List<WingetAppItem> items,
-        bool silent, bool machineScope, bool upgrade,
-        Action<WingetAppItem, string, DeployItemStatus, string> record, CancellationToken ct)
-    {
-        var profile = target.Profile!;
-        if (string.IsNullOrWhiteSpace(profile.Username))
-        {
-            const string msg = "WinRM credentials are missing for this endpoint (edit it in Fleet).";
-            DeployLog(target.Label, null, msg);
-            foreach (var item in items) record(item, target.Label, DeployItemStatus.Failed, msg);
-            return;
-        }
-
-        foreach (var item in items)
-        {
-            if (ct.IsCancellationRequested)
-            {
-                record(item, target.Label, DeployItemStatus.Cancelled, "Cancelled.");
-                continue;
-            }
-
-            item.DeployStatus = DeployItemStatus.Installing;
-            item.Percent = -1;
-            DeployLog(target.Label, item.Id, "Running winget over WinRM...");
-            try
-            {
-                var script = WingetCatalogService.BuildWingetInstallScript(item.Id, silent, machineScope, upgrade);
-                var (_, stdout, stderr) = await _agentless.InvokeWinRmAsync(profile, script, ct, timeoutMs: 30 * 60 * 1000);
-
-                foreach (var line in stdout.Split('\n'))
-                    if (!line.Contains(WingetCatalogService.ExitMarker, StringComparison.Ordinal))
-                        DeployLog(target.Label, item.Id, line);
-                foreach (var line in stderr.Split('\n'))
-                    DeployLog(target.Label, item.Id, line.Trim().Length == 0 ? "" : "stderr: " + line);
-
-                if (ct.IsCancellationRequested)
-                {
-                    record(item, target.Label, DeployItemStatus.Cancelled, "Cancelled.");
-                    continue;
-                }
-
-                var code = WingetCatalogService.ParseExitMarker(stdout);
-                if (code is null)
-                {
-                    var why = stderr.Split('\n').Select(l => l.Trim()).FirstOrDefault(l => l.Length > 0) ?? "no exit-code marker in the WinRM output";
-                    record(item, target.Label, DeployItemStatus.Failed, $"WinRM run failed: {why}");
-                    continue;
-                }
-
-                var status = WingetRules.IsSuccess(code.Value) ? DeployItemStatus.Success
-                    : WingetRules.IsAlreadyInstalled(code.Value) ? DeployItemStatus.Skipped
-                    : DeployItemStatus.Failed;
-                var detail = DescribeExit(code.Value, null);
-                record(item, target.Label, status, detail);
-                DeployLog(target.Label, item.Id, detail);
-            }
-            catch (Exception ex)
-            {
-                record(item, target.Label, ct.IsCancellationRequested ? DeployItemStatus.Cancelled : DeployItemStatus.Failed, ex.Message);
-                DeployLog(target.Label, item.Id, $"ERROR: {ex.Message}");
-            }
-        }
-    }
-
-    private static string DescribeExit(int exitCode, string? message)
-    {
-        var text = string.IsNullOrWhiteSpace(message) ? WingetRules.Describe(exitCode) : message;
-        var hex = $"0x{unchecked((uint)exitCode):X8}";
-        return text.Contains(hex, StringComparison.OrdinalIgnoreCase) || exitCode == 0
-            ? $"exit {exitCode}: {text}"
-            : $"exit {exitCode} ({hex}): {text}";
-    }
-
-    /// <summary>Timestamped log line with endpoint / package prefix; control characters are stripped.</summary>
-    private void DeployLog(string scope, string? package, string message)
-    {
-        var clean = new string(message.Where(c => c == '\t' || !char.IsControl(c)).ToArray()).TrimEnd();
-        if (clean.Length == 0) return;
-        AppendDeployLog($"[{DateTime.Now:HH:mm:ss}] [{scope}]{(package is null ? "" : $" [{package}]")} {clean}");
-    }
-
-    // ---------------- File deploy list ----------------
-    private static readonly string[] DeployableExtensions = [".exe", ".msi", ".msp", ".ps1", ".cmd", ".bat"];
-
-    private static bool IsDeployableFile(string path) =>
-        DeployableExtensions.Contains(System.IO.Path.GetExtension(path), StringComparer.OrdinalIgnoreCase);
-
-    private DeployFileItem? AddDeployFile(string path)
-    {
-        if (!System.IO.File.Exists(path) || !IsDeployableFile(path))
-        {
-            DeployLog("file", null, $"Skipped '{path}': only existing .exe, .msi, .msp, .ps1, .cmd and .bat files can be deployed.");
-            return null;
-        }
-        var existing = _deployFiles.FirstOrDefault(f => string.Equals(f.FullPath, path, StringComparison.OrdinalIgnoreCase));
-        if (existing is not null)
-        {
-            if (!existing.IsBusy) { existing.DeployStatus = DeployItemStatus.Pending; existing.Detail = ""; existing.Percent = -1; }
-            return existing;
-        }
-        var item = new DeployFileItem { FullPath = path };
-        item.Detail = $"{new System.IO.FileInfo(path).Length / 1024.0 / 1024.0:F2} MB";
-        _deployFiles.Add(item);
-        return item;
-    }
-
-    private void OnRemoveDeployFileClick(object sender, RoutedEventArgs e)
-    {
-        if ((sender as FrameworkElement)?.DataContext is DeployFileItem { IsBusy: false } item)
-            _deployFiles.Remove(item);
-    }
-
-    private void OnClearDeployFilesClick(object sender, RoutedEventArgs e)
-    {
-        foreach (var f in _deployFiles.Where(f => !f.IsBusy).ToList())
-            _deployFiles.Remove(f);
-    }
-
-    /// <summary>Uploads and runs every pending file in the list, one after another, on the connected agent.</summary>
-    private async Task RunPendingDeployFilesAsync()
-    {
-        if (_fileDeployRunning) return;
-        var pending = _deployFiles.Where(f => f.DeployStatus is DeployItemStatus.Pending).ToList();
-        if (pending.Count == 0)
-        {
-            StatusText.Text = "No pending files: drop installers/scripts here or use Browse.";
-            return;
-        }
-
-        _fileDeployRunning = true;
-        try
-        {
-            foreach (var f in pending)
-            {
-                if (!_deployFiles.Contains(f)) continue;
-                if (!await DeployLocalFileCoreAsync(f, DeployArgsBox.Text.Trim()))
-                {
-                    if (_conn is null) break; // not connected: stop instead of failing every file
-                }
-            }
-        }
-        finally
-        {
-            _fileDeployRunning = false;
-        }
-    }
-
-    private bool _fileDeployRunning;
 }

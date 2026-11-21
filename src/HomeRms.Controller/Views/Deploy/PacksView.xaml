@@ -1,0 +1,103 @@
+<local:DeployGridView x:Class="HomeRms.Controller.Views.Deploy.PacksView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:local="clr-namespace:HomeRms.Controller.Views.Deploy"
+             x:Name="Root">
+    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Focusable="False">
+        <StackPanel Margin="24,20,10,120">
+            <DockPanel Margin="0,0,14,18">
+                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
+                    <Button x:Name="ImportToggleBtn" x:FieldModifier="public" Style="{StaticResource DeployDarkButton}" Margin="10,0,0,0"
+                            ToolTip="Import a winstall pack URL, a winget script, JSON or an ID list">
+                        <StackPanel Orientation="Horizontal">
+                            <Path Data="{StaticResource DGeoUpload}" Style="{StaticResource DeployIcon}" Width="13" Height="13" Margin="0,0,8,0"/>
+                            <TextBlock Text="Import pack…"/>
+                        </StackPanel>
+                    </Button>
+                    <Button x:Name="NewPackToggleBtn" x:FieldModifier="public" Style="{StaticResource DeployAccentButton}" Margin="10,0,0,0"
+                            ToolTip="Save the selected apps as a custom pack">
+                        <StackPanel Orientation="Horizontal">
+                            <Path Data="{StaticResource DGeoPlus}" Style="{StaticResource DeployIcon}" Width="13" Height="13" Margin="0,0,8,0"/>
+                            <TextBlock Text="New pack from selection"/>
+                        </StackPanel>
+                    </Button>
+                </StackPanel>
+                <StackPanel>
+                    <TextBlock Text="Packs" Style="{StaticResource DeployH1}"/>
+                    <TextBlock Text="Collections you can install as a set: featured winstall packs, Home RMS presets and your own." Style="{StaticResource DeployLead}" Margin="0,4,0,0"/>
+                </StackPanel>
+            </DockPanel>
+
+            <!-- Import pack -->
+            <Border x:Name="ImportPanel" x:FieldModifier="public" Style="{StaticResource DeployPanelCard}" Margin="0,0,14,18" Visibility="Collapsed">
+                <StackPanel>
+                    <TextBlock Text="Import pack" Style="{StaticResource DeployCardTitle}" Margin="0,0,0,4"/>
+                    <TextBlock Style="{StaticResource DeployMeta}" TextWrapping="Wrap" TextTrimming="None" Margin="0,0,0,10"
+                               Text="Paste a winstall.app pack URL, a winstall-generated winget script (batch or PowerShell), a winget export JSON, an {&quot;apps&quot;:[{&quot;id&quot;:...}]} JSON, or one package ID per line. Every ID is validated; valid IDs are added to the selection."/>
+                    <TextBox x:Name="ImportBox" x:FieldModifier="public" Style="{StaticResource DeployField}" Height="104" AcceptsReturn="True" TextWrapping="Wrap"
+                             VerticalScrollBarVisibility="Auto" VerticalContentAlignment="Top" Padding="10,8" FontFamily="{StaticResource MonoFont}" FontSize="12"/>
+                    <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
+                        <Button x:Name="ImportRunBtn" x:FieldModifier="public" Content="Import to selection" Style="{StaticResource DeployAccentButton}" Margin="0,0,8,0"/>
+                        <Button x:Name="ImportPasteBtn" x:FieldModifier="public" Content="Paste clipboard" Style="{StaticResource DeployDarkButton}" Margin="0,0,8,0"/>
+                        <Button x:Name="ImportCloseBtn" x:FieldModifier="public" Content="Close" Style="{StaticResource DeployDarkButton}"/>
+                    </StackPanel>
+                    <TextBlock x:Name="ImportResultText" x:FieldModifier="public" Style="{StaticResource DeployMeta}" TextWrapping="Wrap" TextTrimming="None" Margin="0,8,0,0"/>
+                </StackPanel>
+            </Border>
+
+            <!-- New pack from selection -->
+            <Border x:Name="NewPackPanel" x:FieldModifier="public" Style="{StaticResource DeployPanelCard}" Margin="0,0,14,18" Visibility="Collapsed">
+                <StackPanel>
+                    <TextBlock Text="New pack from selection" Style="{StaticResource DeployCardTitle}" Margin="0,0,0,4"/>
+                    <TextBlock x:Name="NewPackHint" x:FieldModifier="public" Style="{StaticResource DeployMeta}" TextWrapping="Wrap" TextTrimming="None" Margin="0,0,0,10"
+                               Text="Saves the selected apps under a name (stored in winget-packs.json). Saving under an existing custom pack name replaces it."/>
+                    <StackPanel Orientation="Horizontal">
+                        <TextBox x:Name="PackNameBox" x:FieldModifier="public" Style="{StaticResource DeployField}" Tag="Pack name" Width="280" MaxLength="60" Margin="0,0,8,0"/>
+                        <Button x:Name="SavePackBtn" x:FieldModifier="public" Content="Save pack" Style="{StaticResource DeployAccentButton}" Margin="0,0,8,0"/>
+                        <Button x:Name="NewPackCloseBtn" x:FieldModifier="public" Content="Close" Style="{StaticResource DeployDarkButton}"/>
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+
+            <TextBlock x:Name="StatusText" x:FieldModifier="public" Style="{StaticResource DeployMeta}" TextWrapping="Wrap" TextTrimming="None" Margin="0,0,14,14" Visibility="Collapsed"/>
+
+            <!-- Your packs -->
+            <TextBlock Text="Your packs" Style="{StaticResource DeployH2}" Margin="0,0,0,4"/>
+            <TextBlock Text="Custom packs saved on this Controller." Style="{StaticResource DeployLead}" Margin="0,0,0,14"/>
+            <ItemsControl x:Name="CustomPacksList" x:FieldModifier="public" ItemTemplate="{StaticResource DeployPackCardTemplate}" Focusable="False">
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate><UniformGrid Columns="{Binding Columns, ElementName=Root}"/></ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+            </ItemsControl>
+            <Border x:Name="CustomEmpty" x:FieldModifier="public" Style="{StaticResource DeployPanelCard}" Margin="0,0,14,14" Visibility="Collapsed">
+                <TextBlock Style="{StaticResource DeployLead}" Text="No custom packs yet. Select some apps, then use “New pack from selection” or the bar's “Add to Pack”."/>
+            </Border>
+
+            <!-- Presets -->
+            <TextBlock Text="Home RMS presets" Style="{StaticResource DeployH2}" Margin="0,16,0,14"/>
+            <ItemsControl x:Name="PresetPacksList" x:FieldModifier="public" ItemTemplate="{StaticResource DeployPackCardTemplate}" Focusable="False">
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate><UniformGrid Columns="{Binding Columns, ElementName=Root}"/></ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+            </ItemsControl>
+
+            <!-- Featured & community packs from winstall -->
+            <TextBlock Text="Featured packs" Style="{StaticResource DeployH2}" Margin="0,16,0,4"/>
+            <TextBlock x:Name="FeaturedSubtitle" x:FieldModifier="public" Text="Trending public packs on winstall.app." Style="{StaticResource DeployLead}" Margin="0,0,0,14"/>
+            <ItemsControl x:Name="FeaturedPacksList" x:FieldModifier="public" ItemTemplate="{StaticResource DeployPackCardTemplate}" Focusable="False">
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate><UniformGrid Columns="{Binding Columns, ElementName=Root}"/></ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+            </ItemsControl>
+
+            <TextBlock x:Name="CommunityTitle" x:FieldModifier="public" Text="Community packs" Style="{StaticResource DeployH2}" Margin="0,16,0,14"/>
+            <ItemsControl x:Name="CommunityPacksList" x:FieldModifier="public" ItemTemplate="{StaticResource DeployPackCardTemplate}" Focusable="False">
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate><UniformGrid Columns="{Binding Columns, ElementName=Root}"/></ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+            </ItemsControl>
+            <Button x:Name="LoadMoreBtn" x:FieldModifier="public" Style="{StaticResource DeployDarkButton}" Content="Load more packs" HorizontalAlignment="Center"
+                    Margin="0,6,14,0" Visibility="Collapsed"/>
+        </StackPanel>
+    </ScrollViewer>
+</local:DeployGridView>

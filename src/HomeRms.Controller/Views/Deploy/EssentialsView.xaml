@@ -1,0 +1,26 @@
+<local:DeployGridView x:Class="HomeRms.Controller.Views.Deploy.EssentialsView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:local="clr-namespace:HomeRms.Controller.Views.Deploy"
+             x:Name="Root">
+    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Focusable="False">
+        <StackPanel Margin="24,20,10,120">
+            <TextBlock Text="Pick the apps you want" Style="{StaticResource DeployH1}" Margin="0,0,14,6"/>
+            <TextBlock Text="Here are the most popular apps, you can pick and deploy them instantly." Style="{StaticResource DeployLead}" Margin="0,0,14,22"/>
+            <ItemsControl x:Name="GroupsList" x:FieldModifier="public" Focusable="False">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                        <StackPanel Margin="0,0,0,18">
+                            <TextBlock Text="{Binding Name}" Style="{StaticResource DeployCardTitle}" FontSize="17" Margin="0,0,0,10"/>
+                            <ItemsControl ItemsSource="{Binding Apps}" ItemTemplate="{StaticResource DeployEssentialRowTemplate}" Focusable="False">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate><UniformGrid Columns="{Binding TileColumns, RelativeSource={RelativeSource AncestorType=local:DeployGridView}}" VerticalAlignment="Top"/></ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                            </ItemsControl>
+                        </StackPanel>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+        </StackPanel>
+    </ScrollViewer>
+</local:DeployGridView>

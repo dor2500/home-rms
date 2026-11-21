@@ -1,0 +1,67 @@
+<UserControl x:Class="HomeRms.Controller.Views.Deploy.DeployShellView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:local="clr-namespace:HomeRms.Controller.Views.Deploy"
+             Background="{StaticResource DeployCanvasBrush}" Foreground="{StaticResource TextPrimaryBrush}"
+             FontFamily="{StaticResource UiFont}">
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <!-- Top bar: brand | Discover Apps Essentials Packs Files | status + search -->
+        <Border Grid.Row="0" BorderBrush="{StaticResource DeployBorderBrush}" BorderThickness="0,0,0,1" Padding="24,14,24,14">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*" MinWidth="200"/>
+                </Grid.ColumnDefinitions>
+                <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,22,0">
+                    <Border Width="32" Height="32" CornerRadius="9" Background="{StaticResource DeployAccentBrush}">
+                        <Path Data="{StaticResource DGeoPackage}" Stroke="{StaticResource TextOnAccentBrush}" StrokeThickness="2" Width="16" Height="16"
+                              Stretch="Uniform" StrokeLineJoin="Round"/>
+                    </Border>
+                    <StackPanel x:Name="BrandText" Margin="10,0,0,0" VerticalAlignment="Center">
+                        <TextBlock Text="Deploy" FontSize="17" FontWeight="Bold" FontFamily="{StaticResource DisplayFont}"/>
+                        <TextBlock Text="Home RMS software catalog" FontSize="10.5" Foreground="{StaticResource DeployMutedTextBrush}"/>
+                    </StackPanel>
+                </StackPanel>
+
+                <DockPanel Grid.Column="2" VerticalAlignment="Center" Margin="12,0,0,0">
+                    <Border x:Name="StatusPill" DockPanel.Dock="Right" Background="{StaticResource DeployAccentSoftBrush}" CornerRadius="10" Padding="10,4" Margin="12,0,0,0"
+                            VerticalAlignment="Center" ToolTip="Deployment status">
+                        <TextBlock x:Name="StatusBadge" x:FieldModifier="public" Text="READY" FontSize="11" FontWeight="Bold"
+                                   Foreground="{StaticResource DeployAccentTextBrush}"/>
+                    </Border>
+                    <TextBox x:Name="TopSearchBox" x:FieldModifier="public" Style="{StaticResource DeploySearchBox}" MaxWidth="360" MinWidth="150"
+                             HorizontalAlignment="Right" Tag="Search apps" ToolTip="Search the whole winget catalog (Enter)"/>
+                </DockPanel>
+
+                <StackPanel x:Name="NavBar" Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                    <RadioButton x:Name="NavDiscover" x:FieldModifier="public" Content="Discover" Style="{StaticResource DeployNavTab}" GroupName="DeployNav" IsChecked="True" Tag="Discover"/>
+                    <RadioButton x:Name="NavApps" x:FieldModifier="public" Content="Apps" Style="{StaticResource DeployNavTab}" GroupName="DeployNav" Tag="Apps"/>
+                    <RadioButton x:Name="NavEssentials" x:FieldModifier="public" Content="Essentials" Style="{StaticResource DeployNavTab}" GroupName="DeployNav" Tag="Essentials"/>
+                    <RadioButton x:Name="NavPacks" x:FieldModifier="public" Content="Packs" Style="{StaticResource DeployNavTab}" GroupName="DeployNav" Tag="Packs"/>
+                    <RadioButton x:Name="NavFiles" x:FieldModifier="public" Content="Files" Style="{StaticResource DeployNavTab}" GroupName="DeployNav" Tag="Files"
+                                 ToolTip="Deploy local installers and scripts (.exe, .msi, .msp, .ps1, .cmd, .bat)"/>
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <!-- Views (one visible at a time) -->
+        <Grid Grid.Row="1" x:Name="ViewHost">
+            <local:DiscoverView x:Name="Discover" x:FieldModifier="public"/>
+            <local:AppsView x:Name="Apps" x:FieldModifier="public" Visibility="Collapsed"/>
+            <local:EssentialsView x:Name="Essentials" x:FieldModifier="public" Visibility="Collapsed"/>
+            <local:AppDetailView x:Name="Detail" x:FieldModifier="public" Visibility="Collapsed"/>
+            <local:PacksView x:Name="Packs" x:FieldModifier="public" Visibility="Collapsed"/>
+            <local:InstallView x:Name="Install" x:FieldModifier="public" Visibility="Collapsed"/>
+            <local:FilesView x:Name="Files" x:FieldModifier="public" Visibility="Collapsed"/>
+        </Grid>
+
+        <!-- Bottom selection bar, pinned over every view -->
+        <local:SelectionBar x:Name="Selection" x:FieldModifier="public" Grid.Row="1" VerticalAlignment="Bottom" Margin="24,0,24,16" Visibility="Collapsed"/>
+    </Grid>
+</UserControl>

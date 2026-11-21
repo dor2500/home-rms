@@ -107,7 +107,7 @@ public partial class MainWindow : Window
             "Connected over Mutual TLS (HTTP/2). Every command executed here is recorded in the remote agent's visible activity log.\r\n" +
             "------------------------------------------------------------\r\n";
 
-        DeployOutputBox.Text =
+        DeployOutputBox.Text = FilesV.LogBox.Text =
             "Home RMS Silent Software Deployment Console\r\n" +
             "Drop .exe, .msi, .msp, .ps1, .cmd or .bat files on this page to stream them over mTLS and run them silently on the remote computer.\r\n" +
             "------------------------------------------------------------\r\n";
@@ -125,6 +125,17 @@ public partial class MainWindow : Window
             if (!string.IsNullOrWhiteSpace(shotDir))
             {
                 var port = int.TryParse(portArg, out var p) ? p : RmsPaths.DefaultPort;
+                // --screenshot-set deploy: only the Deploy sub-views (no agent connection needed).
+                if (string.Equals(GetArg(args, "--screenshot-set"), "deploy", StringComparison.OrdinalIgnoreCase))
+                {
+                    Directory.CreateDirectory(shotDir);
+                    LockOverlay.Visibility = Visibility.Collapsed;
+                    AgentPair2FaOverlay.Visibility = Visibility.Collapsed;
+                    await CaptureDeployScreenshotsAsync(shotDir);
+                    Application.Current.Shutdown(0);
+                    Environment.Exit(0);
+                    return;
+                }
                 await RunAutomatedScreenshotsAsync(shotDir, port);
                 return;
             }
@@ -2087,6 +2098,7 @@ public partial class MainWindow : Window
         }
         if (added > 0)
         {
+            DeployShell.Show(Views.Deploy.DeployView.Files);
             DeployFilePathBox.Text = files[^1];
             StatusText.Text = $"Added {added} file(s) to the deploy list. Click Run Files to upload and run them on the connected agent.";
         }
@@ -2098,7 +2110,11 @@ public partial class MainWindow : Window
             DeployArgsBox.Text = flags;
     }
 
-    private void OnClearDeployLogClick(object sender, RoutedEventArgs e) => DeployOutputBox.Clear();
+    private void OnClearDeployLogClick(object sender, RoutedEventArgs e)
+    {
+        DeployOutputBox.Clear();
+        FilesV.LogBox.Clear();
+    }
 
     private async void OnStartDeployClick(object sender, RoutedEventArgs e)
     {
@@ -2234,15 +2250,19 @@ public partial class MainWindow : Window
 
     private void AppendDeployLog(string line)
     {
-        // Keep the live log bounded (RunWinget can stream a lot of lines).
-        if (DeployOutputBox.Text.Length > 400_000)
+        // The same live log shows in the Install view's Deploy tab and on the Files tab.
+        foreach (var box in new[] { DeployOutputBox, FilesV.LogBox })
         {
-            var text = DeployOutputBox.Text;
-            var cut = text.IndexOf('\n', text.Length - 300_000);
-            DeployOutputBox.Text = "… (older log lines trimmed)\r\n" + (cut >= 0 ? text[(cut + 1)..] : text[^300_000..]);
+            // Keep the live log bounded (RunWinget can stream a lot of lines).
+            if (box.Text.Length > 400_000)
+            {
+                var text = box.Text;
+                var cut = text.IndexOf('\n', text.Length - 300_000);
+                box.Text = "… (older log lines trimmed)\r\n" + (cut >= 0 ? text[(cut + 1)..] : text[^300_000..]);
+            }
+            box.AppendText(line + "\r\n");
+            box.ScrollToEnd();
         }
-        DeployOutputBox.AppendText(line + "\r\n");
-        DeployOutputBox.ScrollToEnd();
         MirrorDeployLineToConsole(line); // MainWindow.Shell.cs
     }
 
@@ -2310,10 +2330,11 @@ public partial class MainWindow : Window
         SaveWindowPng(Path.Combine(outDir, "controller-desktop.png"));
         StopStream();
 
-        // Switch to Deploy (Winstall-Style Visual Software Catalog)
+        // Switch to Deploy (winstall-style catalog) and capture its sub-views
         NavDeploy.IsChecked = true;
         await Task.Delay(450);
         SaveWindowPng(Path.Combine(outDir, "controller-deploy.png"));
+        await CaptureDeployScreenshotsAsync(outDir);
 
         // Switch to Settings (Windows 11 Settings UI)
         NavSystem.IsChecked = true;
