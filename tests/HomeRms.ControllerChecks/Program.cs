@@ -177,6 +177,8 @@ try
     // ---------------- 7. Signed agent announces ----------------
     Console.WriteLine("[checks] signed agent announces");
     AnnounceChecks.Run(Check);
+    Console.WriteLine("[checks] Services view CollectionView refill");
+    CollectionViewChecks.Run(Check);
 }
 catch (Exception ex)
 {
