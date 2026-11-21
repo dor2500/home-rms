@@ -121,7 +121,8 @@ public static class RmsNetwork
     /// <summary>RFC 4941 privacy addresses rotate daily; announcing them is useless (Windows reports them, Linux may not).</summary>
     private static bool IsTemporaryIPv6(UnicastIPAddressInformation ua)
     {
+        if (!OperatingSystem.IsWindows()) return false;
         try { return ua.SuffixOrigin == SuffixOrigin.Random; }
-        catch (PlatformNotSupportedException) { return false; }
+        catch (NetworkInformationException) { return false; }
     }
 }
