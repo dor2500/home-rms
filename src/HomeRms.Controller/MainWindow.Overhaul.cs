@@ -103,9 +103,9 @@ public partial class MainWindow
     // ---------------- Mobile Hub & Alert Center ----------------
     private void OnOpenMobileHubClick(object sender, RoutedEventArgs e)
     {
-        var url = $"http://localhost:{_centralHub.Port}/mobile";
+        var url = $"http://localhost:{_centralHub.Port}/"; // web console (the old /mobile page redirects here)
         try { Process.Start(new ProcessStartInfo(url) { UseShellExecute = true }); }
-        catch { StatusText.Text = $"Mobile Hub URL: {url}"; }
+        catch { StatusText.Text = $"Web console URL: {url}"; }
     }
 
     private void OnOpenAlertCenterClick(object sender, RoutedEventArgs e)

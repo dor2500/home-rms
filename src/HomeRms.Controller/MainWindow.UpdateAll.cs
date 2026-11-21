@@ -65,7 +65,7 @@ public partial class MainWindow
         InstallV.CancelBtn.IsEnabled = busy;
     }
 
-    private static bool IsLinuxAgent(MachineProfile p) => p.Kind == EndpointKind.Linux && p.ConnectionMode == ConnectionMode.Agent;
+    private static bool IsLinuxAgent(MachineProfile p) => p.IsLinuxAgent;
 
     private static string DescribeUpdateTarget(WingetTarget t) => t.Profile switch
     {

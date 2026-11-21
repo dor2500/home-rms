@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Offline checks of the Linux agent's SystemOp allowlist: target validation regexes, package
+       manager detection and the parsers that turn command output into the Controller's table shapes.
+       Runs on Windows too (nothing is executed): dotnet run, project tests\HomeRms.LinuxAgentChecks. -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net11.0</TargetFramework>
+    <RootNamespace>HomeRms.LinuxAgentChecks</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\HomeRms.Agent.Linux\HomeRms.Agent.Linux.csproj" />
+  </ItemGroup>
+
+</Project>

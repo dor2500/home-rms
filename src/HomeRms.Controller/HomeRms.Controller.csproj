@@ -28,6 +28,11 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- Central Hub web console (single-page app served by CentralHubService; no external CDNs) -->
+    <EmbeddedResource Include="Web\*.html;Web\*.js;Web\*.css;Web\*.svg" LogicalName="HomeRms.Web.%(Filename)%(Extension)" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\HomeRms.Shared\HomeRms.Shared.csproj" />
   </ItemGroup>
 

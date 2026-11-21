@@ -32,7 +32,8 @@ public static class PowerActions
 
     /// <summary>Executes one action on one endpoint and returns a short result message (throws on failure).</summary>
     public static async Task<string> ExecuteAsync(
-        PowerAction action, MachineProfile m, AgentConnectionPool pool, AgentlessService agentless, CancellationToken ct = default)
+        PowerAction action, MachineProfile m, AgentConnectionPool pool, AgentlessService agentless, CancellationToken ct = default,
+        bool interactive = true)
     {
         if (action == Wake)
         {
@@ -41,13 +42,8 @@ public static class PowerActions
             return $"Magic packet sent to {mac}.";
         }
 
-        var isLinuxAgent = m.Kind == EndpointKind.Linux && m.ConnectionMode == ConnectionMode.Agent;
-        if (isLinuxAgent)
-        {
-            if (action.Id is not ("restart" or "shutdown" or "cancel"))
-                throw new NotSupportedException($"'{action.Label}' is not supported on Linux agent endpoints.");
-        }
-        else if (m.IsAppliance)
+        // Linux agents support every SystemOp power action (systemctl suspend, loginctl lock / terminate-session).
+        if (!m.IsLinuxAgent && m.IsAppliance)
         {
             throw new NotSupportedException("Power actions are only available for Windows and Linux agent endpoints.");
         }
@@ -67,7 +63,7 @@ public static class PowerActions
             return $"{action.Label} requested over WinRM.";
         }
 
-        var res = await pool.CallAsync(m, interactive: true, c => c.SystemOpAsync(
+        var res = await pool.CallAsync(m, interactive, c => c.SystemOpAsync(
             new SystemOpRequest { Area = "power", Action = action.Id, Target = "", Extra = "" },
             deadline: DateTime.UtcNow.AddSeconds(30), cancellationToken: ct).ResponseAsync, ct);
         if (!res.Success) throw new InvalidOperationException(res.Message);

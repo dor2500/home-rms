@@ -70,6 +70,7 @@
                                 <ComboBox x:Name="ShellCombo" SelectedIndex="0">
                                     <ComboBoxItem Content="PowerShell"/>
                                     <ComboBoxItem Content="cmd"/>
+                                    <ComboBoxItem Content="bash (Linux)"/>
                                 </ComboBox>
                             </StackPanel>
                             <StackPanel Grid.Column="4">

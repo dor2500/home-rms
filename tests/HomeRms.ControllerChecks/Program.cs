@@ -45,7 +45,7 @@ try
     scripts["winrm wrapper (unbalanced braces in body)"] = AgentlessService.BuildWinRmWrapper("u", "p", "pc", "} ; Start-Process calc ; {");
     scripts["winrm wrapper (winget body)"] = AgentlessService.BuildWinRmWrapper("u", "p", "pc", scripts["winget-install upgrade=True silent=True"]);
 
-    foreach (var s in ScriptLibraryStore.BuiltIns())
+    foreach (var s in ScriptLibraryStore.BuiltIns().Where(s => s.Shell != ScriptShell.Bash))
         scripts[$"library builtin '{s.Name}'"] = ScriptExecutor.BuildPowerShell(s.Shell, s.Body, s.Name);
     scripts["library: body with '@ line"] = ScriptExecutor.BuildPowerShell(ScriptShell.PowerShell, "Write-Output 'a'\n'@\nWrite-Output 'b'", "x");
     scripts["library: body with indented '@ line"] = ScriptExecutor.BuildPowerShell(ScriptShell.PowerShell, "Write-Output 'a'\n   '@\n", "x");
@@ -94,6 +94,41 @@ try
         $"PowerShell snippet (with an indented '@ line) runs and prints the completion marker{(psOut.Contains("LIB_OK_") ? "" : " -> " + psOut.Trim())}");
     var (_, cmdOut) = RunPowerShell(work, ScriptExecutor.BuildPowerShell(ScriptShell.Cmd, "echo LIB_OK_2", "t"));
     Check(cmdOut.Contains("LIB_OK_2") && cmdOut.Contains(ScriptExecutor.DoneMarker + "0|0"), "cmd snippet runs and reports success");
+
+    // bash wrappers (Linux agents): syntax of every built-in, and real execution through "bash -s" (the
+    // Linux agent's Shell RPC) when Git for Windows' bash is available on this machine.
+    Console.WriteLine("[checks] Script Library bash wrappers (Linux agents)");
+    var linuxAgent = new MachineProfile { Host = "nas", Kind = EndpointKind.Linux, ConnectionMode = ConnectionMode.Agent };
+    var scannedLinux = new MachineProfile { Host = "pi", Kind = EndpointKind.WindowsAgent, OsName = "Unix 6.8.0.45" };
+    var sshLinux = new MachineProfile { Host = "srv", Kind = EndpointKind.Linux, ConnectionMode = ConnectionMode.Agentless };
+    var winAgent = new MachineProfile { Host = "pc", Kind = EndpointKind.WindowsAgent, OsName = "Microsoft Windows NT 10.0.26100.0" };
+    Check(linuxAgent.IsLinuxAgent && scannedLinux.IsLinuxAgent && !sshLinux.IsLinuxAgent && !winAgent.IsLinuxAgent && winAgent.IsWindowsAgent && !scannedLinux.IsWindowsAgent,
+        "Linux agent detection (kind + reported OS; SSH appliances and Windows agents excluded)");
+    Check(HomeRms.Controller.Views.FileManagerView.LocalSafeName("a:b?.txt") == "a_b_.txt" && HomeRms.Controller.Views.FileManagerView.LocalSafeName("con.log") == "_con.log"
+          && HomeRms.Controller.Views.FileManagerView.LocalSafeName("x\\y") == "x_y" && HomeRms.Controller.Views.FileManagerView.LocalSafeName("..") == "_",
+        "Linux file names are made safe for local Windows downloads (no ADS ':' / reserved names / separators)");
+    var linuxBuiltIns = ScriptLibraryStore.BuiltIns().Where(s => s.Shell == ScriptShell.Bash).ToList();
+    Check(linuxBuiltIns.Count >= 6, $"{linuxBuiltIns.Count} built-in Linux (bash) snippets");
+    var bashExe = FindBash();
+    if (bashExe is null)
+    {
+        Console.WriteLine("  [skip] bash not found; bash wrapper execution not checked");
+    }
+    else
+    {
+        foreach (var s in linuxBuiltIns)
+        {
+            var (rc, err) = RunBash(bashExe, "-n", ScriptExecutor.BuildBash(s.Body, s.Name));
+            Check(rc == 0, $"bash -n parses: library builtin '{s.Name}'{(rc == 0 ? "" : " -> " + err.Trim())}");
+        }
+        const string hostileBash = "echo \"LIB_OK_3 $((1+2))\"\ncat <<'EOF'\nheredoc 'quoted' $HOME `x`\nEOF\nread -r line; echo \"stdin=[${line}]\"";
+        var (_, okOut) = RunBash(bashExe, "-s", ScriptExecutor.BuildBash(hostileBash, "t'it\nle") + "echo AFTER_WRAPPER\n");
+        Check(okOut.Contains("LIB_OK_3 3") && okOut.Contains("heredoc 'quoted' $HOME `x`") && okOut.Contains("stdin=[]")
+              && okOut.Contains(ScriptExecutor.DoneMarker + "0|0") && okOut.Contains("AFTER_WRAPPER"),
+            $"bash snippet (nested heredoc, quotes, stdin read) runs via 'bash -s' and reports success{(okOut.Contains("LIB_OK_3") ? "" : " -> " + okOut.Trim())}");
+        var (_, failOut) = RunBash(bashExe, "-s", ScriptExecutor.BuildBash("echo before\nexit 7", "t"));
+        Check(failOut.Contains("before") && failOut.Contains(ScriptExecutor.DoneMarker + "1|7"), "bash snippet exit code is reported (error flag + 7)");
+    }
 
     // ---------------- 4. Import parsing ----------------
     Console.WriteLine("[checks] winstall / winget import parsing");
@@ -176,6 +211,10 @@ try
     Console.WriteLine("[checks] Central Hub relay access control");
     await CheckHubAsync(Check);
 
+    // ---------------- 5b. Web console API ----------------
+    Console.WriteLine("[checks] Web console (/api/v2) access control and validation");
+    await HubWebChecks.RunAsync(Check);
+
     // ---------------- 6. Connect by computer name / IP healing ----------------
     Console.WriteLine("[checks] endpoint addressing, discovery replies and IP healing");
     EndpointChecks.Run(Check);
@@ -217,6 +256,37 @@ static string? TryDecode(string b64)
 {
     try { return Encoding.UTF8.GetString(Convert.FromBase64String(b64)); }
     catch { return null; }
+}
+
+static string? FindBash()
+{
+    string[] candidates =
+    [
+        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "Git", "bin", "bash.exe"),
+        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "Git", "usr", "bin", "bash.exe"),
+    ];
+    return candidates.FirstOrDefault(File.Exists);
+}
+
+/// <summary>Runs bash with the script on stdin (mode "-s" like the Linux agent's Shell RPC, or "-n" for a syntax check).</summary>
+static (int Exit, string Output) RunBash(string bash, string mode, string script)
+{
+    var psi = new ProcessStartInfo(bash, mode)
+    {
+        RedirectStandardInput = true,
+        RedirectStandardOutput = true,
+        RedirectStandardError = true,
+        UseShellExecute = false,
+        CreateNoWindow = true,
+    };
+    using var p = Process.Start(psi)!;
+    var stdout = p.StandardOutput.ReadToEndAsync();
+    var stderr = p.StandardError.ReadToEndAsync();
+    p.StandardInput.NewLine = "\n";
+    p.StandardInput.Write(script.Replace("\r\n", "\n"));
+    p.StandardInput.Close();
+    if (!p.WaitForExit(60_000)) { p.Kill(true); return (-1, "timeout"); }
+    return (p.ExitCode, stdout.Result + stderr.Result);
 }
 
 static (int Exit, string Output) RunPowerShell(string work, string script)
@@ -283,7 +353,9 @@ static async Task CheckHubAsync(Action<bool, string> check)
         new() { Name = "<img src=x onerror=alert(1)>", Host = "127.0.0.1", Port = 1, StatusLabel = "Offline" },
     };
     var log = new List<string>();
-    using var hub = new CentralHubService(() => machines, () => Task.CompletedTask, (c, m) => { lock (log) log.Add($"{c}: {m}"); });
+    // In-memory relay settings: the user's hub-relay.json is neither read nor written by the checks.
+    using var hub = new CentralHubService(() => machines, () => Task.CompletedTask, (c, m) => { lock (log) log.Add($"{c}: {m}"); },
+        settings: HubRelaySettings.CreateEphemeral(requireAuth: true, allowLan: false));
     hub.Start(47480);
     check(hub.IsRunning, $"hub started on port {hub.Port}");
     if (!hub.IsRunning) return;
@@ -300,7 +372,7 @@ static async Task CheckHubAsync(Action<bool, string> check)
     }
 
     var page = await http.GetStringAsync("/");
-    check(page.Contains("function esc(") && !page.Contains("JSON.stringify(e)"), "hub page escapes endpoint data and no longer inlines JSON into onclick");
+    check(page.Contains("/app.js") && !page.Contains("JSON.stringify(e)"), "hub page is the web console SPA (data only via the signed-in API)");
     check(hub.AuthRequired, "sign-in is required by default");
     check(await Status(HttpMethod.Get, "api/endpoints") == HttpStatusCode.Unauthorized, "API without a session -> 401");
     check(await Status(HttpMethod.Get, "proxy/example.com/") == HttpStatusCode.Unauthorized, "reverse proxy without a session -> 401");

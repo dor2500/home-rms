@@ -151,11 +151,11 @@ public partial class MainWindow
     {
         var wasChecked = _deployTargets.Where(t => t.IsChecked).Select(t => t.Profile).ToHashSet();
         _deployTargets.Clear();
-        // Linux endpoints are listed for Update All (Linux agents) and skipped by app deploys.
-        foreach (var m in _machines.Where(m => m.IsWindows || m.Kind == EndpointKind.Linux))
+        // Linux endpoints are listed for Update All (Linux agents) and skipped by winget app deploys.
+        foreach (var m in _machines.Where(m => m.IsWindows || m.Kind == EndpointKind.Linux || m.IsLinuxAgent))
         {
-            var mode = m.IsAgentless ? "WinRM" : m.Kind != EndpointKind.Linux ? "agent"
-                : IsLinuxAgent(m) ? "Linux agent · Update All only" : "SSH · not supported";
+            var mode = IsLinuxAgent(m) ? "Linux agent · Update All only"
+                : m.IsAgentless ? "WinRM" : m.Kind != EndpointKind.Linux ? "agent" : "SSH · not supported";
             var state = m.IsConnected ? "connected" : m.IsOnline ? "online" : "offline";
             _deployTargets.Add(new DeployTarget { Profile = m, Detail = $"  {mode} · {state}", IsChecked = wasChecked.Contains(m) });
         }
@@ -166,7 +166,7 @@ public partial class MainWindow
 
     private async Task<List<WingetTarget>?> ResolveWingetTargetsAsync()
     {
-        var picked = _deployTargets.Where(t => t.IsChecked).Select(t => t.Profile).ToList();
+        var picked = _deployTargets.Where(t => t.IsChecked && t.IsSupported).Select(t => t.Profile).ToList();
         if (picked.Count > 0)
             return picked.Select(p => new WingetTarget(p.DisplayTitle, p, p.IsAgentless)).ToList();
 
@@ -225,7 +225,7 @@ public partial class MainWindow
             return;
         }
         if (targets is null || targets.Count == 0) return;
-        var nonWindows = targets.Where(t => t.Profile is { IsWindows: false }).ToList();
+        var nonWindows = targets.Where(t => t.Profile is { } p && (!p.IsWindows || p.IsLinuxAgent)).ToList();
         foreach (var t in nonWindows)
             DeployLog(t.Label, null, "Skipped: app deploys need a Windows endpoint (Linux agents support Update All).");
         targets = targets.Except(nonWindows).ToList();

@@ -16,6 +16,8 @@ public enum ScriptShell
 {
     PowerShell = 0,
     Cmd = 1,
+    /// <summary>bash on Linux agents (Windows endpoints skip these snippets).</summary>
+    Bash = 2,
 }
 
 /// <summary>A saved script snippet.</summary>
@@ -30,7 +32,17 @@ public sealed class ScriptSnippet
     public bool IsBuiltIn { get; set; }
 
     [JsonIgnore] public string TagsText => string.Join(", ", Tags);
-    [JsonIgnore] public string ShellText => Shell == ScriptShell.Cmd ? "cmd" : "PowerShell";
+    [JsonIgnore] public string ShellText => ShellName(Shell);
+
+    /// <summary>True when the snippet runs on Linux agents (bash) instead of Windows (PowerShell / cmd).</summary>
+    [JsonIgnore] public bool IsLinux => Shell == ScriptShell.Bash;
+
+    public static string ShellName(ScriptShell shell) => shell switch
+    {
+        ScriptShell.Cmd => "cmd",
+        ScriptShell.Bash => "bash",
+        _ => "PowerShell",
+    };
 
     public ScriptSnippet Clone() => new()
     {
@@ -140,6 +152,68 @@ public static class ScriptLibraryStore
             Get-Service -Name $svcs | Select-Object Name, Status | Format-Table -AutoSize
             "Windows Update components reset."
             """, "windows update", "repair", "admin"),
+
+        // ---- Linux agents (bash) ----
+        B("linux-disk", "Disk usage (Linux)", "Free space per file system and the largest directories under /var and /home.", ScriptShell.Bash,
+            """
+            df -hT -x tmpfs -x devtmpfs -x squashfs -x overlay 2>/dev/null || df -h
+            echo
+            echo "Largest directories:"
+            du -xh --max-depth=1 /var /home 2>/dev/null | sort -rh | head -n 15
+            """, "linux", "disk", "report"),
+        B("linux-top", "Top processes (Linux)", "The 15 processes using the most CPU and the most memory.", ScriptShell.Bash,
+            """
+            echo "== By CPU =="
+            ps -eo pid,user,%cpu,%mem,etime,comm --sort=-%cpu | head -n 16
+            echo
+            echo "== By memory =="
+            ps -eo pid,user,%cpu,%mem,rss,comm --sort=-%mem | head -n 16
+            echo
+            uptime
+            """, "linux", "performance", "info"),
+        B("linux-journal-errors", "Journal errors (Linux)", "Errors and worse from the systemd journal of the current boot, plus failed units.", ScriptShell.Bash,
+            """
+            if command -v journalctl >/dev/null 2>&1; then
+              journalctl -b -p err --no-pager -n 80 2>&1
+            else
+              tail -n 80 /var/log/syslog 2>/dev/null || tail -n 80 /var/log/messages
+            fi
+            echo
+            echo "== Failed units =="
+            systemctl --failed --no-pager 2>/dev/null || true
+            """, "linux", "logs", "diagnostics"),
+        B("linux-update-check", "Update check (apt / dnf)", "Lists pending package updates (apt, dnf, yum, zypper or pacman) without installing anything.", ScriptShell.Bash,
+            """
+            if command -v apt-get >/dev/null 2>&1; then
+              apt-get update -qq >/dev/null 2>&1 || echo "(apt-get update needs root; showing cached lists)"
+              apt list --upgradable 2>/dev/null
+            elif command -v dnf >/dev/null 2>&1; then
+              dnf -q check-update
+            elif command -v yum >/dev/null 2>&1; then
+              yum -q check-update
+            elif command -v zypper >/dev/null 2>&1; then
+              zypper --non-interactive list-updates
+            elif command -v pacman >/dev/null 2>&1; then
+              checkupdates 2>/dev/null || pacman -Qu
+            else
+              echo "No supported package manager found."
+            fi
+            [ -f /var/run/reboot-required ] && echo "A reboot is required."
+            true
+            """, "linux", "updates"),
+        B("linux-restart-service", "Restart a service (Linux)", "Restarts the systemd service named in SERVICE (edit a copy) and shows its status.", ScriptShell.Bash,
+            """
+            SERVICE="cron.service"
+            systemctl restart -- "$SERVICE" && echo "Restarted $SERVICE"
+            systemctl status --no-pager -n 10 -- "$SERVICE"
+            """, "linux", "service"),
+        B("linux-network", "Network info (Linux)", "Addresses, routes, DNS servers and listening ports.", ScriptShell.Bash,
+            """
+            echo "== Addresses =="; ip -br addr 2>/dev/null || ifconfig -a
+            echo; echo "== Routes =="; ip route 2>/dev/null || route -n
+            echo; echo "== DNS =="; (resolvectl dns 2>/dev/null || grep -E '^nameserver' /etc/resolv.conf)
+            echo; echo "== Listening ports =="; (ss -tulpn 2>/dev/null || netstat -tulpn 2>/dev/null) | head -n 40
+            """, "linux", "network", "info"),
     ];
 }
 
@@ -225,13 +299,24 @@ public sealed class ScriptExecutor(AgentConnectionPool pool, AgentlessService ag
                 return;
             }
 
-            if (m.IsAppliance)
+            var linux = m.IsLinuxAgent;
+            if (linux && shell != ScriptShell.Bash)
             {
-                Ui(() => { run.State = ScriptRunState.Skipped; run.Summary = "Not a Windows endpoint"; });
+                Ui(() => { run.State = ScriptRunState.Skipped; run.Summary = $"Skipped: {ScriptSnippet.ShellName(shell)} snippet is Windows-only (Linux endpoint, use a bash snippet)"; });
+                return;
+            }
+            if (!linux && shell == ScriptShell.Bash)
+            {
+                Ui(() => { run.State = ScriptRunState.Skipped; run.Summary = "Skipped: bash snippet runs on Linux agents only"; });
+                return;
+            }
+            if (!linux && m.IsAppliance)
+            {
+                Ui(() => { run.State = ScriptRunState.Skipped; run.Summary = "Not an agent endpoint (appliance / SSH)"; });
                 return;
             }
 
-            var wrapped = BuildPowerShell(shell, body, title);
+            var wrapped = linux ? BuildBash(body, title) : BuildPowerShell(shell, body, title);
 
             if (m.IsAgentless)
             {
@@ -335,6 +420,30 @@ public sealed class ScriptExecutor(AgentConnectionPool pool, AgentlessService ag
         run.Summary = ok
             ? (lastLine.Length > 0 ? lastLine : "Completed")
             : hadError ? "Completed with errors" + (exit != 0 ? $" (exit {exit})" : "") : $"Exit code {exit}";
+    }
+
+    /// <summary>
+    /// bash counterpart of <see cref="BuildPowerShell"/> for Linux agents (whose Shell RPC is <c>bash -s</c>):
+    /// the body is written to a temp file through a quoted here-document (no expansion, stays readable in the
+    /// agent's activity log), run with stdin detached so it cannot swallow the rest of the session, and the
+    /// same completion marker (error flag + exit code) is printed last. A body containing the random
+    /// delimiter line falls back to Base64.
+    /// </summary>
+    public static string BuildBash(string body, string title)
+    {
+        var normalized = body.Replace("\r\n", "\n").Replace('\r', '\n').TrimEnd();
+        var delimiter = "HRMS_EOF_" + Guid.NewGuid().ToString("N");
+        var safeTitle = title.Replace("\r", " ").Replace("\n", " ");
+        var sb = new StringBuilder();
+        sb.Append("# Home RMS Script Library: ").Append(safeTitle).Append(" (bash)\n");
+        sb.Append("__hrms_f=$(mktemp \"${TMPDIR:-/tmp}/hrms_XXXXXXXX.sh\") || { echo \"" + DoneMarker + "1|1\"; exit 1; }\n");
+        if (normalized.Split('\n').Any(l => l == delimiter))
+            sb.Append("printf '%s' '").Append(Convert.ToBase64String(Encoding.UTF8.GetBytes(normalized + "\n"))).Append("' | base64 -d > \"$__hrms_f\"\n");
+        else
+            sb.Append("cat > \"$__hrms_f\" <<'").Append(delimiter).Append("'\n").Append(normalized).Append('\n').Append(delimiter).Append('\n');
+        sb.Append("bash \"$__hrms_f\" < /dev/null 2>&1; __hrms_rc=$?; rm -f -- \"$__hrms_f\"\n");
+        sb.Append("echo \"" + DoneMarker + "$([ $__hrms_rc -eq 0 ] && echo 0 || echo 1)|$__hrms_rc\"\n");
+        return sb.ToString();
     }
 
     /// <summary>

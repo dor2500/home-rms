@@ -50,8 +50,20 @@ public sealed class HubRelaySettings
         return s;
     }
 
+    [System.Text.Json.Serialization.JsonIgnore]
+    private bool _ephemeral;
+
+    /// <summary>In-memory settings with a fresh access key that are never written to disk (tests, scratch hubs).</summary>
+    public static HubRelaySettings CreateEphemeral(bool requireAuth = true, bool allowLan = false)
+    {
+        var s = new HubRelaySettings { RequireAuth = requireAuth, AllowLan = allowLan, _ephemeral = true };
+        s.SetAccessKey(GenerateAccessKey());
+        return s;
+    }
+
     public void Save()
     {
+        if (_ephemeral) return;
         try
         {
             AtomicFile.WriteAllText(FilePath, JsonSerializer.Serialize(this, Options));

@@ -16,7 +16,7 @@ using HomeRms.Shared.Security;
 namespace HomeRms.Controller.Services;
 
 /// <summary>
-/// Central Home RMS Server (Hub, Relay, Reverse Proxy &amp; Responsive Mobile Web App).
+/// Central Home RMS Server (Hub, Relay, Reverse Proxy &amp; browser Web Console, see CentralHubService.Web.cs).
 /// All remote clients and the Mobile Web App communicate strictly with this Central Server;
 /// mTLS certificates, DPAPI credentials, and SSH keys remain strictly on the server.
 /// <para>
@@ -27,7 +27,7 @@ namespace HomeRms.Controller.Services;
 /// only reach endpoints that are saved in the fleet - never arbitrary hosts.
 /// </para>
 /// </summary>
-public sealed class CentralHubService : IDisposable
+public sealed partial class CentralHubService : IDisposable
 {
     public const int DefaultHubPort = 7480;
 
@@ -63,7 +63,8 @@ public sealed class CentralHubService : IDisposable
         Action<string, string> logEvent,
         AgentlessService? agentless = null,
         SshApplianceService? ssh = null,
-        AlertCenterService? alerts = null)
+        AlertCenterService? alerts = null,
+        HubRelaySettings? settings = null)
     {
         _getEndpoints = getEndpoints;
         _triggerLanScan = triggerLanScan;
@@ -71,7 +72,8 @@ public sealed class CentralHubService : IDisposable
         _agentless = agentless ?? new AgentlessService();
         _ssh = ssh ?? new SshApplianceService();
         _alerts = alerts ?? new AlertCenterService();
-        _settings = HubRelaySettings.Load();
+        // Tests / scratch harnesses pass in-memory settings so the user's hub-relay.json is never touched.
+        _settings = settings ?? HubRelaySettings.Load();
 
         // Appliances (Home Assistant, NAS...) typically use self-signed certificates, so an invalid
         // certificate is tolerated ONLY for hosts that are saved endpoints with a web UI. Redirects are
@@ -216,13 +218,9 @@ public sealed class CentralHubService : IDisposable
             ctx.Response.Headers["X-Content-Type-Options"] = "nosniff";
             ctx.Response.Headers["Referrer-Policy"] = "no-referrer";
 
-            if (path is "/" or "/mobile")
-            {
-                ctx.Response.Headers["X-Frame-Options"] = "DENY";
-                ctx.Response.Headers["Cache-Control"] = "no-store";
-                await WriteHtmlAsync(ctx.Response, BuildMobileWebAppHtml());
+            // Web console single-page app (static, no data inside: everything comes from the signed-in API).
+            if (await TryServeAssetAsync(ctx, path))
                 return;
-            }
 
             // Cross-site form posts cannot set custom headers (that needs a CORS preflight, which the
             // hub never approves), so this blocks CSRF against every state-changing hub route.
@@ -304,6 +302,13 @@ public sealed class CentralHubService : IDisposable
             {
                 ctx.Response.StatusCode = 401;
                 await WriteJsonAsync(ctx.Response, new { error = "Sign-in required (hub access key or 2FA code). Open the hub page to sign in." });
+                return;
+            }
+
+            // Web Console API (sessions, CSRF and saved-endpoint-only access as above).
+            if (path.StartsWith("/api/v2/", StringComparison.OrdinalIgnoreCase))
+            {
+                await HandleV2Async(ctx, path, method, ct);
                 return;
             }
 
@@ -681,186 +686,12 @@ public sealed class CentralHubService : IDisposable
         res.Close();
     }
 
-    private static async Task WriteHtmlAsync(HttpListenerResponse res, string html)
-    {
-        var bytes = Encoding.UTF8.GetBytes(html);
-        res.ContentType = "text/html; charset=utf-8";
-        res.ContentLength64 = bytes.Length;
-        await res.OutputStream.WriteAsync(bytes);
-        res.Close();
-    }
-
-    private static string BuildMobileWebAppHtml() => """
-        <!DOCTYPE html>
-        <html lang="en">
-        <head>
-        <meta charset="utf-8"/>
-        <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1"/>
-        <title>Home RMS — Mobile Hub</title>
-        <style>
-          :root { --bg:#0E0F12; --surf:#15171C; --card:#1C1F26; --line:rgba(255,255,255,0.08); --text:#ECEEF2; --muted:#8A909E; --accent:#3B82F6; --ok:#10B981; --warn:#F59E0B; --err:#EF4444; }
-          * { box-sizing:border-box; margin:0; padding:0; }
-          body { background:var(--bg); color:var(--text); font-family:Inter,'Segoe UI',system-ui,sans-serif; padding:14px; max-width:960px; margin:auto; }
-          header { display:flex; align-items:center; justify-content:space-between; padding:12px 14px; background:var(--surf); border:1px solid var(--line); border-radius:8px; margin-bottom:12px; }
-          h1 { font-size:15px; font-weight:600; letter-spacing:0.2px; }
-          .sub { font-size:11px; color:var(--muted); margin-top:2px; font-family:'JetBrains Mono',monospace; }
-          .row { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
-          .btn { background:var(--card); color:var(--text); border:1px solid var(--line); border-radius:6px; padding:7px 12px; font-size:12px; cursor:pointer; }
-          .btn.primary { background:var(--accent); border-color:var(--accent); font-weight:600; }
-          .grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(260px,1fr)); gap:10px; margin-bottom:14px; }
-          .card { background:var(--card); border:1px solid var(--line); border-radius:8px; padding:12px; }
-          .badge { display:inline-block; font-size:10px; padding:2px 7px; border-radius:4px; border:1px solid var(--line); font-family:monospace; color:var(--muted); }
-          .badge.ok { color:var(--ok); border-color:rgba(16,185,129,0.35); }
-          .badge.crit { color:var(--err); border-color:rgba(239,68,68,0.4); }
-          .panel { background:var(--surf); border:1px solid var(--line); border-radius:8px; padding:12px; margin-top:10px; }
-          pre { background:#0B0C0F; border:1px solid var(--line); border-radius:6px; padding:10px; font-family:'JetBrains Mono',monospace; font-size:12px; max-height:240px; overflow:auto; white-space:pre-wrap; margin-top:8px; }
-          input { width:100%; background:#111317; color:var(--text); border:1px solid var(--line); border-radius:6px; padding:8px 10px; font-family:'JetBrains Mono',monospace; font-size:12px; }
-          img.screen { width:100%; border-radius:6px; border:1px solid var(--line); margin-top:8px; background:#000; }
-          .hidden { display:none; }
-        </style>
-        </head>
-        <body>
-          <header>
-            <div>
-              <h1>HOME RMS — CENTRAL RELAY</h1>
-              <div class="sub" id="hubStat">Connecting to hub...</div>
-            </div>
-            <div class="row">
-              <button class="btn" id="alertBtn" onclick="toggleAlerts()">Alerts (0)</button>
-              <button class="btn primary" onclick="scanLan()">Scan LAN</button>
-            </div>
-          </header>
-
-          <div class="panel hidden" id="authBox">
-            <h2 style="font-size:13px;margin-bottom:6px;">Sign in to the hub</h2>
-            <div class="sub" style="margin-bottom:8px;">Enter the hub access key (Controller: Server &amp; PKI) or a 6-digit 2FA / backup code.</div>
-            <div class="row">
-              <input id="totpCode" placeholder="Access key or 2FA code" autocomplete="off" style="flex:1;"/>
-              <button class="btn primary" onclick="verify2fa()">Sign in</button>
-            </div>
-            <div class="sub" id="authMsg" style="margin-top:6px;"></div>
-          </div>
-
-          <div class="panel hidden" id="alertsBox" style="margin-bottom:12px;">
-            <div class="row" style="justify-content:space-between;margin-bottom:8px;">
-              <strong style="font-size:13px;">Alert Center</strong>
-              <button class="btn" onclick="ackAll()">Acknowledge All</button>
-            </div>
-            <div id="alertsList" class="sub">No alerts.</div>
-          </div>
-
-          <div class="grid" id="endpoints"></div>
-
-          <div class="panel hidden" id="detailPanel">
-            <div class="row" style="justify-content:space-between;margin-bottom:8px;">
-              <strong id="selTitle">Endpoint</strong>
-              <div class="row">
-                <button class="btn" onclick="loadScreen()">Screen</button>
-                <button class="btn" id="webUiBtn" onclick="openProxy()">Web UI</button>
-              </div>
-            </div>
-            <div class="row">
-              <input id="shellCmd" placeholder="PowerShell / SSH command..." style="flex:1;"/>
-              <button class="btn primary" onclick="runShell()">Run</button>
-            </div>
-            <pre id="shellOut">Ready.</pre>
-            <img id="screenImg" class="screen hidden"/>
-          </div>
-
-          <script>
-            // Every value coming from the hub (endpoint names, alert text...) is escaped before it is
-            // put into HTML; endpoints are selected by index, never by inlining JSON into attributes.
-            let selected = null;
-            let endpoints = [];
-            const HDR = { 'Content-Type': 'application/json', 'X-HomeRms-Request': '1' };
-            function esc(v) {
-              return String(v ?? '').replace(/[&<>"'`]/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;', '`':'&#96;' }[c]));
-            }
-            async function api(path, opts) {
-              const r = await fetch(path, opts);
-              if (r.status === 401) { showAuth(true); throw new Error('Sign-in required'); }
-              return r;
-            }
-            function showAuth(show) { document.getElementById('authBox').classList.toggle('hidden', !show); }
-            async function checkAuth() {
-              const r = await (await fetch('/api/auth/status')).json();
-              showAuth(!r.authenticated);
-              if (r.authenticated) loadAll();
-            }
-            async function verify2fa() {
-              const code = document.getElementById('totpCode').value;
-              const res = await fetch('/api/auth/verify', { method:'POST', headers:HDR, body: JSON.stringify({ code, remember: true }) });
-              const body = await res.json().catch(() => ({}));
-              document.getElementById('authMsg').textContent = res.ok ? '' : (body.error || 'Sign-in failed');
-              if (res.ok) { document.getElementById('totpCode').value = ''; checkAuth(); }
-            }
-            async function loadAll() {
-              try {
-                const st = await (await api('/api/hub/status')).json();
-                document.getElementById('hubStat').textContent = `Hub :${st.port} | Online ${st.endpointsOnline}/${st.endpointsTotal} | Relayed ${st.relayedRequests}`;
-                document.getElementById('alertBtn').textContent = `Alerts (${Number(st.unreadAlerts) || 0})`;
-                endpoints = await (await api('/api/endpoints')).json();
-                document.getElementById('endpoints').innerHTML = endpoints.length === 0
-                  ? '<div class="sub">No endpoints saved yet. Add them in the Controller or run Scan LAN.</div>'
-                  : endpoints.map((e, i) => `
-                  <div class="card" data-index="${i}" style="cursor:pointer;">
-                    <div class="row" style="justify-content:space-between;margin-bottom:6px;">
-                      <strong>${esc(e.name)}</strong>
-                      <span class="badge ${e.online?'ok':''}">${e.online?'ONLINE':'OFFLINE'}</span>
-                    </div>
-                    <div class="sub">${esc(e.host)}:${esc(e.port)} | ${esc(e.modeBadge)}</div>
-                    <div class="sub" style="margin-top:6px;">CPU ${esc(e.cpu)}% | RAM ${esc(e.ram)}% | ${esc(e.latencyMs)}ms</div>
-                  </div>`).join('');
-                const al = await (await api('/api/alerts')).json();
-                document.getElementById('alertsList').innerHTML = al.alerts.length === 0 ? 'No active alerts.' : al.alerts.map(a =>
-                  `<div style="padding:6px 0;border-bottom:1px solid var(--line);"><span class="badge ${a.severity==='CRITICAL'?'crit':''}">${esc(a.severity)}</span> <strong>${esc(a.title)}</strong> (${esc(a.endpoint)}) — ${esc(a.detail)}</div>`).join('');
-              } catch (err) { /* 401 shows the sign-in box; anything else retries on the next tick */ }
-            }
-            document.getElementById('endpoints').addEventListener('click', ev => {
-              const card = ev.target.closest('.card');
-              if (card) selectEp(endpoints[Number(card.dataset.index)]);
-            });
-            function toggleAlerts() { document.getElementById('alertsBox').classList.toggle('hidden'); }
-            async function ackAll() { await api('/api/alerts/ack', { method:'POST', headers:HDR, body:'{}' }); loadAll(); }
-            async function scanLan() { await api('/api/endpoints/scan', { method:'POST', headers:HDR }); setTimeout(loadAll, 2000); }
-            function target(e) { return `${encodeURIComponent(e.host)}:${encodeURIComponent(e.port)}`; }
-            function selectEp(e) {
-              if (!e) return;
-              selected = e;
-              document.getElementById('detailPanel').classList.remove('hidden');
-              document.getElementById('selTitle').textContent = `${e.name} (${e.modeBadge})`;
-              document.getElementById('webUiBtn').classList.toggle('hidden', !e.webUrl);
-              document.getElementById('screenImg').classList.add('hidden');
-            }
-            async function runShell() {
-              if (!selected) return;
-              const cmd = document.getElementById('shellCmd').value;
-              try {
-                const r = await (await api(`/api/relay/${target(selected)}/shell`, {
-                  method:'POST', headers:HDR, body: JSON.stringify({ command: cmd })
-                })).json();
-                document.getElementById('shellOut').textContent = r.output || r.error || '(no output)';
-              } catch (err) { document.getElementById('shellOut').textContent = String(err.message || err); }
-            }
-            function loadScreen() {
-              if (!selected) return;
-              const img = document.getElementById('screenImg');
-              img.classList.remove('hidden');
-              img.src = `/api/relay/${target(selected)}/screen.jpg?t=${Date.now()}`;
-            }
-            function openProxy() { if (selected) window.open(`/proxy/${encodeURIComponent(selected.host)}/`, '_blank', 'noopener'); }
-            document.getElementById('totpCode').addEventListener('keydown', ev => { if (ev.key === 'Enter') verify2fa(); });
-            checkAuth();
-            setInterval(() => { if (document.getElementById('authBox').classList.contains('hidden')) loadAll(); }, 5000);
-          </script>
-        </body>
-        </html>
-        """;
-
     public void Dispose()
     {
         _cts?.Cancel();
         try { _listener?.Stop(); _listener?.Close(); } catch { }
+        foreach (var job in _deployJobs.Values) job.Cts.Cancel();
+        _ownPool?.Dispose();
         foreach (var c in _connectionPool.Values) c.Dispose();
         _connectionPool.Clear();
     }
