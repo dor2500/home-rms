@@ -217,6 +217,8 @@ public sealed partial class CentralHubService : IDisposable
 
             ctx.Response.Headers["X-Content-Type-Options"] = "nosniff";
             ctx.Response.Headers["Referrer-Policy"] = "no-referrer";
+            ctx.Response.Headers["Cache-Control"] = "no-store";
+            ctx.Response.Headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()";
 
             // Web console single-page app (static, no data inside: everything comes from the signed-in API).
             if (await TryServeAssetAsync(ctx, path))
@@ -290,7 +292,14 @@ public sealed partial class CentralHubService : IDisposable
                 {
                     var failed = TwoFactorStore.RegisterUnlockFailure(cfg);
                     TwoFactorStore.SaveController(failed);
-                    TwoFactorStore.LogSecurityEvent($"Mobile hub sign-in failed from {ctx.Request.RemoteEndPoint?.Address}; consecutive failures: {failed.FailedUnlockAttempts}");
+                    var remoteIp = ctx.Request.RemoteEndPoint?.Address?.ToString() ?? "unknown";
+                    TwoFactorStore.LogSecurityEvent($"Mobile hub sign-in failed from {remoteIp}; consecutive failures: {failed.FailedUnlockAttempts}");
+                    if (failed.FailedUnlockAttempts >= 3)
+                    {
+                        _alerts?.Raise("Central Hub", remoteIp, AlertSeverity.Warning, "Repeated Hub Sign-In Failures",
+                            $"{failed.FailedUnlockAttempts} failed sign-in attempts from {remoteIp}.", cooldownMinutes: 2);
+                        _logEvent("ALERT", $"Repeated Hub sign-in failures ({failed.FailedUnlockAttempts}) from {remoteIp}.");
+                    }
                     ctx.Response.StatusCode = 401;
                     await WriteJsonAsync(ctx.Response, new { ok = false, error = "Invalid access key, 2FA or backup code" });
                 }

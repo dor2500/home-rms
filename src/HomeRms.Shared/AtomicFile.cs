@@ -9,10 +9,10 @@ namespace HomeRms.Shared;
 /// </summary>
 public static class AtomicFile
 {
-    public static void WriteAllText(string path, string contents) =>
-        WriteAllBytes(path, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false).GetBytes(contents));
+    public static void WriteAllText(string path, string contents, bool privateOnly = false) =>
+        WriteAllBytes(path, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false).GetBytes(contents), privateOnly);
 
-    public static void WriteAllBytes(string path, byte[] bytes)
+    public static void WriteAllBytes(string path, byte[] bytes, bool privateOnly = false)
     {
         var dir = Path.GetDirectoryName(Path.GetFullPath(path))!;
         Directory.CreateDirectory(dir);
@@ -23,6 +23,10 @@ public static class AtomicFile
             {
                 fs.Write(bytes);
                 fs.Flush(flushToDisk: true);
+            }
+            if (privateOnly && !OperatingSystem.IsWindows())
+            {
+                try { File.SetUnixFileMode(tmp, UnixFileMode.UserRead | UnixFileMode.UserWrite); } catch { }
             }
             File.Move(tmp, path, overwrite: true);
         }

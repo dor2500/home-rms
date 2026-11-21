@@ -27,11 +27,14 @@ public partial class MainWindow
     private string _consoleFilter = "All";
     private bool _consoleChromeHidden;
 
+    private bool _settingThemeCombo;
+
     private void InitializeShell()
     {
         _ui = UiSettings.Load();
-        ThemeManager.Apply(_ui.Theme, this);
-        UpdateThemeToggleLabel();
+        var theme = ThemeManager.Normalize(_ui.Theme);
+        ThemeManager.Apply(theme, this);
+        SelectThemeCombo(theme);
         SourceInitialized += (_, _) => ThemeManager.ApplyWindowChrome(this);
         Palette.ThemeChanged += OnThemeChanged;
 
@@ -59,19 +62,27 @@ public partial class MainWindow
         UpdateNavBadges();
     }
 
-    private void OnToggleThemeClick(object sender, RoutedEventArgs e)
+    private void OnThemeComboChanged(object sender, SelectionChangedEventArgs e)
     {
-        var next = ThemeManager.IsLight ? ThemeManager.Dark : ThemeManager.Light;
+        if (_settingThemeCombo || ThemeCombo?.SelectedItem is not ComboBoxItem item || item.Tag is not string next) return;
         _ui.Theme = next;
         _ui.Save();
         ThemeManager.Apply(next, this);
-        UpdateThemeToggleLabel();
     }
 
-    private void UpdateThemeToggleLabel()
+    private void SelectThemeCombo(string theme)
     {
-        if (ThemeToggleBtn is not null)
-            ThemeToggleBtn.Content = ThemeManager.IsLight ? "Dark mode" : "Light mode";
+        if (ThemeCombo is null) return;
+        _settingThemeCombo = true;
+        foreach (ComboBoxItem item in ThemeCombo.Items)
+        {
+            if (string.Equals(item.Tag as string, theme, StringComparison.OrdinalIgnoreCase))
+            {
+                ThemeCombo.SelectedItem = item;
+                break;
+            }
+        }
+        _settingThemeCombo = false;
     }
 
     private void OnThemeChanged()

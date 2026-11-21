@@ -1,0 +1,152 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!-- Home RMS design tokens — "Nordic Frost" (Slate & Ice Blue) -->
+    <Color x:Key="CanvasColor">#222731</Color>
+    <Color x:Key="SurfaceColor">#292F3B</Color>
+    <Color x:Key="ElevatedColor">#313846</Color>
+    <Color x:Key="ElevatedHoverColor">#394152</Color>
+    <Color x:Key="OverlayColor">#353D4C</Color>
+    <Color x:Key="FieldColor">#262C37</Color>
+    <Color x:Key="SunkenColor">#1D222B</Color>
+
+    <Color x:Key="BorderSubtleColor">#3D4657</Color>
+    <Color x:Key="BorderStrongColor">#4F5A6F</Color>
+
+    <Color x:Key="TextPrimaryColor">#ECEFF4</Color>
+    <Color x:Key="TextSecondaryColor">#C5CEDB</Color>
+    <Color x:Key="TextMutedColor">#929EB2</Color>
+    <Color x:Key="TextDisabledColor">#616D82</Color>
+
+    <Color x:Key="AccentColor">#88C0D0</Color>
+    <Color x:Key="AccentStrongColor">#5E81AC</Color>
+    <Color x:Key="AccentStrongHoverColor">#6F94C2</Color>
+    <Color x:Key="AccentSoftColor">#2488C0D0</Color>
+    <Color x:Key="AccentLineColor">#4D88C0D0</Color>
+
+    <Color x:Key="SuccessColor">#A3BE8C</Color>
+    <Color x:Key="SuccessSoftColor">#24A3BE8C</Color>
+    <Color x:Key="SuccessLineColor">#4DA3BE8C</Color>
+    <Color x:Key="WarningColor">#EBCB8B</Color>
+    <Color x:Key="WarningSoftColor">#24EBCB8B</Color>
+    <Color x:Key="WarningLineColor">#4DEBCB8B</Color>
+    <Color x:Key="DangerColor">#BF616A</Color>
+    <Color x:Key="DangerStrongColor">#B04F58</Color>
+    <Color x:Key="DangerStrongHoverColor">#C5626B</Color>
+    <Color x:Key="DangerSoftColor">#26BF616A</Color>
+    <Color x:Key="DangerLineColor">#4DBF616A</Color>
+    <Color x:Key="InfoColor">#81A1C1</Color>
+    <Color x:Key="InfoSoftColor">#2481A1C1</Color>
+    <Color x:Key="InfoLineColor">#4D81A1C1</Color>
+    <Color x:Key="NeutralColor">#929EB2</Color>
+    <Color x:Key="NeutralSoftColor">#1F929EB2</Color>
+    <Color x:Key="SeriesTealColor">#8FBCBB</Color>
+
+    <SolidColorBrush x:Key="CanvasBrush" Color="{StaticResource CanvasColor}"/>
+    <SolidColorBrush x:Key="SurfaceLayerBrush" Color="{StaticResource SurfaceColor}"/>
+    <SolidColorBrush x:Key="ElevatedBrush" Color="{StaticResource ElevatedColor}"/>
+    <SolidColorBrush x:Key="ElevatedHoverBrush" Color="{StaticResource ElevatedHoverColor}"/>
+    <SolidColorBrush x:Key="OverlayBrush" Color="{StaticResource OverlayColor}"/>
+    <SolidColorBrush x:Key="SunkenBrush" Color="{StaticResource SunkenColor}"/>
+    <SolidColorBrush x:Key="BorderSubtleBrush" Color="{StaticResource BorderSubtleColor}"/>
+    <SolidColorBrush x:Key="BorderStrongBrush" Color="{StaticResource BorderStrongColor}"/>
+    <SolidColorBrush x:Key="TextPrimaryBrush" Color="{StaticResource TextPrimaryColor}"/>
+    <SolidColorBrush x:Key="TextSecondaryBrush" Color="{StaticResource TextSecondaryColor}"/>
+    <SolidColorBrush x:Key="TextMutedBrush" Color="{StaticResource TextMutedColor}"/>
+    <SolidColorBrush x:Key="TextDisabledBrush" Color="{StaticResource TextDisabledColor}"/>
+    <SolidColorBrush x:Key="TextOnAccentBrush" Color="#FFFFFF"/>
+
+    <SolidColorBrush x:Key="AccentStrongBrush" Color="{StaticResource AccentStrongColor}"/>
+    <SolidColorBrush x:Key="AccentStrongHoverBrush" Color="{StaticResource AccentStrongHoverColor}"/>
+    <SolidColorBrush x:Key="AccentLineBrush" Color="{StaticResource AccentLineColor}"/>
+    <SolidColorBrush x:Key="SuccessSoftBrush" Color="{StaticResource SuccessSoftColor}"/>
+    <SolidColorBrush x:Key="SuccessLineBrush" Color="{StaticResource SuccessLineColor}"/>
+    <SolidColorBrush x:Key="WarningSoftBrush" Color="{StaticResource WarningSoftColor}"/>
+    <SolidColorBrush x:Key="WarningLineBrush" Color="{StaticResource WarningLineColor}"/>
+    <SolidColorBrush x:Key="DangerStrongBrush" Color="{StaticResource DangerStrongColor}"/>
+    <SolidColorBrush x:Key="DangerStrongHoverBrush" Color="{StaticResource DangerStrongHoverColor}"/>
+    <SolidColorBrush x:Key="DangerSoftBrush" Color="{StaticResource DangerSoftColor}"/>
+    <SolidColorBrush x:Key="DangerLineBrush" Color="{StaticResource DangerLineColor}"/>
+    <SolidColorBrush x:Key="InfoBrush" Color="{StaticResource InfoColor}"/>
+    <SolidColorBrush x:Key="InfoSoftBrush" Color="{StaticResource InfoSoftColor}"/>
+    <SolidColorBrush x:Key="InfoLineBrush" Color="{StaticResource InfoLineColor}"/>
+    <SolidColorBrush x:Key="NeutralBrush" Color="{StaticResource NeutralColor}"/>
+    <SolidColorBrush x:Key="NeutralSoftBrush" Color="{StaticResource NeutralSoftColor}"/>
+    <SolidColorBrush x:Key="SeriesTealBrush" Color="{StaticResource SeriesTealColor}"/>
+
+    <SolidColorBrush x:Key="ScrimBrush" Color="#B8191D26"/>
+    <SolidColorBrush x:Key="LockScrimBrush" Color="#F5222731"/>
+    <SolidColorBrush x:Key="HudBrush" Color="#E6292F3B"/>
+    <SolidColorBrush x:Key="StreamCanvasBrush" Color="#191D26"/>
+    <SolidColorBrush x:Key="ChartGridBrush" Color="#1AFFFFFF"/>
+    <SolidColorBrush x:Key="RowHoverBrush" Color="#0DFFFFFF"/>
+    <SolidColorBrush x:Key="RowAltBrush" Color="#05FFFFFF"/>
+    <SolidColorBrush x:Key="RowDividerBrush" Color="#10FFFFFF"/>
+    <SolidColorBrush x:Key="HoverLayerBrush" Color="#14FFFFFF"/>
+    <SolidColorBrush x:Key="TrackBrush" Color="#14FFFFFF"/>
+    <SolidColorBrush x:Key="BorderHoverBrush" Color="#5B677E"/>
+    <SolidColorBrush x:Key="ScrollThumbBrush" Color="#485368"/>
+    <SolidColorBrush x:Key="ScrollThumbHoverBrush" Color="#65738E"/>
+    <SolidColorBrush x:Key="QrBackgroundBrush" Color="#FFFFFF"/>
+
+    <SolidColorBrush x:Key="DeepBgBrush" Color="{StaticResource CanvasColor}"/>
+    <SolidColorBrush x:Key="BgBrush" Color="{StaticResource CanvasColor}"/>
+    <SolidColorBrush x:Key="SurfaceBrush" Color="{StaticResource SurfaceColor}"/>
+    <SolidColorBrush x:Key="CardBrush" Color="{StaticResource ElevatedColor}"/>
+    <SolidColorBrush x:Key="CardHoverBrush" Color="{StaticResource ElevatedHoverColor}"/>
+    <SolidColorBrush x:Key="FieldBrush" Color="{StaticResource FieldColor}"/>
+    <SolidColorBrush x:Key="LineBrush" Color="{StaticResource BorderSubtleColor}"/>
+    <SolidColorBrush x:Key="TextBrush" Color="{StaticResource TextPrimaryColor}"/>
+    <SolidColorBrush x:Key="MutedBrush" Color="{StaticResource TextMutedColor}"/>
+    <SolidColorBrush x:Key="AccentBrush" Color="{StaticResource AccentColor}"/>
+    <SolidColorBrush x:Key="IndigoBrush" Color="{StaticResource SeriesTealColor}"/>
+    <SolidColorBrush x:Key="AccentSoftBrush" Color="{StaticResource AccentSoftColor}"/>
+    <SolidColorBrush x:Key="OkBrush" Color="{StaticResource SuccessColor}"/>
+    <SolidColorBrush x:Key="WarnBrush" Color="{StaticResource WarningColor}"/>
+    <SolidColorBrush x:Key="DangerBrush" Color="{StaticResource DangerColor}"/>
+    <SolidColorBrush x:Key="SelectBrush" Color="#2E88C0D0"/>
+
+    <Color x:Key="DeployCanvasColor">#242933</Color>
+    <Color x:Key="DeployCardColor">#323947</Color>
+    <Color x:Key="DeployCardHoverColor">#3A4354</Color>
+    <Color x:Key="DeployFieldColor">#2A303C</Color>
+    <Color x:Key="DeployCodeColor">#1D212A</Color>
+    <Color x:Key="DeployBorderColor">#424B5E</Color>
+    <Color x:Key="DeployBorderHoverColor">#5B6780</Color>
+    <Color x:Key="DeployMutedTextColor">#A3B0C4</Color>
+    <Color x:Key="DeployAccentColor">#5E81AC</Color>
+    <Color x:Key="DeployAccentHoverColor">#7296C2</Color>
+    <Color x:Key="DeployAccentPressedColor">#4C6A91</Color>
+    <Color x:Key="DeployAccentSoftColor">#2E88C0D0</Color>
+    <Color x:Key="DeployAccentLineColor">#8088C0D0</Color>
+    <Color x:Key="DeployAccentTextColor">#88C0D0</Color>
+    <Color x:Key="DeployBarButtonColor">#2C3340</Color>
+    <Color x:Key="DeployBarButtonHoverColor">#384152</Color>
+    <Color x:Key="DeployOnAccentMutedColor">#D9FFFFFF</Color>
+    <Color x:Key="DeployHeroStartColor">#3B5373</Color>
+    <Color x:Key="DeployHeroEndColor">#2B3240</Color>
+
+    <SolidColorBrush x:Key="DeployCanvasBrush" Color="{StaticResource DeployCanvasColor}"/>
+    <SolidColorBrush x:Key="DeployCardBrush" Color="{StaticResource DeployCardColor}"/>
+    <SolidColorBrush x:Key="DeployCardHoverBrush" Color="{StaticResource DeployCardHoverColor}"/>
+    <SolidColorBrush x:Key="DeployFieldBrush" Color="{StaticResource DeployFieldColor}"/>
+    <SolidColorBrush x:Key="DeployCodeBrush" Color="{StaticResource DeployCodeColor}"/>
+    <SolidColorBrush x:Key="DeployBorderBrush" Color="{StaticResource DeployBorderColor}"/>
+    <SolidColorBrush x:Key="DeployBorderHoverBrush" Color="{StaticResource DeployBorderHoverColor}"/>
+    <SolidColorBrush x:Key="DeployMutedTextBrush" Color="{StaticResource DeployMutedTextColor}"/>
+    <SolidColorBrush x:Key="DeployAccentBrush" Color="{StaticResource DeployAccentColor}"/>
+    <SolidColorBrush x:Key="DeployAccentHoverBrush" Color="{StaticResource DeployAccentHoverColor}"/>
+    <SolidColorBrush x:Key="DeployAccentPressedBrush" Color="{StaticResource DeployAccentPressedColor}"/>
+    <SolidColorBrush x:Key="DeployAccentSoftBrush" Color="{StaticResource DeployAccentSoftColor}"/>
+    <SolidColorBrush x:Key="DeployAccentLineBrush" Color="{StaticResource DeployAccentLineColor}"/>
+    <SolidColorBrush x:Key="DeployAccentTextBrush" Color="{StaticResource DeployAccentTextColor}"/>
+    <SolidColorBrush x:Key="DeployBarButtonBrush" Color="{StaticResource DeployBarButtonColor}"/>
+    <SolidColorBrush x:Key="DeployBarButtonHoverBrush" Color="{StaticResource DeployBarButtonHoverColor}"/>
+    <SolidColorBrush x:Key="DeployOnAccentMutedBrush" Color="{StaticResource DeployOnAccentMutedColor}"/>
+    <SolidColorBrush x:Key="DeployHeroPanelBrush" Color="#26000000"/>
+    <SolidColorBrush x:Key="DeployOnAccentLayerBrush" Color="#38FFFFFF"/>
+    <LinearGradientBrush x:Key="DeployHeroBrush" StartPoint="0,0" EndPoint="1,1">
+        <GradientStop Color="{StaticResource DeployHeroStartColor}" Offset="0"/>
+        <GradientStop Color="{StaticResource DeployHeroEndColor}" Offset="1"/>
+    </LinearGradientBrush>
+</ResourceDictionary>

@@ -651,7 +651,7 @@ public sealed class HostsManager : IDisposable
 
     private void SaveSettings(BlockerSettings s)
     {
-        AtomicFile.WriteAllText(SettingsPath, JsonSerializer.Serialize(s, new JsonSerializerOptions { WriteIndented = true }));
+        AtomicFile.WriteAllText(SettingsPath, JsonSerializer.Serialize(s, new JsonSerializerOptions { WriteIndented = true }), privateOnly: true);
         _settingsStamp = File.GetLastWriteTimeUtc(SettingsPath);
     }
 

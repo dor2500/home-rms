@@ -91,9 +91,16 @@
                     <Button x:Name="UpdateBtn" Content="Updates" Style="{StaticResource HeaderPillButton}"
                             Margin="0,0,6,0" ToolTip="Check GitHub Releases (dor2500/home-rms) for updates"
                             Click="OnCheckOrApplyUpdateClick"/>
-                    <Button x:Name="ThemeToggleBtn" Content="Light mode" Style="{StaticResource HeaderPillButton}"
-                            Margin="0,0,6,0" ToolTip="Switch between Light and Dark mode"
-                            Click="OnToggleThemeClick"/>
+                    <ComboBox x:Name="ThemeCombo" Width="108" Height="28" Margin="0,0,6,0" VerticalContentAlignment="Center"
+                              ToolTip="Select theme (System, Dark, Light, Midnight, Nordic, Emerald)"
+                              SelectionChanged="OnThemeComboChanged">
+                        <ComboBoxItem Content="System" Tag="System"/>
+                        <ComboBoxItem Content="Dark" Tag="Dark"/>
+                        <ComboBoxItem Content="Light" Tag="Light"/>
+                        <ComboBoxItem Content="Midnight" Tag="Midnight"/>
+                        <ComboBoxItem Content="Nordic" Tag="Nordic"/>
+                        <ComboBoxItem Content="Emerald" Tag="Emerald"/>
+                    </ComboBox>
                     <Button Style="{StaticResource HeaderPillButton}" Margin="0,0,10,0" Padding="8,0"
                             ToolTip="Lock the console now (auto-locks after 15 minutes of inactivity)" Click="OnLockDashboardClick">
                         <Path Style="{StaticResource VectorIcon}" Data="{StaticResource GeoLock}" Width="13" Height="13"/>

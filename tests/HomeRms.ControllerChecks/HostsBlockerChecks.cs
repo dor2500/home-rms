@@ -57,6 +57,12 @@ internal static class HostsBlockerChecks
             var throttle = new BlockedEventThrottle { PerDomainWindow = TimeSpan.FromSeconds(30) };
             check(throttle.ShouldEmit("pc1", "facebook.com"), "throttle: first hit emits");
             check(!throttle.ShouldEmit("pc1", "facebook.com"), "throttle: duplicate hit within window suppressed");
+
+            // TOTP replay protection
+            var secret = HomeRms.Shared.Security.TotpHelper.GenerateSecretBase32();
+            var totp = HomeRms.Shared.Security.TotpHelper.ComputeCode(secret);
+            check(HomeRms.Shared.Security.TotpHelper.VerifyCode(secret, totp), "totp: first verification succeeds");
+            check(!HomeRms.Shared.Security.TotpHelper.VerifyCode(secret, totp), "totp: replay within same step is rejected");
         }
         finally
         {

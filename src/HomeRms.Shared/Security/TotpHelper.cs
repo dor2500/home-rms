@@ -11,6 +11,7 @@ namespace HomeRms.Shared.Security;
 public static class TotpHelper
 {
     private const string Base32Alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, long> LastAcceptedStep = new();
 
     public static string GenerateSecretBase32(int numBytes = 20)
     {
@@ -35,19 +36,31 @@ public static class TotpHelper
         return (binary % 1_000_000).ToString("D6");
     }
 
-    public static bool VerifyCode(string secretBase32, string candidate, int windowSteps = 1)
+    public static bool VerifyCode(string secretBase32, string candidate, int windowSteps = 1, bool preventReplay = true)
     {
         var clean = new string((candidate ?? "").Where(char.IsDigit).ToArray());
-        if (clean.Length != 6) return false;
+        if (clean.Length != 6 || string.IsNullOrWhiteSpace(secretBase32)) return false;
 
         var now = DateTimeOffset.UtcNow;
+        var baseStep = now.ToUnixTimeSeconds() / 30;
+        var secretKey = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(secretBase32)));
+
         for (var i = -windowSteps; i <= windowSteps; i++)
         {
+            var step = baseStep + i;
             var expected = ComputeCode(secretBase32, now.AddSeconds(i * 30));
             if (CryptographicOperations.FixedTimeEquals(
                     Encoding.ASCII.GetBytes(expected),
                     Encoding.ASCII.GetBytes(clean)))
+            {
+                if (preventReplay)
+                {
+                    if (LastAcceptedStep.TryGetValue(secretKey, out var prev) && step <= prev)
+                        return false;
+                    LastAcceptedStep[secretKey] = step;
+                }
                 return true;
+            }
         }
         return false;
     }
