@@ -118,13 +118,13 @@ internal static class AnnounceChecks
             var req = new CertificateRequest("CN=homerms-agent-ec", ec, HashAlgorithmName.SHA256);
             req.CertificateExtensions.Add(eku);
             using var cert = req.Create(issuer.SubjectName, X509SignatureGenerator.CreateForRSA(issuer.GetRSAPrivateKey()!, RSASignaturePadding.Pkcs1),
-                DateTimeOffset.UtcNow.AddDays(-1), DateTimeOffset.UtcNow.AddYears(1), serial);
+                DateTimeOffset.UtcNow.AddDays(-1), issuer.NotAfter.AddSeconds(-1), serial);
             return cert.CopyWithPrivateKey(ec);
         }
         using var rsa = RSA.Create(2048);
         var rreq = new CertificateRequest("CN=homerms-agent-foreign", rsa, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1);
         rreq.CertificateExtensions.Add(eku);
-        using var rcert = rreq.Create(issuer, DateTimeOffset.UtcNow.AddDays(-1), DateTimeOffset.UtcNow.AddYears(1), serial);
+        using var rcert = rreq.Create(issuer, DateTimeOffset.UtcNow.AddDays(-1), issuer.NotAfter.AddSeconds(-1), serial);
         return rcert.CopyWithPrivateKey(rsa);
     }
 }
