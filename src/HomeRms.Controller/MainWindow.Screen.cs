@@ -1,5 +1,7 @@
+using System.Buffers;
 using System.Diagnostics;
 using System.IO;
+using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -12,12 +14,20 @@ namespace HomeRms.Controller;
 /// <summary>
 /// Remote-screen rendering: keeps one WriteableBitmap the size of the remote desktop and paints
 /// full frames or dirty tiles into it, and draws the remote pointer separately.
+/// Decoding happens on the stream worker; the UI thread drains everything that arrived since its last
+/// paint in one go (latest frame wins: updates older than the newest full frame are skipped).
 /// </summary>
 public partial class MainWindow
 {
     private WriteableBitmap? _canvas;
-    private int _uiQueued;
     private long _lastLatencyMs = -1;
+
+    // Decoded updates waiting for the UI thread (worker -> UI hand-off)
+    private readonly object _paintGate = new();
+    private List<ScreenUpdate> _pendingPaint = new();
+    private List<ScreenUpdate> _paintBatch = new();
+    private bool _paintScheduled;
+    private int _streamGeneration;
 
     // Remote pointer
     private long _cursorShapeId = -1;
@@ -29,6 +39,7 @@ public partial class MainWindow
     /// <summary>One decoded update, ready to paint on the UI thread.</summary>
     private sealed class ScreenUpdate
     {
+        public int Generation;
         public int Width;
         public int Height;
         public long CaptureUnixMs;
@@ -37,15 +48,25 @@ public partial class MainWindow
         public BitmapSource? CursorImage;
         public Cursor? CursorForControl;
 
+        /// <summary>True when the update repaints the whole canvas (earlier updates can be skipped).</summary>
+        public bool IsFull => Regions.Count > 0 && Regions[0] is { X: 0, Y: 0 } r0 && r0.W >= Width && r0.H >= Height;
+
+        /// <summary>Pixels come from <see cref="ArrayPool{T}.Shared"/>; <see cref="Release"/> returns them.</summary>
         public sealed record Region(int X, int Y, int W, int H, byte[] Pixels, int Stride);
 
-        public static ScreenUpdate Decode(ScreenFrame frame)
+        public void Release()
         {
-            var u = new ScreenUpdate { Width = frame.Width, Height = frame.Height, Cursor = frame.Cursor, CaptureUnixMs = frame.CaptureUnixMs };
+            foreach (var r in Regions) ArrayPool<byte>.Shared.Return(r.Pixels);
+            Regions.Clear();
+        }
+
+        public static ScreenUpdate Decode(ScreenFrame frame, int generation)
+        {
+            var u = new ScreenUpdate { Generation = generation, Width = frame.Width, Height = frame.Height, Cursor = frame.Cursor, CaptureUnixMs = frame.CaptureUnixMs };
 
             if (!frame.Jpeg.IsEmpty)
             {
-                var full = DecodeRegion(frame.Jpeg.ToByteArray(), 0, 0);
+                var full = DecodeRegion(frame.Jpeg, png: false, 0, 0);
                 u.Regions.Add(full);
                 // Legacy/scaled frames define the canvas size by themselves
                 if (frame.Tiles.Count == 0) { u.Width = full.W; u.Height = full.H; }
@@ -54,7 +75,7 @@ public partial class MainWindow
             if (frame.Tiles.Count == 1)
             {
                 var t = frame.Tiles[0];
-                u.Regions.Add(DecodeRegion(t.Jpeg.ToByteArray(), t.X, t.Y));
+                u.Regions.Add(DecodeRegion(t.Jpeg, t.Format == 1, t.X, t.Y));
             }
             else if (frame.Tiles.Count > 1)
             {
@@ -62,7 +83,7 @@ public partial class MainWindow
                 Parallel.For(0, frame.Tiles.Count, i =>
                 {
                     var t = frame.Tiles[i];
-                    decoded[i] = DecodeRegion(t.Jpeg.ToByteArray(), t.X, t.Y);
+                    decoded[i] = DecodeRegion(t.Jpeg, t.Format == 1, t.X, t.Y);
                 });
                 u.Regions.AddRange(decoded);
             }
@@ -90,17 +111,24 @@ public partial class MainWindow
             return u;
         }
 
-        private static Region DecodeRegion(byte[] jpeg, int x, int y)
+        /// <summary>Decodes one JPEG (format 0) or lossless PNG (format 1) image into pooled Bgr32 pixels.</summary>
+        private static Region DecodeRegion(Google.Protobuf.ByteString data, bool png, int x, int y)
         {
-            var decoder = BitmapDecoder.Create(new MemoryStream(jpeg), BitmapCreateOptions.PreservePixelFormat, BitmapCacheOption.OnLoad);
+            // Read straight from the protobuf buffer (no extra copy of the compressed bytes)
+            var stream = MemoryMarshal.TryGetArray(data.Memory, out var seg) && seg.Array is not null
+                ? new MemoryStream(seg.Array, seg.Offset, seg.Count, writable: false)
+                : new MemoryStream(data.ToByteArray());
+            BitmapDecoder decoder = png
+                ? new PngBitmapDecoder(stream, BitmapCreateOptions.PreservePixelFormat, BitmapCacheOption.OnLoad)
+                : new JpegBitmapDecoder(stream, BitmapCreateOptions.PreservePixelFormat, BitmapCacheOption.OnLoad);
             BitmapSource src = decoder.Frames[0];
             if (src.Format != PixelFormats.Bgr32)
                 src = new FormatConvertedBitmap(src, PixelFormats.Bgr32, null, 0);
             var w = src.PixelWidth;
             var h = src.PixelHeight;
             var stride = w * 4;
-            var pixels = new byte[stride * h];
-            src.CopyPixels(pixels, stride, 0);
+            var pixels = ArrayPool<byte>.Shared.Rent(stride * h);
+            src.CopyPixels(new Int32Rect(0, 0, w, h), pixels, stride, 0);
             return new Region(x, y, w, h, pixels, stride);
         }
 
@@ -135,53 +163,131 @@ public partial class MainWindow
         }
     }
 
-    private void ApplyScreenUpdate(ScreenUpdate u)
+    /// <summary>Worker side: hands a decoded update to the UI thread (one paint pass per UI turn).</summary>
+    private void QueuePaint(ScreenUpdate u)
     {
-        if (u.Width <= 0 || u.Height <= 0) return;
-
-        if (u.Regions.Count > 0)
+        bool schedule;
+        lock (_paintGate)
         {
-            if (_canvas is null || _canvas.PixelWidth != u.Width || _canvas.PixelHeight != u.Height)
-            {
-                _canvas = new WriteableBitmap(u.Width, u.Height, 96, 96, PixelFormats.Bgr32, null);
-                ScreenImage.Source = _canvas;
-                _frameWidth = u.Width;
-                _frameHeight = u.Height;
-                ApplyUpscaling();
-            }
+            _pendingPaint.Add(u);
+            schedule = !_paintScheduled;
+            _paintScheduled = true;
+        }
+        if (schedule)
+            Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Render, PaintPending);
+    }
 
+    /// <summary>Updates decoded but not painted yet (the worker slows its network reads above a few).</summary>
+    private int PendingPaintCount
+    {
+        get { lock (_paintGate) return _pendingPaint.Count; }
+    }
+
+    /// <summary>UI side: paints everything that arrived since the last pass, skipping what a newer full frame covers.</summary>
+    private void PaintPending()
+    {
+        List<ScreenUpdate> batch;
+        lock (_paintGate)
+        {
+            batch = _pendingPaint;
+            _pendingPaint = _paintBatch;
+            _paintBatch = batch;
+            _paintScheduled = false;
+        }
+
+        try
+        {
+            // Drop updates of a stream that was stopped / restarted (preset or monitor switch)
+            batch.RemoveAll(u =>
+            {
+                if (u.Generation == _streamGeneration) return false;
+                u.Release();
+                return true;
+            });
+            if (batch.Count == 0) return;
+
+            // Latest frame wins: nothing before the newest full frame will be visible anyway
+            var first = 0;
+            for (var i = batch.Count - 1; i > 0; i--)
+                if (batch[i].IsFull) { first = i; break; }
+
+            ScreenCursor? cursor = null;
+            for (var i = 0; i < batch.Count; i++)
+            {
+                var u = batch[i];
+                if (u.CursorImage is not null) ApplyCursorShape(u); // shapes are sent once: never skip them
+                if (i >= first) PaintRegions(u);
+                if (u.Cursor is not null) cursor = u.Cursor;
+                u.Release();
+            }
+            if (cursor is not null) ApplyCursorPosition(cursor);
+        }
+        finally
+        {
+            batch.Clear();
+        }
+    }
+
+    private void PaintRegions(ScreenUpdate u)
+    {
+        if (u.Width <= 0 || u.Height <= 0 || u.Regions.Count == 0) return;
+
+        if (_canvas is null || _canvas.PixelWidth != u.Width || _canvas.PixelHeight != u.Height)
+        {
+            _canvas = new WriteableBitmap(u.Width, u.Height, 96, 96, PixelFormats.Bgr32, null);
+            ScreenImage.Source = _canvas;
             _frameWidth = u.Width;
             _frameHeight = u.Height;
-            DesktopOverlay.Visibility = Visibility.Collapsed;
+            ApplyUpscaling();
+        }
 
-            if (u.CaptureUnixMs > 0)
-                _lastLatencyMs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() - u.CaptureUnixMs;
+        _frameWidth = u.Width;
+        _frameHeight = u.Height;
+        if (DesktopOverlay.Visibility != Visibility.Collapsed) DesktopOverlay.Visibility = Visibility.Collapsed;
 
+        if (u.CaptureUnixMs > 0)
+            _lastLatencyMs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() - u.CaptureUnixMs;
+
+        // Copy rows straight into the back buffer: one lock for all regions of the update
+        _canvas.Lock();
+        try
+        {
+            var back = _canvas.BackBuffer;
+            var backStride = _canvas.BackBufferStride;
             foreach (var r in u.Regions)
             {
                 var w = Math.Min(r.W, u.Width - r.X);
                 var h = Math.Min(r.H, u.Height - r.Y);
                 if (w <= 0 || h <= 0 || r.X < 0 || r.Y < 0) continue;
-                _canvas.WritePixels(new Int32Rect(r.X, r.Y, w, h), r.Pixels, r.Stride, 0);
+                var rowBytes = w * 4;
+                for (var y = 0; y < h; y++)
+                    Marshal.Copy(r.Pixels, y * r.Stride, back + (r.Y + y) * backStride + r.X * 4, rowBytes);
+                _canvas.AddDirtyRect(new Int32Rect(r.X, r.Y, w, h));
             }
         }
-
-        if (u.Cursor is { } c)
+        finally
         {
-            if (u.CursorImage is not null && c.ShapeId != _cursorShapeId)
-            {
-                _cursorShapeId = c.ShapeId;
-                _cursorImage = u.CursorImage;
-                _cursorForControl = u.CursorForControl;
-                RemoteCursorImage.Source = _cursorImage;
-            }
-            _cursorVisible = c.Visible && _cursorImage is not null;
-            _cursorX = c.X;
-            _cursorY = c.Y;
-            _cursorHotX = c.HotspotX;
-            _cursorHotY = c.HotspotY;
-            UpdateRemoteCursor();
+            _canvas.Unlock();
         }
+    }
+
+    private void ApplyCursorShape(ScreenUpdate u)
+    {
+        if (u.Cursor is not { } c || u.CursorImage is null || c.ShapeId == _cursorShapeId) return;
+        _cursorShapeId = c.ShapeId;
+        _cursorImage = u.CursorImage;
+        _cursorForControl = u.CursorForControl;
+        RemoteCursorImage.Source = _cursorImage;
+    }
+
+    private void ApplyCursorPosition(ScreenCursor c)
+    {
+        _cursorVisible = c.Visible && _cursorImage is not null;
+        _cursorX = c.X;
+        _cursorY = c.Y;
+        _cursorHotX = c.HotspotX;
+        _cursorHotY = c.HotspotY;
+        UpdateRemoteCursor();
     }
 
     /// <summary>
@@ -316,7 +422,9 @@ public partial class MainWindow
         }
         else
         {
-            RenderOptions.SetBitmapScalingMode(ScreenImage, BitmapScalingMode.HighQuality);
+            // Exactly 1:1: nearest neighbour keeps text pixel-crisp; any real resampling gets high quality
+            var oneToOne = Math.Abs(scale - 1) < 0.01;
+            RenderOptions.SetBitmapScalingMode(ScreenImage, oneToOne ? BitmapScalingMode.NearestNeighbor : BitmapScalingMode.HighQuality);
             ScreenImage.Effect = null;
         }
 
@@ -334,7 +442,7 @@ public partial class MainWindow
         }
     }
 
-    /// <summary>Per-second counters for the status pill.</summary>
+    /// <summary>Per-second counters for the status pill (and the loopback measurements).</summary>
     private sealed class StreamStats
     {
         private readonly object _gate = new();
@@ -342,6 +450,7 @@ public partial class MainWindow
         private int _updates;
         private long _bytes;
         public int Width, Height;
+        public string PresetLabel = "";
 
         public void Add(int bytes, bool visual, int width, int height)
         {
@@ -373,7 +482,9 @@ public partial class MainWindow
         if (_streamCts is null || stats.Width == 0) return;
         var (fps, mbps) = stats.TakeSecond();
         var rate = fps < 0.5 ? "idle" : $"{fps:0} fps";
-        var line = $"LIVE  •  {rate}  •  {stats.Width}×{stats.Height}  •  {mbps:0.0} MB/s";
+        // Capture -> paint; only meaningful when both clocks agree, so hide obviously skewed values
+        var latency = _lastLatencyMs is >= 0 and < 5000 ? $"  •  {_lastLatencyMs} ms" : "";
+        var line = $"LIVE  •  {stats.PresetLabel}  •  {rate}  •  {stats.Width}×{stats.Height}  •  {mbps:0.0} MB/s{latency}";
         StreamStatus.Text = line;
         FullscreenHudText.Text = $"{_agentInfo?.MachineName}  •  {line}";
         StreamStatus.ToolTip = _lastLatencyMs >= 0

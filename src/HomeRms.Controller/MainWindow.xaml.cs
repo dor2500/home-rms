@@ -64,6 +64,7 @@ public partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
+        InitStreamPresets();
 
         // Ensure certs exist so probing/connecting works out of the box in dev/home setups
         try { DevCertificates.EnsureDeploymentCertificates(RmsPaths.CertDir, RmsPaths.CertPassword); }
@@ -1155,6 +1156,7 @@ public partial class MainWindow : Window
             for (var i = 1; i <= monCount; i++)
                 MonitorCombo.Items.Add(new ComboBoxItem { Content = $"Display {i}" });
             MonitorCombo.SelectedIndex = 0;
+            ApplyStreamPresetForConnection();
 
             await RefreshInventoryCoreAsync();
             UpdateOverviewMetrics();
@@ -1595,62 +1597,49 @@ public partial class MainWindow : Window
     {
         if (_conn is null || _streamCts is not null) return;
 
-        _streamCts = new CancellationTokenSource();
-        var token = _streamCts.Token;
+        var cts = new CancellationTokenSource();
+        _streamCts = cts;
+        var token = cts.Token;
+        var generation = ++_streamGeneration; // updates of earlier streams are dropped unpainted
         StreamBtn.Content = "Stop viewing";
         StreamBtn.Style = (Style)FindResource("DangerButton");
         StreamStatus.Text = "Awaiting on-machine consent…";
 
-        var fps = int.TryParse(FpsBox.Text, out var f) ? Math.Clamp(f, 1, 60) : 30;
-        var quality = int.TryParse(QualityBox.Text, out var q) ? Math.Clamp(q, 20, 95) : 88;
-        var maxWidth = ScaleBox.SelectedItem is ComboBoxItem { Tag: string ts } && int.TryParse(ts, out var mw) ? mw : 0;
+        var preset = _streamPreset;
         var monitorIndex = _selectedMonitorIndex == -1 ? -1 : Math.Max(0, MonitorCombo?.SelectedIndex ?? 0);
+        var request = StreamPresets.ToRequest(CurrentStreamSettings(), Environment.UserName, monitorIndex);
 
-        var stats = new StreamStats();
+        var stats = new StreamStats { PresetLabel = StreamPresets.ShortLabel(preset) };
         var statsTimer = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
         statsTimer.Tick += (_, _) => UpdateStreamStatus(stats);
         statsTimer.Start();
 
         _controlWanted = ControlCheck.IsChecked == true;
         var client = _conn.Client;
+        AddActivity("SCREEN", $"Streaming {_agentInfo?.MachineName} with {StreamPresets.Label(preset)} " +
+                              $"({request.Fps} fps, JPEG {request.Quality}{(request.LosslessRefine ? ", lossless refine" : "")}).");
 
         try
         {
             // Read + decode on a worker thread; only painting happens on the UI thread
             await Task.Run(async () =>
             {
-            using var call = client.StreamScreen(
-                new ScreenRequest
-                {
-                    Fps = fps,
-                    Quality = quality,
-                    OperatorName = Environment.UserName,
-                    MaxWidth = maxWidth,
-                    SupportsTiles = true,
-                    MonitorIndex = monitorIndex
-                },
-                cancellationToken: token);
+            using var call = client.StreamScreen(request, cancellationToken: token);
 
             await foreach (var frame in call.ResponseStream.ReadAllAsync(token))
             {
                 if (_inputCall is null && Volatile.Read(ref _controlWanted))
                     Dispatcher.Invoke(StartInputStream);
 
-                // Decode off the UI thread (JPEG tiles in parallel)
-                var update = ScreenUpdate.Decode(frame);
+                // Decode off the UI thread (tiles in parallel), then hand over to the painter
+                var update = ScreenUpdate.Decode(frame, generation);
                 stats.Add(frame.CalculateSize(), update.Regions.Count > 0, frame.Width, frame.Height);
+                QueuePaint(update);
 
-                // Tiles must be applied in order, so instead of dropping frames we slow the
-                // network read down when the UI falls behind (HTTP/2 back-pressure reaches the agent).
-                while (Volatile.Read(ref _uiQueued) > 2 && !token.IsCancellationRequested)
+                // The painter coalesces whatever piled up (latest frame wins). If it is still far behind,
+                // slow the network read down: HTTP/2 back-pressure then reaches the agent.
+                while (PendingPaintCount > 6 && !token.IsCancellationRequested)
                     await Task.Delay(1, token);
-
-                Interlocked.Increment(ref _uiQueued);
-                _ = Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Render, () =>
-                {
-                    try { ApplyScreenUpdate(update); }
-                    finally { Interlocked.Decrement(ref _uiQueued); }
-                });
             }
             }, token);
         }
@@ -1662,26 +1651,25 @@ public partial class MainWindow : Window
         }
         catch (Exception ex)
         {
-            Dispatcher.Invoke(() => { StreamStatus.Text = "Stream ended: " + Short(ex); });
+            if (!token.IsCancellationRequested)
+                Dispatcher.Invoke(() => { StreamStatus.Text = "Stream ended: " + Short(ex); });
         }
         finally
         {
             Dispatcher.Invoke(() =>
             {
                 statsTimer.Stop();
-                StopStream();
+                // A preset / monitor switch may already have started the next stream: leave that one alone
+                if (ReferenceEquals(_streamCts, cts)) StopStream();
             });
+            cts.Dispose();
         }
     }
 
     private async void OnMonitorSelectionChanged(object sender, SelectionChangedEventArgs e)
     {
         if (_streamCts is not null && _conn is not null)
-        {
-            StopStream();
-            await Task.Delay(150);
-            await StartStreamCoreAsync();
-        }
+            await RestartStreamAsync("Switching display…");
     }
 
     private async void OnPrivacyModeChanged(object sender, RoutedEventArgs e)

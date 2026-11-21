@@ -12,6 +12,9 @@ public sealed class UiSettings
     public string ConsoleFilter { get; set; } = "All";
     public bool SidebarCollapsed { get; set; }
 
+    /// <summary>Remote-desktop quality preset chosen per endpoint (key: StreamPresets.EndpointKey, value: StreamPreset name).</summary>
+    public Dictionary<string, string> StreamPresetByEndpoint { get; set; } = new();
+
     private static string FilePath => Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "HomeRMS", "ui-settings.json");
 
