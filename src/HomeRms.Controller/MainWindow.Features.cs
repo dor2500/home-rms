@@ -17,14 +17,17 @@ public partial class MainWindow
 {
     private AgentConnectionPool _pool = null!;
     private TelemetryHub _telemetry = null!;
+    private AgentEventWatcher _eventWatcher = null!;
     private ScriptExecutor _scriptExecutor = null!;
     private FeatureContext _features = null!;
     private DispatcherTimer? _telemetrySyncTimer;
+    private DispatcherTimer? _autoScanTimer;
 
     private readonly TelemetryOverviewView _telemetryView = new();
     private readonly FileManagerView _fileManagerView = new();
     private readonly ServicesTasksView _servicesView = new();
     private readonly ScriptLibraryView _scriptLibraryView = new();
+    private readonly HostsBlockerView _hostsView = new();
     private readonly EndpointActionBar _fleetActionBar = new();
 
     private void InitializeFeatureViews()
@@ -32,6 +35,7 @@ public partial class MainWindow
         _pool = new AgentConnectionPool { TwoFactorPrompt = PromptAgent2FaAsync };
         _telemetry = new TelemetryHub(_pool, _alerts, Dispatcher);
         _telemetry.SampleReceived += OnTelemetrySample;
+        _eventWatcher = new AgentEventWatcher(_pool, _alerts, AddActivity, Dispatcher);
         _scriptExecutor = new ScriptExecutor(_pool, _agentless, Dispatcher);
         _features = new FeatureContext
         {
@@ -62,6 +66,7 @@ public partial class MainWindow
         _fileManagerView.Initialize(_features);
         _servicesView.Initialize(_features);
         _scriptLibraryView.Initialize(_features);
+        _hostsView.Initialize(_features);
         _fleetActionBar.Context = _features;
         _fleetActionBar.TargetsProvider = SelectedFleetEndpoints;
 
@@ -69,23 +74,47 @@ public partial class MainWindow
         FilesHost.Content = _fileManagerView;
         ServicesHost.Content = _servicesView;
         ScriptsHost.Content = _scriptLibraryView;
+        HostsHost.Content = _hostsView;
         FleetPowerHost.Content = _fleetActionBar;
 
-        // Telemetry streams follow the fleet's online state (probes run on their own schedule).
+        // Telemetry & agent-event streams follow the fleet's online state (probes run on their own schedule).
         _telemetrySyncTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(4) };
-        _telemetrySyncTimer.Tick += (_, _) => _telemetry.Sync(_machines);
+        _telemetrySyncTimer.Tick += (_, _) =>
+        {
+            _telemetry.Sync(_machines);
+            _eventWatcher.Sync(_machines);
+        };
         _telemetrySyncTimer.Start();
         _machines.CollectionChanged += OnMachinesChangedForFeatures;
+
+        ConfigureAutoScanTimer();
 
         Closed += (_, _) =>
         {
             _telemetrySyncTimer?.Stop();
+            _autoScanTimer?.Stop();
             _telemetry.Dispose();
+            _eventWatcher.Dispose();
             _pool.Dispose();
         };
     }
 
-    private void OnMachinesChangedForFeatures(object? sender, NotifyCollectionChangedEventArgs e) => _telemetry.Sync(_machines);
+    private void OnMachinesChangedForFeatures(object? sender, NotifyCollectionChangedEventArgs e)
+    {
+        _telemetry.Sync(_machines);
+        _eventWatcher.Sync(_machines);
+    }
+
+    private void ConfigureAutoScanTimer()
+    {
+        _autoScanTimer?.Stop();
+        if (IsScreenshotRun || !_alerts.Thresholds.AutoScanLanEnabled) return;
+
+        var sec = Math.Clamp(_alerts.Thresholds.AutoScanIntervalSeconds, 10, 3600);
+        _autoScanTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(sec) };
+        _autoScanTimer.Tick += async (_, _) => await AutoScanAndConnectForAlertsAsync();
+        _autoScanTimer.Start();
+    }
 
     private void OnTelemetrySample()
     {
@@ -109,10 +138,11 @@ public partial class MainWindow
     /// <summary>Shows / hides the feature views; called at the end of <c>OnNavTabChanged</c>.</summary>
     private void UpdateFeatureViewVisibility()
     {
-        if (FilesHost is null || ServicesHost is null || ScriptsHost is null) return;
+        if (FilesHost is null || ServicesHost is null || ScriptsHost is null || HostsHost is null) return;
         Show(FilesHost, NavFiles.IsChecked == true, _fileManagerView.OnShown);
         Show(ServicesHost, NavServices.IsChecked == true, _servicesView.OnShown);
         Show(ScriptsHost, NavScripts.IsChecked == true, _scriptLibraryView.OnShown);
+        Show(HostsHost, NavHosts.IsChecked == true, _hostsView.OnShown);
 
         static void Show(ContentControl host, bool visible, Action onShown)
         {
@@ -127,6 +157,7 @@ public partial class MainWindow
         var vis = _sidebarCollapsed ? Visibility.Collapsed : Visibility.Visible;
         NavLabelFiles.Visibility = vis;
         NavLabelServices.Visibility = vis;
+        NavLabelHosts.Visibility = vis;
         NavLabelScripts.Visibility = vis;
     }
 

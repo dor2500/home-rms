@@ -78,6 +78,17 @@ service RemoteManagement {
   // raw output lines (log_line) and a final message (package_id "", done = true) with the overall
   // exit code. Cancelling the call kills the whole process tree. One run at a time per agent. ---
   rpc UpgradeAll (UpgradeAllRequest) returns (stream WingetProgress);
+
+  // --- Hosts file editor & website blocker. Mutating calls need an elevated agent (admin / root),
+  // back up the file, write it atomically and flush the DNS cache; every call is audited. ---
+  rpc GetHostsConfig (Empty) returns (HostsConfig);
+  rpc SetHostsBlocklist (HostsBlocklistRequest) returns (HostsOpResult);
+  // Full-file replacement from the raw editor; refused (conflict) when the file changed since expected_hash.
+  rpc SetHostsRaw (HostsRawRequest) returns (HostsOpResult);
+  // Optional blocked-access listener (OFF by default): loopback-only HTTP/HTTPS sinkhole that reports hits.
+  rpc SetBlockListener (BlockListenerRequest) returns (HostsOpResult);
+  // Agent -> console event stream (blocked-site attempts, listener warnings).
+  rpc WatchAgentEvents (Empty) returns (stream AgentEvent);
 }
 
 // ---------------- Winget ----------------
@@ -398,4 +409,89 @@ message ClipboardData {
 
 message ClipboardAck {
   bool success = 1;
+}
+
+// ---------------- Hosts file & website blocker ----------------
+// Managed entries live between "# BEGIN HOME-RMS BLOCKLIST" and "# END HOME-RMS BLOCKLIST";
+// everything outside that block is preserved byte-for-byte. Every blocked domain gets an IPv4 line
+// (0.0.0.0, or the listener's loopback IP while the listener runs) plus an IPv6 "::" line so IPv6
+// lookups cannot bypass the block.
+message BlockListenerStatus {
+  bool running = 1;                  // this agent instance runs the listener
+  bool http_bound = 2;
+  bool https_bound = 3;
+  int32 http_port = 4;
+  int32 https_port = 5;
+  repeated string warnings = 6;      // e.g. "Port 443 on 127.0.0.1 is already in use"
+  bool owned_by_other_instance = 7;  // the other agent instance (SYSTEM / logon) owns the listener
+  string summary = 8;                // one human-readable line
+}
+
+message HostsConfig {
+  string path = 1;
+  string raw_text = 2;               // full file text (decoded with the file's own encoding)
+  string raw_hash = 3;               // SHA-256 (hex) of raw_text as UTF-8; pass back as expected_hash
+  repeated string domains = 4;       // managed domains (without auto-added www. variants)
+  bool include_www = 5;
+  bool listener_enabled = 6;         // persisted setting (default false)
+  string loopback_ip = 7;            // persisted listener IP (default 127.0.0.1)
+  BlockListenerStatus listener = 8;
+  string last_backup_path = 9;
+  bool is_elevated = 10;
+  string encoding = 11;              // "UTF-8", "UTF-8 with BOM", "UTF-16 LE" ...
+  string newline = 12;               // "CRLF" | "LF"
+  string block_error = 13;           // non-empty when the managed block markers are broken (writes refused)
+  string mapping_ip = 14;            // IPv4 address the managed entries currently point to
+  string os_family = 15;             // "Windows" | "Linux"
+}
+
+message HostsBlocklistRequest {
+  repeated string domains = 1;       // full desired list (replaces the managed block)
+  bool include_www = 2;              // also block www.<domain>
+  bool dry_run = 3;                  // only report what would change
+}
+
+message HostsRawRequest {
+  string text = 1;
+  string expected_hash = 2;          // HostsConfig.raw_hash the editor was loaded from
+  bool validate_only = 3;
+}
+
+message BlockListenerRequest {
+  bool enabled = 1;
+  string loopback_ip = 2;            // must be in 127.0.0.0/8; empty = keep current / 127.0.0.1
+}
+
+message HostsOpResult {
+  bool success = 1;
+  string message = 2;
+  repeated string steps = 3;         // backup, write, DNS flush ... one line each
+  repeated string errors = 4;        // validation errors ("Line 12: ...")
+  string backup_path = 5;
+  bool conflict = 6;                 // SetHostsRaw: the file changed since it was loaded
+  HostsConfig config = 7;            // state after the operation
+  bool changed = 8;                  // the file content changed (or would, for dry runs)
+  repeated string added = 9;         // hostnames added to the managed block
+  repeated string removed = 10;      // hostnames removed from the managed block
+}
+
+message BlockedSiteAttempt {
+  string endpoint_name = 1;          // agent machine name
+  string domain = 2;
+  string protocol = 3;               // "HTTP" | "HTTPS"
+  int64 timestamp_unix_ms = 4;
+  string client_process = 5;         // optional; empty when unknown
+}
+
+message AgentWarning {
+  string source = 1;                 // e.g. "blocker"
+  string message = 2;
+  int64 timestamp_unix_ms = 3;
+}
+
+message AgentEvent {
+  oneof kind {
+    BlockedSiteAttempt blocked_site = 1;
+    AgentWarning warning = 2;
+  }
 }
