@@ -208,4 +208,62 @@ public partial class MainWindow
             }
         }
     }
+
+    private async void OnUpdateAllAgentsClick(object sender, RoutedEventArgs e)
+    {
+        var targets = _machines
+            .Where(m => m.IsWindowsAgent && (m.IsOnline || m.IsConnected))
+            .ToList();
+        if (targets.Count == 0)
+        {
+            StatusText.Text = "No online Windows agent endpoints found. Run Scan LAN first.";
+            return;
+        }
+
+        UpdateAllAgentsBtn.IsEnabled = false;
+        StatusText.Text = $"Checking & updating Home RMS Agent on {targets.Count} online endpoint(s)...";
+        var updated = 0;
+        var current = 0;
+        var failed = 0;
+
+        try
+        {
+            await Task.WhenAll(targets.Select(async m =>
+            {
+                try
+                {
+                    var res = await _pool.CallAsync(m, interactive: false,
+                        c => c.SystemOpAsync(new HomeRms.Shared.Protocol.SystemOpRequest
+                        {
+                            Area = "agent",
+                            Action = "update-apply",
+                        }).ResponseAsync);
+                    if (res.Success)
+                    {
+                        if (res.Message.Contains("already", StringComparison.OrdinalIgnoreCase) ||
+                            res.Message.Contains("up to date", StringComparison.OrdinalIgnoreCase))
+                            Interlocked.Increment(ref current);
+                        else
+                            Interlocked.Increment(ref updated);
+                        AddActivity("UPDATE", $"[{m.DisplayTitle}] {res.Message}");
+                    }
+                    else
+                    {
+                        Interlocked.Increment(ref failed);
+                        AddActivity("ALERT", $"[{m.DisplayTitle}] Agent update: {res.Message}");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Interlocked.Increment(ref failed);
+                    AddActivity("ALERT", $"[{m.DisplayTitle}] Agent update failed: {AgentErrors.Describe(ex)}");
+                }
+            }));
+            StatusText.Text = $"Agent updates complete: {updated} updating, {current} up to date, {failed} failed.";
+        }
+        finally
+        {
+            UpdateAllAgentsBtn.IsEnabled = true;
+        }
+    }
 }

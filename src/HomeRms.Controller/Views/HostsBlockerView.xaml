@@ -68,11 +68,20 @@
 
                     <Border Grid.Column="0" Style="{StaticResource CardStyle}">
                         <DockPanel>
-                            <DockPanel DockPanel.Dock="Top" Margin="0,0,0,10">
+                            <DockPanel DockPanel.Dock="Top" Margin="0,0,0,8">
                                 <Button DockPanel.Dock="Right" Content="Add domain" Style="{StaticResource PrimaryButton}" Padding="12,5" Click="OnAddDomainClick"/>
                                 <TextBox x:Name="NewDomainBox" Style="{StaticResource SearchBox}" Tag="Add domain to block (e.g. facebook.com, tiktok.com)..."
                                          Margin="0,0,8,0" KeyDown="OnNewDomainKeyDown"/>
                             </DockPanel>
+
+                            <WrapPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,0,0,8">
+                                <TextBlock Text="Presets:" Style="{StaticResource Caption}" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                                <Button Content="+ Social" Style="{StaticResource SmallPillButton}" Tag="social" Margin="0,0,4,0" Click="OnAddPresetClick"/>
+                                <Button Content="+ Streaming" Style="{StaticResource SmallPillButton}" Tag="streaming" Margin="0,0,4,0" Click="OnAddPresetClick"/>
+                                <Button Content="+ Gaming" Style="{StaticResource SmallPillButton}" Tag="gaming" Margin="0,0,10,0" Click="OnAddPresetClick"/>
+                                <Button Content="Export" Style="{StaticResource SmallPillButton}" Margin="0,0,4,0" Click="OnExportBlocklistClick"/>
+                                <Button Content="Import" Style="{StaticResource SmallPillButton}" Click="OnImportBlocklistClick"/>
+                            </WrapPanel>
 
                             <DockPanel DockPanel.Dock="Bottom" Margin="0,10,0,0">
                                 <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">

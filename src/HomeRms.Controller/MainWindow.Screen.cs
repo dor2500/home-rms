@@ -346,6 +346,40 @@ public partial class MainWindow
         if (ScreenImage is not null) ScreenImage.Cursor = null;
     }
 
+    private void OnRemoteScreenshotClick(object sender, RoutedEventArgs e)
+    {
+        if (ScreenImage?.Source is not BitmapSource bmp)
+        {
+            StatusText.Text = "No remote screen frame is currently displayed.";
+            return;
+        }
+        try
+        {
+            var dir = System.IO.Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.MyPictures),
+                "HomeRMS");
+            System.IO.Directory.CreateDirectory(dir);
+            var target = (_connectedProfile?.DisplayTitle ?? _agentInfo?.MachineName ?? "remote")
+                .Replace(' ', '_');
+            foreach (var c in System.IO.Path.GetInvalidFileNameChars())
+                target = target.Replace(c, '_');
+            var file = System.IO.Path.Combine(dir, $"screenshot-{target}-{DateTime.Now:yyyyMMdd-HHmmss}.png");
+
+            var enc = new PngBitmapEncoder();
+            enc.Frames.Add(BitmapFrame.Create(bmp));
+            using (var fs = System.IO.File.Create(file))
+                enc.Save(fs);
+
+            try { Clipboard.SetImage(bmp); } catch { }
+            StatusText.Text = $"Saved screenshot to {file} (also copied to clipboard).";
+            AddActivity("SCREEN", $"Saved remote screenshot: {file}");
+        }
+        catch (Exception ex)
+        {
+            StatusText.Text = $"Screenshot failed: {ex.Message}";
+        }
+    }
+
     /// <summary>Paints the Windows 11 title bar in the app's own colours instead of the system accent.</summary>
     protected override void OnSourceInitialized(EventArgs e)
     {

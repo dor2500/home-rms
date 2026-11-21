@@ -175,6 +175,73 @@ public partial class HostsBlockerView : UserControl
         StatusText.Text = $"Removed {selected.Count} domain(s) (click Save blocklist to apply).";
     }
 
+    private static readonly Dictionary<string, string[]> Presets = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["social"] = ["facebook.com", "instagram.com", "tiktok.com", "x.com", "twitter.com", "reddit.com", "snapchat.com"],
+        ["streaming"] = ["youtube.com", "netflix.com", "twitch.tv", "disneyplus.com", "hulu.com"],
+        ["gaming"] = ["steampowered.com", "store.steampowered.com", "epicgames.com", "roblox.com", "battle.net"],
+    };
+
+    private void OnAddPresetClick(object sender, RoutedEventArgs e)
+    {
+        if (sender is not Button { Tag: string key } || !Presets.TryGetValue(key, out var list)) return;
+        var added = 0;
+        foreach (var d in list)
+        {
+            if (!_domains.Contains(d, StringComparer.OrdinalIgnoreCase))
+            {
+                _domains.Add(d);
+                added++;
+            }
+        }
+        StatusText.Text = added > 0
+            ? $"Added {added} '{key}' preset domain(s) (click Save blocklist to apply)."
+            : $"All '{key}' preset domains are already in the list.";
+    }
+
+    private void OnExportBlocklistClick(object sender, RoutedEventArgs e)
+    {
+        var dlg = new Microsoft.Win32.SaveFileDialog
+        {
+            Filter = "JSON files (*.json)|*.json|Text files (*.txt)|*.txt",
+            FileName = "homerms-blocklist.json",
+        };
+        if (dlg.ShowDialog() != true) return;
+        var text = dlg.FileName.EndsWith(".txt", StringComparison.OrdinalIgnoreCase)
+            ? string.Join(Environment.NewLine, _domains)
+            : System.Text.Json.JsonSerializer.Serialize(_domains.ToList(), new System.Text.Json.JsonSerializerOptions { WriteIndented = true });
+        System.IO.File.WriteAllText(dlg.FileName, text);
+        StatusText.Text = $"Exported {_domains.Count} domain(s) to {dlg.FileName}.";
+    }
+
+    private void OnImportBlocklistClick(object sender, RoutedEventArgs e)
+    {
+        var dlg = new Microsoft.Win32.OpenFileDialog
+        {
+            Filter = "Blocklist (*.json;*.txt)|*.json;*.txt|All files (*.*)|*.*",
+        };
+        if (dlg.ShowDialog() != true) return;
+        var raw = System.IO.File.ReadAllText(dlg.FileName);
+        IEnumerable<string> tokens;
+        if (dlg.FileName.EndsWith(".json", StringComparison.OrdinalIgnoreCase))
+            tokens = System.Text.Json.JsonSerializer.Deserialize<List<string>>(raw) ?? [];
+        else
+            tokens = raw.Split(['\r', '\n', ',', ';', ' ', '\t'], StringSplitOptions.RemoveEmptyEntries);
+        var (normalized, errors) = HostsFile.NormalizeDomains(tokens);
+        var added = 0;
+        foreach (var d in normalized)
+        {
+            if (!_domains.Contains(d, StringComparer.OrdinalIgnoreCase))
+            {
+                _domains.Add(d);
+                added++;
+            }
+        }
+        StatusText.Text = errors.Count > 0
+            ? $"Imported {added} domain(s); {errors.Count} invalid entry(s) skipped."
+            : $"Imported {added} domain(s) (click Save blocklist to apply).";
+    }
+
     private void OnDryRunBlocklistClick(object sender, RoutedEventArgs e) => _ = SaveBlocklistAsync(dryRun: true);
     private void OnSaveBlocklistClick(object sender, RoutedEventArgs e) => _ = SaveBlocklistAsync(dryRun: false);
 
