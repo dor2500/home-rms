@@ -29,17 +29,40 @@ public sealed class TaskRow(Dictionary<string, string> raw)
     public string FullPath => SystemCatalog.TargetFromRow("tasks", Raw);
 }
 
+/// <summary>
+/// An ObservableCollection that can swap its whole contents with a single Reset notification, so a
+/// bound ICollectionView re-sorts / re-filters once — without DeferRefresh(). (Clearing/adding inside a
+/// DeferRefresh scope makes the DataGrid fix up its selection, and any SelectionChanged handler that then
+/// reads SelectedItem/CurrentItem throws "Cannot change or check the contents or Current position of
+/// CollectionView while Refresh is being deferred".)
+/// </summary>
+public sealed class BulkObservableCollection<T> : ObservableCollection<T>
+{
+    public void ReplaceAll(IEnumerable<T> items)
+    {
+        CheckReentrancy();
+        Items.Clear();
+        foreach (var item in items) Items.Add(item);
+        OnPropertyChanged(new PropertyChangedEventArgs(nameof(Count)));
+        OnPropertyChanged(new PropertyChangedEventArgs("Item[]"));
+        OnCollectionChanged(new System.Collections.Specialized.NotifyCollectionChangedEventArgs(
+            System.Collections.Specialized.NotifyCollectionChangedAction.Reset));
+    }
+}
+
 /// <summary>Services and scheduled tasks of one agent, via the allowlisted SystemOp RPC.</summary>
 public partial class ServicesTasksView : UserControl
 {
-    private readonly ObservableCollection<ServiceRow> _services = new();
-    private readonly ObservableCollection<TaskRow> _tasks = new();
-    private readonly ICollectionView _servicesView;
-    private readonly ICollectionView _tasksView;
+    private readonly BulkObservableCollection<ServiceRow> _services = new();
+    private readonly BulkObservableCollection<TaskRow> _tasks = new();
+    private readonly ICollectionView? _servicesView;
+    private readonly ICollectionView? _tasksView;
     private FeatureContext? _ctx;
     private MachineProfile? _loadedFor;
     private bool _tasksLoaded;
     private bool _busy;
+    /// <summary>True while a grid is being refilled: selection handlers and filter refreshes wait.</summary>
+    private bool _reloading;
 
     public ServicesTasksView()
     {
@@ -140,7 +163,36 @@ public partial class ServicesTasksView : UserControl
         return q.Length == 0 || r.Raw.Values.Any(v => v.Contains(q, StringComparison.OrdinalIgnoreCase));
     }
 
-    private void OnServiceFilterChanged(object sender, TextChangedEventArgs e) => _servicesView.Refresh();
+    // TextChanged can fire during InitializeComponent (views not created yet) and while a refill is in
+    // progress; the refill re-filters with the latest text anyway, so skipping is safe in both cases.
+    private void OnServiceFilterChanged(object sender, TextChangedEventArgs e) => SafeRefresh(_servicesView);
+
+    private void SafeRefresh(ICollectionView? view)
+    {
+        if (view is null || _reloading) return;
+        if (view is IEditableCollectionView { IsAddingNew: true } or IEditableCollectionView { IsEditingItem: true }) return;
+        view.Refresh();
+    }
+
+    /// <summary>
+    /// Swaps a grid's rows in one Reset (no DeferRefresh), restoring the previous selection by key.
+    /// Rows are built by the caller (off the UI thread when large); only the swap runs on the UI thread.
+    /// </summary>
+    private void ReplaceRows<T>(DataGrid grid, BulkObservableCollection<T> target, IReadOnlyList<T> rows, Func<T, string> key)
+    {
+        var keep = grid.SelectedItems.Cast<T>().Select(key).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        _reloading = true;
+        try
+        {
+            grid.UnselectAll();
+            target.ReplaceAll(rows);
+            foreach (var r in target.Where(r => keep.Contains(key(r)))) grid.SelectedItems.Add(r);
+        }
+        finally
+        {
+            _reloading = false;
+        }
+    }
 
     private async void OnRefreshServicesClick(object sender, RoutedEventArgs e) => await RefreshServicesAsync();
 
@@ -159,14 +211,10 @@ public partial class ServicesTasksView : UserControl
                 return;
             }
 
-            var keep = ServicesGrid.SelectedItems.Cast<ServiceRow>().Select(r => r.Name).ToHashSet(StringComparer.OrdinalIgnoreCase);
-            var table = SystemCatalog.ParseTable(res.JsonData);
-            using (_servicesView.DeferRefresh()) // one re-sort / re-filter instead of one per row
-            {
-                _services.Clear();
-                foreach (var row in table.Rows) _services.Add(new ServiceRow(row));
-            }
-            foreach (var r in _services.Where(r => keep.Contains(r.Name))) ServicesGrid.SelectedItems.Add(r);
+            var json = res.JsonData;
+            var rows = await Task.Run(() => SystemCatalog.ParseTable(json).Rows.Select(r => new ServiceRow(r)).ToList());
+            ReplaceRows(ServicesGrid, _services, rows, r => r.Name);
+            OnServiceSelectionChanged(ServicesGrid, null);
             if (!preserveStatus)
                 SetStatus($"{_services.Count} services · {_services.Count(s => s.State == "Running")} running · refreshed {DateTime.Now:HH:mm:ss}" +
                           (res.IsElevated ? "" : " · agent NOT elevated"));
@@ -177,8 +225,9 @@ public partial class ServicesTasksView : UserControl
         }
     }
 
-    private void OnServiceSelectionChanged(object sender, SelectionChangedEventArgs e)
+    private void OnServiceSelectionChanged(object sender, SelectionChangedEventArgs? e)
     {
+        if (_reloading) return;
         ServiceDetails.Text = ServicesGrid.SelectedItem is ServiceRow r
             ? string.Join("\n", r.Raw.Select(kv => $"{kv.Key}:\n  {kv.Value}"))
             : "Select a service.";
@@ -214,7 +263,7 @@ public partial class ServicesTasksView : UserControl
         return q.Length == 0 || r.Raw.Values.Any(v => v.Contains(q, StringComparison.OrdinalIgnoreCase));
     }
 
-    private void OnTaskFilterChanged(object sender, RoutedEventArgs e) => _tasksView?.Refresh();
+    private void OnTaskFilterChanged(object sender, RoutedEventArgs e) => SafeRefresh(_tasksView);
 
     private async void OnRefreshTasksClick(object sender, RoutedEventArgs e) => await RefreshTasksAsync();
 
@@ -233,14 +282,10 @@ public partial class ServicesTasksView : UserControl
                 return;
             }
 
-            var keep = TasksGrid.SelectedItems.Cast<TaskRow>().Select(r => r.FullPath).ToHashSet(StringComparer.OrdinalIgnoreCase);
-            var table = SystemCatalog.ParseTable(res.JsonData);
-            using (_tasksView.DeferRefresh())
-            {
-                _tasks.Clear();
-                foreach (var row in table.Rows) _tasks.Add(new TaskRow(row));
-            }
-            foreach (var r in _tasks.Where(r => keep.Contains(r.FullPath))) TasksGrid.SelectedItems.Add(r);
+            var json = res.JsonData;
+            var rows = await Task.Run(() => SystemCatalog.ParseTable(json).Rows.Select(r => new TaskRow(r)).ToList());
+            ReplaceRows(TasksGrid, _tasks, rows, r => r.FullPath);
+            OnTaskSelectionChanged(TasksGrid, null);
             _tasksLoaded = true;
             if (!preserveStatus)
                 SetStatus($"{_tasks.Count} scheduled tasks · {_tasks.Count(t => t.State == "Disabled")} disabled · refreshed {DateTime.Now:HH:mm:ss}");
@@ -251,8 +296,9 @@ public partial class ServicesTasksView : UserControl
         }
     }
 
-    private void OnTaskSelectionChanged(object sender, SelectionChangedEventArgs e)
+    private void OnTaskSelectionChanged(object sender, SelectionChangedEventArgs? e)
     {
+        if (_reloading) return;
         TaskDetails.Text = TasksGrid.SelectedItem is TaskRow r
             ? $"Full path:\n  {r.FullPath}\n" + string.Join("\n", r.Raw.Select(kv => $"{kv.Key}:\n  {kv.Value}"))
             : "Select a task.";
