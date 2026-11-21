@@ -431,6 +431,10 @@ public sealed class RemoteManagementService(
         throw new RpcException(new Status(StatusCode.Unimplemented, "winget is only available on Windows agents."));
     }
 
+    // Update All: the distribution's package manager (see LinuxPackageUpgrader).
+    public override Task UpgradeAll(UpgradeAllRequest request, IServerStreamWriter<WingetProgress> responseStream, ServerCallContext context) =>
+        LinuxPackageUpgrader.RunAsync(request, responseStream, context, OperatorOf(context), log.Write);
+
     // ---------------- File manager ----------------
     public override Task<DriveList> ListDrives(Empty request, ServerCallContext context) =>
         Task.FromResult(files.ListDrives(OperatorOf(context)));
