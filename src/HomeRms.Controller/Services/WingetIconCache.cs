@@ -106,7 +106,7 @@ public sealed class WingetIconCache
             var bmp = new BitmapImage();
             bmp.BeginInit();
             bmp.CacheOption = BitmapCacheOption.OnLoad;
-            bmp.DecodePixelWidth = 40;
+            bmp.DecodePixelWidth = 96; // sharp at 72 px on the app page
             bmp.UriSource = new Uri(path);
             bmp.EndInit();
             bmp.Freeze();

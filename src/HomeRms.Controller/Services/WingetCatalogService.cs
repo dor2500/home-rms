@@ -105,6 +105,51 @@ public sealed class WingetAppItem : INotifyPropertyChanged
         _ => "Ready",
     };
 
+    // ---------------- Install view (versions & advanced options) ----------------
+    /// <summary>Latest + older versions (winstall API, else the index's latest). The first entry is "latest".</summary>
+    public System.Collections.ObjectModel.ObservableCollection<VersionOption> VersionOptions { get; } = [];
+
+    private VersionOption? _selectedVersionOption;
+    public VersionOption? SelectedVersionOption
+    {
+        get => _selectedVersionOption;
+        set { _selectedVersionOption = value; OnPropertyChanged(); OnPropertyChanged(nameof(PinnedVersion)); OptionsChanged?.Invoke(this, EventArgs.Empty); }
+    }
+
+    /// <summary>The version to pin, or null for "latest".</summary>
+    public string? PinnedVersion => _selectedVersionOption is { IsLatest: false } v ? v.Value : null;
+
+    /// <summary>Per-app "Advanced Options" (custom configuration) used by the generated scripts and remote scope.</summary>
+    public AppInstallOptions Advanced { get; } = new();
+
+    /// <summary>True once full details (versions, licence...) were fetched from winstall.</summary>
+    public bool DetailsLoaded { get; set; }
+
+    /// <summary>Raised when the pinned version or an advanced option changes (scripts regenerate).</summary>
+    public event EventHandler? OptionsChanged;
+
+    /// <summary>Replaces the version list, keeping the current pin when it is still offered.</summary>
+    public void SetVersions(IEnumerable<string> versions, string? latest)
+    {
+        var keep = PinnedVersion;
+        var list = versions.Where(v => !string.IsNullOrWhiteSpace(v)).Distinct().ToList();
+        latest = string.IsNullOrWhiteSpace(latest) ? list.FirstOrDefault() ?? Version : latest;
+        if (!string.IsNullOrWhiteSpace(latest)) { list.Remove(latest); list.Insert(0, latest); }
+        VersionOptions.Clear();
+        for (var i = 0; i < list.Count; i++) VersionOptions.Add(new VersionOption(list[i], i == 0));
+        SelectedVersionOption = VersionOptions.FirstOrDefault(v => keep is not null && v.Value == keep) ?? VersionOptions.FirstOrDefault();
+    }
+
+    public void EnsureVersionOptions()
+    {
+        if (VersionOptions.Count == 0 && !string.IsNullOrWhiteSpace(Version)) SetVersions([Version], Version);
+    }
+
+    public WingetAppItem()
+    {
+        Advanced.PropertyChanged += (_, _) => OptionsChanged?.Invoke(this, EventArgs.Empty);
+    }
+
     public void ResetDeployState()
     {
         Percent = -1;
@@ -115,6 +160,39 @@ public sealed class WingetAppItem : INotifyPropertyChanged
     public event PropertyChangedEventHandler? PropertyChanged;
     private void OnPropertyChanged([CallerMemberName] string? p = null)
         => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(p));
+}
+
+/// <summary>An entry of the Install view's version dropdown.</summary>
+public sealed record VersionOption(string Value, bool IsLatest)
+{
+    public string Label => IsLatest ? $"{Value} (latest)" : Value;
+    public override string ToString() => Label;
+}
+
+/// <summary>Per-app custom configuration (winstall's "Advanced Options").</summary>
+public sealed class AppInstallOptions : INotifyPropertyChanged
+{
+    private bool _useCustom;
+    private int _scopeIndex;
+    private bool _interactive;
+    private bool _force;
+    private string _override = "";
+    private string _log = "";
+    private string _location = "";
+
+    public bool UseCustom { get => _useCustom; set { _useCustom = value; Notify(); } }
+    /// <summary>0 = default, 1 = user, 2 = machine.</summary>
+    public int ScopeIndex { get => _scopeIndex; set { _scopeIndex = Math.Clamp(value, 0, 2); Notify(); } }
+    public bool Interactive { get => _interactive; set { _interactive = value; Notify(); } }
+    public bool Force { get => _force; set { _force = value; Notify(); } }
+    public string Override { get => _override; set { _override = value ?? ""; Notify(); } }
+    public string Log { get => _log; set { _log = value ?? ""; Notify(); } }
+    public string Location { get => _location; set { _location = value ?? ""; Notify(); } }
+
+    public InstallScope Scope => (InstallScope)_scopeIndex;
+
+    public event PropertyChangedEventHandler? PropertyChanged;
+    private void Notify([CallerMemberName] string? p = null) => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(p));
 }
 
 public sealed class WingetPack
@@ -225,6 +303,43 @@ public sealed partial class WingetCatalogService
         Category = WingetCategories.FromTags(p.Tags),
         Description = DescribeTags(p),
     });
+
+    /// <summary>Registers (or enriches) an app listed by api.winstall.app.</summary>
+    public WingetAppItem FromWinstall(WinstallApp a)
+    {
+        var item = GetOrCreate(a.Id, () => new WingetAppItem
+        {
+            Id = a.Id,
+            Name = a.Name,
+            Publisher = a.Publisher,
+            Version = a.LatestVersion,
+            Category = CategoryFromWinstall(a.Categories, a.Tags),
+            Description = a.Description,
+        });
+        if (!item.IsBuiltIn)
+        {
+            if (a.Description.Length > 0 && !item.DetailsLoaded) item.Description = a.Description;
+            if (a.LatestVersion.Length > 0) item.Version = a.LatestVersion;
+        }
+        return item;
+    }
+
+    /// <summary>Registers an app known only from a pack listing (id, name, publisher).</summary>
+    public WingetAppItem FromPackApp(WinstallPackApp a) => GetOrCreate(a.Id, () => new WingetAppItem
+    {
+        Id = a.Id,
+        Name = a.Name,
+        Publisher = string.IsNullOrWhiteSpace(a.Publisher) ? PublisherFromId(a.Id) : a.Publisher,
+        Version = a.Version ?? "",
+        Category = "Other",
+        Description = "",
+    });
+
+    private static string CategoryFromWinstall(IReadOnlyList<string> categories, IReadOnlyList<string> tags)
+    {
+        var slug = categories.FirstOrDefault();
+        return DeployCategory.Find(slug)?.Label ?? WingetCategories.FromTags(tags.Select(t => t.ToLowerInvariant()).ToList());
+    }
 
     /// <summary>Unregisters search results that are no longer shown, queued or built-in (keeps memory flat).</summary>
     public void Prune(IEnumerable<WingetAppItem> keep)
@@ -364,12 +479,15 @@ public sealed partial class WingetCatalogService
     /// PowerShell for WinRM endpoints (no agent). The ID is validated with <see cref="WingetRules"/> and the
     /// script prints <see cref="ExitMarker"/>&lt;code&gt; as its last line so the real exit code survives WinRM.
     /// </summary>
-    public static string BuildWingetInstallScript(string packageId, bool silent, bool machineScope, bool upgradeIfInstalled)
+    public static string BuildWingetInstallScript(string packageId, bool silent, bool machineScope, bool upgradeIfInstalled, string? version = null)
     {
         if (!WingetRules.IsValidPackageId(packageId))
             throw new ArgumentException($"Invalid winget package id '{packageId}'.", nameof(packageId));
+        if (!string.IsNullOrEmpty(version) && !WingetRules.IsValidVersion(version))
+            throw new ArgumentException($"Invalid version '{version}'.", nameof(version));
 
-        var common = $"--id '{packageId}' -e{(silent ? " --silent" : "")}{(machineScope ? " --scope machine" : "")} --accept-package-agreements --accept-source-agreements --disable-interactivity";
+        var pin = string.IsNullOrEmpty(version) ? "" : $" --version '{version}'";
+        var common = $"--id '{packageId}' -e{pin}{(silent ? " --silent" : "")}{(machineScope ? " --scope machine" : "")} --accept-package-agreements --accept-source-agreements --disable-interactivity";
         var noPackage = unchecked((int)WingetRules.NoPackageFound);
         var upgradeBlock = upgradeIfInstalled
             ? $$"""
