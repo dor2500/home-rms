@@ -107,12 +107,21 @@ public static class RmsNetwork
                     (hasGateway ? withGateway : others).Add(ip);
                 }
                 else if (includeIPv6 && ip.AddressFamily == AddressFamily.InterNetworkV6 &&
-                         !ip.IsIPv6LinkLocal && !ip.IsIPv6Multicast && !ip.IsIPv6SiteLocal && !ip.IsIPv4MappedToIPv6)
+                         !ip.IsIPv6LinkLocal && !ip.IsIPv6Multicast && !ip.IsIPv6SiteLocal && !ip.IsIPv4MappedToIPv6 &&
+                         !IsTemporaryIPv6(ua))
                 {
                     v6.Add(new IPAddress(ip.GetAddressBytes())); // drop the scope id
                 }
             }
         }
-        return withGateway.Concat(others).Concat(v6).Distinct().ToList();
+        // At most two IPv6 addresses: they are a fallback, and the packets must stay small.
+        return withGateway.Concat(others).Concat(v6.Distinct().Take(2)).Distinct().ToList();
+    }
+
+    /// <summary>RFC 4941 privacy addresses rotate daily; announcing them is useless (Windows reports them, Linux may not).</summary>
+    private static bool IsTemporaryIPv6(UnicastIPAddressInformation ua)
+    {
+        try { return ua.SuffixOrigin == SuffixOrigin.Random; }
+        catch (PlatformNotSupportedException) { return false; }
     }
 }
