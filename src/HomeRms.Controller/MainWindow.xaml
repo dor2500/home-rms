@@ -534,23 +534,21 @@
                                         </StackPanel>
                                     </DockPanel>
 
-                                    <!-- Address + OS -->
-                                    <DockPanel Margin="16,0,0,4">
+                                    <!-- Address: full card width so "laptop-test · 192.168.1.140:7443" is not cut off -->
+                                    <TextBlock Text="{Binding AddressLine}" ToolTip="{Binding AddressToolTip}" FontFamily="{StaticResource MonoFont}" FontSize="{StaticResource FontSizeSmall}"
+                                               Foreground="{StaticResource TextSecondaryBrush}" TextTrimming="CharacterEllipsis" Margin="16,0,0,4"/>
+
+                                    <!-- Last seen / uptime, "IP auto-updates" (connects by IP, computer name known), OS -->
+                                    <DockPanel Margin="16,0,0,12">
                                         <Border DockPanel.Dock="Right" Background="{StaticResource FieldBrush}" BorderBrush="{StaticResource BorderSubtleBrush}" BorderThickness="1"
-                                                CornerRadius="{StaticResource RadiusControl}" Padding="6,1">
+                                                CornerRadius="{StaticResource RadiusControl}" Padding="6,1" VerticalAlignment="Center">
                                             <StackPanel Orientation="Horizontal">
                                                 <TextBlock Text="{Binding OsGlyph}" FontFamily="{StaticResource MonoFont}" FontSize="10" FontWeight="Bold" Margin="0,0,5,0" Foreground="{StaticResource AccentBrush}" VerticalAlignment="Center"/>
                                                 <TextBlock Text="{Binding OsTag}" FontSize="10.5" Foreground="{StaticResource TextSecondaryBrush}" VerticalAlignment="Center"/>
                                             </StackPanel>
                                         </Border>
-                                        <TextBlock Text="{Binding AddressLine}" ToolTip="{Binding AddressToolTip}" FontFamily="{StaticResource MonoFont}" FontSize="{StaticResource FontSizeSmall}"
-                                                   Foreground="{StaticResource TextSecondaryBrush}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" Margin="0,0,8,0"/>
-                                    </DockPanel>
-
-                                    <!-- Uptime / last seen (+ "IP auto-updates" when the endpoint connects by IP but its computer name is known) -->
-                                    <DockPanel Margin="16,0,0,12">
                                         <TextBlock DockPanel.Dock="Right" Text="IP auto-updates" ToolTip="{Binding AddressToolTip}" FontSize="10.5"
-                                                   Foreground="{StaticResource AccentBrush}" Margin="8,0,0,0" VerticalAlignment="Center">
+                                                   Foreground="{StaticResource AccentBrush}" Margin="8,0,8,0" VerticalAlignment="Center">
                                             <TextBlock.Style>
                                                 <Style TargetType="TextBlock">
                                                     <Setter Property="Visibility" Value="Collapsed"/>
@@ -562,7 +560,7 @@
                                                 </Style>
                                             </TextBlock.Style>
                                         </TextBlock>
-                                        <TextBlock Text="{Binding HealthLine}" Style="{StaticResource MetaText}" TextTrimming="CharacterEllipsis"/>
+                                        <TextBlock Text="{Binding HealthLine}" Style="{StaticResource MetaText}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center"/>
                                     </DockPanel>
 
                                     <!-- CPU / RAM -->

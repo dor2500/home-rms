@@ -41,7 +41,9 @@ public partial class MainWindow
     /// <summary>Called from the constructor after <see cref="InitializeFeatureViews"/> (the pool exists).</summary>
     private void InitializeEndpointLocator()
     {
-        _pool.Relocate = (m, ct) => Dispatcher.InvokeAsync(() => RelocateProfileAsync(m, ct)).Task.Unwrap();
+        // Screenshot runs use sample endpoints: never go looking for them on the network.
+        if (!IsScreenshotRun)
+            _pool.Relocate = (m, ct) => Dispatcher.InvokeAsync(() => RelocateProfileAsync(m, ct)).Task.Unwrap();
         _pool.Paired = (m, conn, info) => Dispatcher.BeginInvoke(() =>
         {
             if (RecordAgentContact(m, conn, info)) MachineStore.Save(_machines);

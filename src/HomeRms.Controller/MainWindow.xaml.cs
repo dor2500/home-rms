@@ -1167,8 +1167,9 @@ public partial class MainWindow : Window
             StatusText.Text = "Could not connect: " + Short(ex);
             AddActivity("ALERT", $"mTLS connection to {host}:{port} failed: {Short(ex)}");
             UpdateOverviewMetrics();
-            MessageBox.Show($"Could not connect to {host}:{port}\n\n{ex.Message}",
-                "Home RMS — Connection Failed", MessageBoxButton.OK, MessageBoxImage.Warning);
+            if (!IsScreenshotRun) // a modal box would block the automated screenshot run
+                MessageBox.Show($"Could not connect to {host}:{port}\n\n{ex.Message}",
+                    "Home RMS — Connection Failed", MessageBoxButton.OK, MessageBoxImage.Warning);
             return false;
         }
     }
@@ -2286,6 +2287,29 @@ public partial class MainWindow : Window
                 UserAndOs = "Server • Headless"
             });
         }
+        // Connect-by-computer-name samples (never saved: MachineStore is read-only in screenshot runs).
+        _machines.Insert(Math.Min(1, _machines.Count), new MachineProfile
+        {
+            Name = "Kitchen-Laptop",
+            Host = "kitchen-laptop",
+            Port = 7443,
+            ComputerName = "KITCHEN-LAPTOP",
+            LastKnownIp = "192.168.1.140",
+            LastSeenUtc = DateTime.UtcNow.AddHours(-20),
+            StatusLabel = "Offline",
+        });
+        _machines.Insert(Math.Min(2, _machines.Count), new MachineProfile
+        {
+            Name = "Study-PC",
+            Host = "192.168.1.57",
+            Port = 7443,
+            ComputerName = "STUDY-PC",
+            LastKnownIp = "192.168.1.57",
+            IsOnline = true,
+            StatusLabel = "Online",
+            UserAndOs = "Kids • 1920×1080",
+            LastSeenUtc = DateTime.UtcNow,
+        });
 
         try { await ConnectToCurrentFieldsAsync().WaitAsync(TimeSpan.FromSeconds(5)); } catch { }
         AgentPair2FaOverlay.Visibility = Visibility.Collapsed;
@@ -2356,6 +2380,19 @@ public partial class MainWindow : Window
         await Task.Delay(350);
         SaveWindowPng(Path.Combine(outDir, "controller-endpoint-drawer.png"));
         EndpointDrawerOverlay.Visibility = Visibility.Collapsed;
+
+        // Edit an endpoint whose computer name is known: "Connect using" choice, then an invalid host.
+        if (_machines.FirstOrDefault(m => m.ComputerName == "STUDY-PC") is { } editSample)
+        {
+            OnCardEditClick(new Button { Tag = editSample }, new RoutedEventArgs());
+            await Task.Delay(350);
+            SaveWindowPng(Path.Combine(outDir, "controller-endpoint-edit.png"));
+            HostBox.Text = "study pc";
+            ValidateDrawerAddress(BuildProfileFromDrawer());
+            await Task.Delay(250);
+            SaveWindowPng(Path.Combine(outDir, "controller-endpoint-edit-invalid.png"));
+            EndpointDrawerOverlay.Visibility = Visibility.Collapsed;
+        }
 
         AlertDrawerOverlay.Visibility = Visibility.Visible;
         await Task.Delay(350);
