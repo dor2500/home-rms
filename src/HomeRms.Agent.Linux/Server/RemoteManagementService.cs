@@ -37,12 +37,30 @@ public sealed class RemoteManagementService(
         return Task.FromResult(new AgentInfo
         {
             MachineName = Environment.MachineName,
-            OsVersion = Environment.OSVersion.VersionString,
+            OsVersion = LinuxOsDescription(),
             AgentVersion = typeof(RemoteManagementService).Assembly.GetName().Version?.ToString() ?? "0.6.0",
             LoggedInUser = Environment.UserName,
             PrimaryScreenWidth = w,
             PrimaryScreenHeight = h
         });
+    }
+
+    /// <summary>
+    /// "Linux · Ubuntu 24.04 LTS (6.8.0-45-generic)". Environment.OSVersion only says "Unix 6.8.0"; the
+    /// Controller recognises Linux endpoints (bash snippets, Windows-only features) by the word "Linux".
+    /// </summary>
+    private static string LinuxOsDescription()
+    {
+        var pretty = "";
+        try
+        {
+            foreach (var line in File.ReadLines("/etc/os-release"))
+                if (line.StartsWith("PRETTY_NAME=", StringComparison.Ordinal))
+                    pretty = line["PRETTY_NAME=".Length..].Trim().Trim('"');
+        }
+        catch { /* no os-release: kernel version only */ }
+        var kernel = Environment.OSVersion.Version.ToString();
+        return string.IsNullOrWhiteSpace(pretty) ? $"Linux {kernel}" : $"Linux · {pretty} ({kernel})";
     }
 
     public override Task<InventorySnapshot> GetInventory(Empty request, ServerCallContext context)
@@ -418,6 +436,14 @@ public sealed class RemoteManagementService(
         var res = await LinuxSystemOps.RunAsync(request, context.CancellationToken);
         log.Write($"[system] {request.Area}/{request.Action} -> {(res.Success ? "OK" : "FAILED")}");
         return res;
+    }
+
+    // Privacy Mode (blank screen + input lock) relies on a Windows desktop overlay.
+    public override Task<ClipboardAck> SetPrivacyMode(PrivacyModeRequest request, ServerCallContext context)
+    {
+        log.Write($"[privacy] '{OperatorOf(context)}' requested Privacy Mode — not supported on Linux");
+        throw new RpcException(new Status(StatusCode.FailedPrecondition,
+            LinuxSystemOps.NotSupportedPrefix + "Privacy Mode (blank screen and input lock) is only available on Windows agents."));
     }
 
     // Rate-limited (per peer address) TOTP pairing; see ControllerPairing.

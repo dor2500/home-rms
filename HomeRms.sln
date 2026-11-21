@@ -23,6 +23,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "HomeRms.LoopbackTest", "tes
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "HomeRms.ControllerChecks", "tests\HomeRms.ControllerChecks\HomeRms.ControllerChecks.csproj", "{81944A29-91F2-40EA-B1C9-A309C2F7C4FC}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "HomeRms.LinuxAgentChecks", "tests\HomeRms.LinuxAgentChecks\HomeRms.LinuxAgentChecks.csproj", "{8F986973-9FB1-4939-AF22-37DCA3665565}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -129,6 +131,18 @@ Global
 		{81944A29-91F2-40EA-B1C9-A309C2F7C4FC}.Release|x64.Build.0 = Release|Any CPU
 		{81944A29-91F2-40EA-B1C9-A309C2F7C4FC}.Release|x86.ActiveCfg = Release|Any CPU
 		{81944A29-91F2-40EA-B1C9-A309C2F7C4FC}.Release|x86.Build.0 = Release|Any CPU
+		{8F986973-9FB1-4939-AF22-37DCA3665565}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{8F986973-9FB1-4939-AF22-37DCA3665565}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{8F986973-9FB1-4939-AF22-37DCA3665565}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{8F986973-9FB1-4939-AF22-37DCA3665565}.Debug|x64.Build.0 = Debug|Any CPU
+		{8F986973-9FB1-4939-AF22-37DCA3665565}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{8F986973-9FB1-4939-AF22-37DCA3665565}.Debug|x86.Build.0 = Debug|Any CPU
+		{8F986973-9FB1-4939-AF22-37DCA3665565}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{8F986973-9FB1-4939-AF22-37DCA3665565}.Release|Any CPU.Build.0 = Release|Any CPU
+		{8F986973-9FB1-4939-AF22-37DCA3665565}.Release|x64.ActiveCfg = Release|Any CPU
+		{8F986973-9FB1-4939-AF22-37DCA3665565}.Release|x64.Build.0 = Release|Any CPU
+		{8F986973-9FB1-4939-AF22-37DCA3665565}.Release|x86.ActiveCfg = Release|Any CPU
+		{8F986973-9FB1-4939-AF22-37DCA3665565}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -142,5 +156,6 @@ Global
 		{174C1FCC-31A4-496D-863E-E941A35C9A98} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
 		{50E80000-3052-4615-AFDA-D54A0CE1F757} = {0AB3BF05-4346-4AA6-1389-037BE0695223}
 		{81944A29-91F2-40EA-B1C9-A309C2F7C4FC} = {0AB3BF05-4346-4AA6-1389-037BE0695223}
+		{8F986973-9FB1-4939-AF22-37DCA3665565} = {0AB3BF05-4346-4AA6-1389-037BE0695223}
 	EndGlobalSection
 EndGlobal
