@@ -86,6 +86,10 @@
                                       ToolTip="Scripts only: the agent never skips the installer hash check">
                                 <TextBlock><Run Text="Override the installer hash check"/><Run Text="  --force" Style="{StaticResource FlagText}"/></TextBlock>
                             </CheckBox>
+                            <CheckBox x:Name="IncludeUnknownCheck" x:FieldModifier="public" Style="{StaticResource DeployCheck}" Margin="0,0,28,10"
+                                      ToolTip="Update All only: also upgrade packages whose installed version winget cannot determine">
+                                <TextBlock><Run Text="Update All: include unknown versions"/><Run Text="  --include-unknown" Style="{StaticResource FlagText}"/></TextBlock>
+                            </CheckBox>
                         </WrapPanel>
                         <TextBlock x:Name="OptionsNote" x:FieldModifier="public" Style="{StaticResource DeployMeta}" TextWrapping="Wrap" TextTrimming="None"
                                    Text="Remote deploys honour scope (Default/User = winget default, Machine = --scope machine), silent, upgrade and the version picked per app. --interactive, --force, --override, --log and --location apply to the generated scripts only."/>
@@ -133,15 +137,22 @@
                                 <TextBlock Text="Target endpoints" Style="{StaticResource DeployCardTitle}" FontSize="16" VerticalAlignment="Center"/>
                             </DockPanel>
                             <StackPanel DockPanel.Dock="Bottom" Margin="0,12,0,0">
-                                <StackPanel Orientation="Horizontal">
-                                    <Button x:Name="DeployBtn" x:FieldModifier="public" Style="{StaticResource DeployAccentButton}" Padding="20,10" Margin="0,0,10,0">
+                                <WrapPanel>
+                                    <Button x:Name="DeployBtn" x:FieldModifier="public" Style="{StaticResource DeployAccentButton}" Padding="20,10" Margin="0,0,10,8">
                                         <StackPanel Orientation="Horizontal">
                                             <Path Data="{StaticResource DGeoServer}" Style="{StaticResource DeployIcon}" Width="14" Height="14" Margin="0,0,8,0"/>
                                             <TextBlock x:Name="DeployBtnText" x:FieldModifier="public" Text="Deploy"/>
                                         </StackPanel>
                                     </Button>
-                                    <Button x:Name="CancelBtn" x:FieldModifier="public" Style="{StaticResource DeployDarkButton}" Content="Cancel" IsEnabled="False" Padding="18,10"/>
-                                </StackPanel>
+                                    <Button x:Name="CancelBtn" x:FieldModifier="public" Style="{StaticResource DeployDarkButton}" Content="Cancel" IsEnabled="False" Padding="18,10" Margin="0,0,10,8"/>
+                                    <Button x:Name="UpdateAllBtn" x:FieldModifier="public" Style="{StaticResource DeployDarkButton}" Padding="18,10" Margin="0,0,0,8"
+                                            ToolTip="Upgrade every installed package on the target endpoints (winget upgrade --all on Windows, the package manager on Linux agents)">
+                                        <StackPanel Orientation="Horizontal">
+                                            <Path Data="{StaticResource DGeoRefresh}" Style="{StaticResource DeployIcon}" Width="14" Height="14" Margin="0,0,8,0"/>
+                                            <TextBlock Text="Update All"/>
+                                        </StackPanel>
+                                    </Button>
+                                </WrapPanel>
                             </StackPanel>
                             <TextBlock x:Name="TargetHint" x:FieldModifier="public" DockPanel.Dock="Bottom" Style="{StaticResource DeployMeta}" TextWrapping="Wrap" TextTrimming="None" Margin="0,8,0,0"/>
                             <ListBox x:Name="TargetList" x:FieldModifier="public" MinHeight="60" MaxHeight="170" Background="{StaticResource DeployFieldBrush}"
@@ -168,7 +179,7 @@
                                 <ItemsControl x:Name="QueueList" x:FieldModifier="public" Focusable="False" MaxHeight="230">
                                     <ItemsControl.Template>
                                         <ControlTemplate TargetType="ItemsControl">
-                                            <ScrollViewer VerticalScrollBarVisibility="Auto" Focusable="False"><ItemsPresenter/></ScrollViewer>
+                                            <ScrollViewer VerticalScrollBarVisibility="Auto" Focusable="False"><ItemsPresenter Margin="0,0,14,0"/></ScrollViewer>
                                         </ControlTemplate>
                                     </ItemsControl.Template>
                                     <ItemsControl.ItemTemplate>

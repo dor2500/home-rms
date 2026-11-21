@@ -16,6 +16,7 @@ using HomeRms.Shared.Server;
 // 3. Script Library wrappers really run and report the completion marker.
 // 4. winstall / winget import parsing and package-ID validation.
 // 5. Central Hub relay access control (sign-in, CSRF header, no open relay / proxy).
+// 6-8. Endpoint addressing, signed announces, Update All output parsing (winget + Linux managers).
 //
 // Nothing here talks to a remote machine. Run: dotnet run --project tests\HomeRms.ControllerChecks
 
@@ -49,6 +50,11 @@ try
     scripts["library: body with '@ line"] = ScriptExecutor.BuildPowerShell(ScriptShell.PowerShell, "Write-Output 'a'\n'@\nWrite-Output 'b'", "x");
     scripts["library: body with indented '@ line"] = ScriptExecutor.BuildPowerShell(ScriptShell.PowerShell, "Write-Output 'a'\n   '@\n", "x");
     scripts["library: cmd body with quotes"] = ScriptExecutor.BuildPowerShell(ScriptShell.Cmd, "echo \"a'b\" & echo '@", "t\nitle");
+
+    foreach (var unknown in new[] { false, true })
+    foreach (var silent in new[] { false, true })
+        scripts[$"update-all winget upgrade --all unknown={unknown} silent={silent}"] = UpgradeAllScripts.BuildWingetUpgradeAllScript(unknown, silent);
+    scripts["winrm wrapper (update-all body)"] = AgentlessService.BuildWinRmWrapper("u", "p", "pc", UpgradeAllScripts.BuildWingetUpgradeAllScript(true, true));
 
     scripts["winget-install pinned version (WinRM)"] =
         WingetCatalogService.BuildWingetInstallScript("Google.Chrome", silent: true, machineScope: false, upgradeIfInstalled: true, version: "158.0.8127.37");
@@ -183,6 +189,10 @@ try
     // ---------------- 8. Remote desktop quality presets ----------------
     Console.WriteLine("[checks] remote desktop quality presets");
     StreamPresetChecks.Run(Check);
+
+    // ---------------- 9. Update All output parsing ----------------
+    Console.WriteLine("[checks] Update All: winget and Linux package-manager output parsing");
+    UpgradeChecks.Run(Check);
 }
 catch (Exception ex)
 {

@@ -22,7 +22,7 @@ using HomeRms.Shared.Updates;
 // 5. Screen streaming succeeds and delivers valid JPEG frames once consent is granted (old-style request),
 //    and with the LAN fields (60 fps, 4:4:4, lossless refine -> PNG tiles); LAN HQ vs Balanced measured
 // 6-9. Deployment, clipboard, certificate gates, system control
-// 10. RunWinget input validation (nothing is installed)
+// 10. RunWinget input validation (nothing is installed); UpgradeAll cancelled after its first message (nothing is upgraded)
 // 11. File manager round-trip + path rejection
 // 12. Live telemetry
 // 13. Signed call-home announce received and verified by a controller-side listener
@@ -375,6 +375,100 @@ try
     if (!idChecks) failures.Add("WingetRules.IsValidPackageId accepted/rejected the wrong IDs");
     Console.WriteLine($"[test] RunWinget validation OK -> {wingetCases.Length} malicious/malformed requests rejected={wingetAllRejected}, " +
                       $"code 0x8A150014 -> '{WingetRules.Describe(unchecked((int)0x8A150014))}'");
+
+    // 10b) UpgradeAll: cancelled right after the first streamed message (sent once the read-only
+    //      'winget upgrade' listing has started), so nothing is ever upgraded. The call must end
+    //      Cancelled and no winget process started by it may survive; without winget it must fail cleanly.
+    {
+        static HashSet<int> WingetPids() =>
+            System.Diagnostics.Process.GetProcessesByName("winget").Select(p => { using (p) return p.Id; }).ToHashSet();
+        var agentLines = new System.Collections.Concurrent.ConcurrentQueue<string>();
+        void OnAgentLine(string l) => agentLines.Enqueue(l);
+        log.LineAdded += OnAgentLine;
+        try
+        {
+            var wingetPresent = HomeRms.Agent.Features.WingetRunner.ResolveWingetPath() is not null;
+            var before = WingetPids();
+            using var upCts = new CancellationTokenSource();
+            WingetProgress? first = null;
+            StatusCode? upStatus = null;
+            string upDetail = "";
+            var startedDuring = 0;
+            var upgradedSomething = false;
+            try
+            {
+                using var call = client.UpgradeAll(new UpgradeAllRequest { Silent = true }, deadline: Deadline(120), cancellationToken: upCts.Token);
+                if (await call.ResponseStream.MoveNext(CancellationToken.None))
+                {
+                    first = call.ResponseStream.Current;
+                    startedDuring = WingetPids().Except(before).Count();
+                    upCts.Cancel();
+                }
+                while (await call.ResponseStream.MoveNext(CancellationToken.None))
+                    if (call.ResponseStream.Current is { Phase: WingetPhase.Succeeded, PackageId.Length: > 0 }) upgradedSomething = true;
+                upStatus = StatusCode.OK;
+            }
+            catch (RpcException ex)
+            {
+                upStatus = ex.StatusCode;
+                upDetail = ex.Status.Detail;
+            }
+
+            if (!wingetPresent)
+            {
+                Console.WriteLine($"[test] UpgradeAll without winget -> {upStatus} ('{upDetail}')");
+                if (upStatus != StatusCode.FailedPrecondition || !upDetail.Contains("winget.exe was not found"))
+                    failures.Add($"UpgradeAll without winget did not fail cleanly (status {upStatus}, '{upDetail}')");
+            }
+            else
+            {
+                // the agent kills the tree when it sees the cancellation; give it a moment
+                var leftover = WingetPids().Except(before).ToList();
+                for (var i = 0; i < 30 && leftover.Count > 0; i++)
+                {
+                    await Task.Delay(500);
+                    leftover = WingetPids().Except(before).ToList();
+                }
+                var sawCancelLog = false;
+                for (var i = 0; i < 20 && !sawCancelLog; i++)
+                {
+                    sawCancelLog = agentLines.Any(l => l.Contains("Update All") && l.Contains("cancelled"));
+                    if (!sawCancelLog) await Task.Delay(250);
+                }
+                Console.WriteLine($"[test] UpgradeAll cancel -> first='{first?.LogLine}', status={upStatus}, winget started={startedDuring}, " +
+                                  $"leftover winget={leftover.Count}, agent logged cancel={sawCancelLog}");
+                if (first is null) failures.Add($"UpgradeAll streamed nothing before ending ({upStatus}: {upDetail})");
+                else if (first.Done || first.Phase != WingetPhase.Queued) failures.Add("UpgradeAll's first message was not the Queued 'checking' message");
+                if (upStatus != StatusCode.Cancelled) failures.Add($"UpgradeAll did not end Cancelled after the client cancelled (status {upStatus})");
+                if (upgradedSomething) failures.Add("UpgradeAll reported an upgrade after the call was cancelled");
+                if (leftover.Count > 0) failures.Add($"UpgradeAll left {leftover.Count} winget process(es) running after cancellation");
+                if (!sawCancelLog) failures.Add("the agent did not log the UpgradeAll cancellation");
+            }
+
+            // the one-run-at-a-time gate was released: a second call streams again (and is cancelled the same way)
+            if (wingetPresent)
+            {
+                using var again = new CancellationTokenSource();
+                var gotFirst = false;
+                var againStatus = await StatusOf(async () =>
+                {
+                    using var call = client.UpgradeAll(new UpgradeAllRequest(), deadline: Deadline(120), cancellationToken: again.Token);
+                    gotFirst = await call.ResponseStream.MoveNext(CancellationToken.None);
+                    again.Cancel();
+                    while (await call.ResponseStream.MoveNext(CancellationToken.None)) { }
+                });
+                for (var i = 0; i < 30 && WingetPids().Except(before).Any(); i++) await Task.Delay(500);
+                Console.WriteLine($"[test] UpgradeAll second run -> first message={gotFirst}, status={againStatus}");
+                if (!gotFirst || againStatus != StatusCode.Cancelled)
+                    failures.Add($"a second UpgradeAll after a cancelled one did not start (first={gotFirst}, status={againStatus}): run gate not released?");
+                if (WingetPids().Except(before).Any()) failures.Add("the second cancelled UpgradeAll left winget running");
+            }
+        }
+        finally
+        {
+            log.LineAdded -= OnAgentLine;
+        }
+    }
 
     // 11) file manager round-trip inside a temp directory
     var fmRoot = Path.Combine(workDir, "fm");
