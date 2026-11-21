@@ -10,19 +10,27 @@ namespace HomeRms.Agent.Features;
 /// Low-latency screen streaming for tile-capable controllers.
 /// Captures with DXGI Desktop Duplication, compares the changed regions against what the
 /// controller already shows, and sends only the 64×64 cells that really changed as JPEG tiles.
-/// Cells that changed are re-sent at near-lossless quality once they have been still for a moment.
+/// Cells that changed are re-sent at near-lossless quality (or losslessly as PNG, see
+/// <see cref="TileOptions.LosslessRefine"/>) once they have been still for a moment.
 /// The pointer is sent as position + shape, so moving the mouse costs almost nothing.
 /// </summary>
 [SupportedOSPlatform("windows")]
 internal sealed class TileStreamer : IDisposable
 {
     private const int Cell = 64;
-    private const long RefineAfterMs = 250;
+    public const int DefaultRefineDelayMs = 250;
     private const double KeyframeThreshold = 0.55; // above this share of changed cells, send one full frame
+    private const int RefineBandRows = 4;           // refine rects are at most 4 cells tall so they encode in parallel
 
     private readonly Action<string> _log;
     private readonly List<Rectangle> _changedRects = new();
     private readonly ThreadLocal<WicJpegEncoder> _encoders = new(() => new WicJpegEncoder(), trackAllValues: false);
+    private readonly ThreadLocal<byte[]> _bgrBuffers = new(() => Array.Empty<byte>(), trackAllValues: false);
+    private readonly List<int> _sendNow = new();
+    private readonly List<int> _refine = new();
+    private readonly HashSet<int> _candidates = new();
+    private bool[] _marked = Array.Empty<bool>();
+    private bool[] _inSendNow = Array.Empty<bool>();
 
     private DesktopDuplicator? _dup;
     private long _nextRetryTick;
@@ -46,7 +54,10 @@ internal sealed class TileStreamer : IDisposable
     /// Waits up to <paramref name="waitMs"/> for screen or pointer changes and returns the update
     /// to send, or null if nothing changed. Throws if GPU capture is lost and cannot be restored.
     /// </summary>
-    public ScreenFrame? Next(int quality, int waitMs)
+    public ScreenFrame? Next(int quality, int waitMs) => Next(new TileOptions(quality), waitMs);
+
+    /// <inheritdoc cref="Next(int, int)"/>
+    public ScreenFrame? Next(TileOptions o, int waitMs)
     {
         if (!EnsureDuplicator())
             return null;
@@ -66,85 +77,97 @@ internal sealed class TileStreamer : IDisposable
         }
 
         var now = Environment.TickCount64;
-        var frame = new ScreenFrame { Width = dup.Width, Height = dup.Height, CaptureUnixMs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() };
+        var quality = Math.Clamp(o.Quality, 1, 100);
         var refineQuality = Math.Max(quality, ScreenCapturer.RefineQuality);
+        // Lossy refine is pointless once the motion quality already reaches it; lossless always improves
+        var needsRefine = o.LosslessRefine || quality < refineQuality;
+        var refineAfterMs = o.RefineDelayMs > 0 ? Math.Clamp(o.RefineDelayMs, 30, 10_000) : DefaultRefineDelayMs;
 
         if (_needKeyframe)
         {
             if (!imageChanged) return null; // wait for the first desktop image
-            frame.Jpeg = Google.Protobuf.ByteString.CopyFrom(EncodeRect(dup, new Rectangle(0, 0, dup.Width, dup.Height), quality));
+            var keyframe = NewFrame(dup);
+            keyframe.Jpeg = Wrap(EncodeRect(dup, new Rectangle(0, 0, dup.Width, dup.Height), quality, o.FullChroma, png: false));
             Buffer.BlockCopy(dup.Pixels, 0, _sent, 0, _sent.Length);
-            Array.Fill(_pendingRefine, quality < refineQuality);
+            Array.Fill(_pendingRefine, needsRefine);
             Array.Fill(_changedTick, now);
             _needKeyframe = false;
-            frame.Cursor = _cursor.Read(dup, forceShape: true);
-            return frame;
+            keyframe.Cursor = _cursor.Read(dup, forceShape: true);
+            return keyframe;
         }
 
         // 1. Which cells really differ from what the controller shows?
-        var sendNow = new List<int>();
+        _sendNow.Clear();
         if (imageChanged)
         {
-            var candidates = new HashSet<int>();
+            _candidates.Clear();
             foreach (var r in _changedRects)
             {
                 for (var cy = r.Top / Cell; cy <= (r.Bottom - 1) / Cell; cy++)
                     for (var cx = r.Left / Cell; cx <= (r.Right - 1) / Cell; cx++)
-                        candidates.Add(cy * _cols + cx);
+                        _candidates.Add(cy * _cols + cx);
             }
-            foreach (var c in candidates)
+            foreach (var c in _candidates)
             {
                 if (CellDiffers(dup, c))
-                    sendNow.Add(c);
+                    _sendNow.Add(c);
             }
         }
 
         // 2. Many cells changed (video, full-screen scroll): one full frame is cheaper than tiles
-        if (sendNow.Count > _cols * _rows * KeyframeThreshold)
+        if (_sendNow.Count > _cols * _rows * KeyframeThreshold)
         {
-            frame.Jpeg = Google.Protobuf.ByteString.CopyFrom(EncodeRect(dup, new Rectangle(0, 0, dup.Width, dup.Height), quality));
+            var full = NewFrame(dup);
+            full.Jpeg = Wrap(EncodeRect(dup, new Rectangle(0, 0, dup.Width, dup.Height), quality, o.FullChroma, png: false));
             Buffer.BlockCopy(dup.Pixels, 0, _sent, 0, _sent.Length);
-            foreach (var c in sendNow) { _pendingRefine[c] = quality < refineQuality; _changedTick[c] = now; }
-            frame.Cursor = _cursor.Read(dup, forceShape: false);
-            return frame;
+            foreach (var c in _sendNow) { _pendingRefine[c] = needsRefine; _changedTick[c] = now; }
+            full.Cursor = _cursor.Read(dup, forceShape: false);
+            return full;
         }
 
-        // 3. Cells that have been still long enough get a sharp re-send
-        var sendNowSet = new HashSet<int>(sendNow);
-        var refine = new List<int>();
+        // 3. Cells that have been still long enough get a sharp (or lossless) re-send
+        foreach (var c in _sendNow) _inSendNow[c] = true;
+        _refine.Clear();
         for (var c = 0; c < _pendingRefine.Length; c++)
         {
-            if (_pendingRefine[c] && !sendNowSet.Contains(c) && now - _changedTick[c] >= RefineAfterMs)
-                refine.Add(c);
+            if (_pendingRefine[c] && !_inSendNow[c] && now - _changedTick[c] >= refineAfterMs)
+                _refine.Add(c);
         }
+        foreach (var c in _sendNow) _inSendNow[c] = false;
 
-        var tiles = new List<(Rectangle Rect, int Quality)>();
-        foreach (var r in MergeCells(sendNow, dup)) tiles.Add((r, quality));
-        foreach (var r in MergeCells(refine, dup)) tiles.Add((r, refineQuality));
+        var tiles = new List<(Rectangle Rect, int Quality, bool Png)>();
+        foreach (var r in MergeCells(_sendNow, dup, maxRows: int.MaxValue / Cell)) tiles.Add((r, quality, false));
+        foreach (var r in MergeCells(_refine, dup, maxRows: RefineBandRows)) tiles.Add((r, refineQuality, o.LosslessRefine));
 
-        // 4. Encode tiles in parallel
+        var frame = NewFrame(dup);
+
+        // 4. Encode tiles in parallel (each worker thread keeps its own WIC encoder and pixel buffer)
         if (tiles.Count > 0)
         {
             var encoded = new byte[tiles.Count][];
-            Parallel.For(0, tiles.Count, i => encoded[i] = EncodeRect(dup, tiles[i].Rect, tiles[i].Quality));
+            if (tiles.Count == 1)
+                encoded[0] = EncodeRect(dup, tiles[0].Rect, tiles[0].Quality, o.FullChroma, tiles[0].Png);
+            else
+                Parallel.For(0, tiles.Count, i => encoded[i] = EncodeRect(dup, tiles[i].Rect, tiles[i].Quality, o.FullChroma, tiles[i].Png));
             for (var i = 0; i < tiles.Count; i++)
             {
                 var r = tiles[i].Rect;
                 frame.Tiles.Add(new ScreenTile
                 {
                     X = r.X, Y = r.Y, Width = r.Width, Height = r.Height,
-                    Jpeg = Google.Protobuf.ByteString.CopyFrom(encoded[i])
+                    Jpeg = Wrap(encoded[i]),
+                    Format = tiles[i].Png ? 1 : 0
                 });
             }
         }
 
-        foreach (var c in sendNow)
+        foreach (var c in _sendNow)
         {
             CopyCellToSent(dup, c);
-            _pendingRefine[c] = quality < refineQuality;
+            _pendingRefine[c] = needsRefine;
             _changedTick[c] = now;
         }
-        foreach (var c in refine) _pendingRefine[c] = false;
+        foreach (var c in _refine) _pendingRefine[c] = false;
 
         var cursor = _cursor.Read(dup, forceShape: false);
         if (frame.Tiles.Count == 0 && !_cursor.Changed)
@@ -153,6 +176,12 @@ internal sealed class TileStreamer : IDisposable
         frame.Cursor = cursor;
         return frame;
     }
+
+    private static ScreenFrame NewFrame(DesktopDuplicator dup) =>
+        new() { Width = dup.Width, Height = dup.Height, CaptureUnixMs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() };
+
+    // The encoder hands over a fresh array that nothing else touches: no need to copy it again
+    private static Google.Protobuf.ByteString Wrap(byte[] bytes) => Google.Protobuf.UnsafeByteOperations.UnsafeWrap(bytes);
 
     private bool EnsureDuplicator()
     {
@@ -173,6 +202,8 @@ internal sealed class TileStreamer : IDisposable
         _sent = new byte[_dup.Pixels.Length];
         _pendingRefine = new bool[_cols * _rows];
         _changedTick = new long[_cols * _rows];
+        _marked = new bool[_cols * _rows];
+        _inSendNow = new bool[_cols * _rows];
         _needKeyframe = true;
         _log($"[screen] GPU capture active ({_dup.Width}×{_dup.Height}, dirty-tile streaming)");
         return true;
@@ -220,13 +251,16 @@ internal sealed class TileStreamer : IDisposable
         }
     }
 
-    /// <summary>Joins marked cells into horizontal runs, then stacks runs with the same span.</summary>
-    private List<Rectangle> MergeCells(List<int> cells, DesktopDuplicator dup)
+    /// <summary>
+    /// Joins marked cells into horizontal runs, then stacks runs with the same span
+    /// (at most <paramref name="maxRows"/> cells tall).
+    /// </summary>
+    private List<Rectangle> MergeCells(List<int> cells, DesktopDuplicator dup, int maxRows)
     {
         var result = new List<Rectangle>();
         if (cells.Count == 0) return result;
 
-        var marked = new bool[_cols * _rows];
+        var marked = _marked;
         foreach (var c in cells) marked[c] = true;
 
         var open = new Dictionary<(int X0, int X1), int>(); // span -> index in result (rect ending at previous row)
@@ -246,7 +280,7 @@ internal sealed class TileStreamer : IDisposable
                 var left = start * Cell;
                 var right = Math.Min(dup.Width, col * Cell);
 
-                if (open.TryGetValue(span, out var idx))
+                if (open.TryGetValue(span, out var idx) && result[idx].Height < maxRows * Cell)
                 {
                     var prev = result[idx];
                     result[idx] = Rectangle.FromLTRB(prev.Left, prev.Top, prev.Right, bottom);
@@ -260,14 +294,17 @@ internal sealed class TileStreamer : IDisposable
             }
             open = nextOpen;
         }
+        foreach (var c in cells) marked[c] = false;
         return result;
     }
 
-    /// <summary>Encodes part of the BGRA desktop image as a 4:4:4 JPEG.</summary>
-    private byte[] EncodeRect(DesktopDuplicator dup, Rectangle r, int quality)
+    /// <summary>Encodes part of the BGRA desktop image as JPEG (4:4:4 or 4:2:0) or as a lossless PNG.</summary>
+    private byte[] EncodeRect(DesktopDuplicator dup, Rectangle r, int quality, bool fullChroma, bool png)
     {
         var stride = (r.Width * 3 + 3) & ~3;
-        var bgr = new byte[stride * r.Height];
+        var bgr = _bgrBuffers.Value!;
+        if (bgr.Length < stride * r.Height)
+            _bgrBuffers.Value = bgr = new byte[stride * r.Height];
         var src = dup.Pixels;
         var srcStride = dup.Stride;
         for (var y = 0; y < r.Height; y++)
@@ -281,15 +318,26 @@ internal sealed class TileStreamer : IDisposable
                 bgr[d + 2] = src[s + 2];
             }
         }
-        return _encoders.Value!.Encode(bgr, r.Width, r.Height, stride, quality, fullChroma: true);
+        var encoder = _encoders.Value!;
+        return png
+            ? encoder.EncodePng(bgr, r.Width, r.Height, stride)
+            : encoder.Encode(bgr, r.Width, r.Height, stride, quality, fullChroma);
     }
 
     public void Dispose()
     {
         _dup?.Dispose();
         _encoders.Dispose();
+        _bgrBuffers.Dispose();
     }
 }
+
+/// <summary>Per-stream encoding choices for <see cref="TileStreamer"/>.</summary>
+/// <param name="Quality">JPEG quality for changed regions (1-100).</param>
+/// <param name="FullChroma">true = 4:4:4 JPEG, false = 4:2:0.</param>
+/// <param name="LosslessRefine">Re-send still regions as PNG instead of high-quality JPEG.</param>
+/// <param name="RefineDelayMs">How long a region must be still before the refine pass (0 = default).</param>
+internal readonly record struct TileOptions(int Quality, bool FullChroma = true, bool LosslessRefine = false, int RefineDelayMs = 0);
 
 /// <summary>Reads the system pointer position/shape and turns the shape into a PNG with alpha.</summary>
 [SupportedOSPlatform("windows")]

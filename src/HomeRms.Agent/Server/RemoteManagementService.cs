@@ -64,15 +64,18 @@ public sealed class RemoteManagementService(
         if (!consent.RequestGrant(op, "view your screen"))
             throw new RpcException(new Status(StatusCode.PermissionDenied, "Screen sharing was declined on the device."));
 
-        var fps = Math.Clamp(request.Fps <= 0 ? 15 : request.Fps, 1, 60);
-        var intervalMs = 1000.0 / fps;
-        var quality = request.Quality <= 0 ? 88 : request.Quality;
+        // Older controllers send only fps/quality; every newer field defaults to the original behaviour
+        var fps = Math.Clamp(request.Fps <= 0 ? 15 : request.Fps, 1, 120);
+        var quality = Math.Clamp(request.Quality <= 0 ? 88 : request.Quality, 1, 100);
         var maxWidth = request.MaxWidth;
+        var fullChroma = request.Chroma != 1; // 0 = agent default (4:4:4), 1 = 4:2:0, 2 = 4:4:4
+        var options = new TileOptions(quality, fullChroma, request.LosslessRefine, request.RefineDelayMs);
 
         _activeMonitorIndex = request.MonitorIndex;
         using var _ = consent.BeginViewing(op);
-        using var cap = new ScreenCapturer { MonitorIndex = request.MonitorIndex };
-        var sw = new Stopwatch();
+        using var cap = new ScreenCapturer { MonitorIndex = request.MonitorIndex, FullChroma = fullChroma };
+        if (request.RefineDelayMs > 0) cap.RefineAfterMs = Math.Clamp(request.RefineDelayMs, 30, 10_000);
+        using var pacer = new FramePacer(fps);
         long seq = 0;
 
         // Tile-capable controller at native resolution on primary monitor: GPU capture + dirty tiles
@@ -81,7 +84,9 @@ public sealed class RemoteManagementService(
             using var tiles = new TileStreamer(log.Write);
             if (tiles.Available)
             {
-                await StreamTilesAsync(op, tiles, cap, quality, intervalMs, responseStream, context);
+                log.Write($"[screen] '{op}': tiles, up to {fps} fps, q{quality}, {(fullChroma ? "4:4:4" : "4:2:0")}" +
+                          $"{(options.LosslessRefine ? ", lossless refine" : "")}, refine after {(options.RefineDelayMs > 0 ? options.RefineDelayMs : TileStreamer.DefaultRefineDelayMs)} ms");
+                await StreamTilesAsync(op, tiles, cap, options, pacer, responseStream, context);
                 return;
             }
         }
@@ -94,7 +99,10 @@ public sealed class RemoteManagementService(
                 break;
             }
 
-            sw.Restart();
+            try { await pacer.WaitAsync(context.CancellationToken); }
+            catch (OperationCanceledException) { break; }
+
+            var capturedAt = Stopwatch.GetTimestamp();
             byte[]? jpeg;
             int w, h;
             try { (jpeg, w, h) = cap.CaptureNext(quality, maxWidth); }
@@ -105,33 +113,30 @@ public sealed class RemoteManagementService(
             {
                 await responseStream.WriteAsync(new ScreenFrame
                 {
-                    Jpeg = Google.Protobuf.ByteString.CopyFrom(jpeg),
+                    Jpeg = Google.Protobuf.UnsafeByteOperations.UnsafeWrap(jpeg),
                     Width = w,
                     Height = h,
-                    Sequence = ++seq
+                    Sequence = ++seq,
+                    CaptureUnixMs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()
                 });
             }
-
-            var remainingMs = intervalMs - sw.Elapsed.TotalMilliseconds;
-            if (remainingMs > 1)
-            {
-                try { await Task.Delay(TimeSpan.FromMilliseconds(remainingMs), context.CancellationToken); }
-                catch (OperationCanceledException) { break; }
-            }
+            pacer.MarkSent(capturedAt); // GDI capture polls at the requested rate
         }
     }
 
     /// <summary>
     /// Event-driven loop: waits on the GPU for the next change (instead of polling on a timer),
-    /// so an update leaves the agent within milliseconds of appearing on screen.
+    /// so an update leaves the agent within milliseconds of appearing on screen. The pacer only
+    /// caps the rate (high-resolution timer, so 60–120 fps really are 60–120 fps).
     /// Falls back to full GDI frames while GPU capture is unavailable (UAC prompt, lock screen).
     /// </summary>
-    private async Task StreamTilesAsync(string op, TileStreamer tiles, ScreenCapturer cap, int quality, double intervalMs,
+    private async Task StreamTilesAsync(string op, TileStreamer tiles, ScreenCapturer cap, TileOptions options, FramePacer pacer,
         IServerStreamWriter<ScreenFrame> responseStream, ServerCallContext context)
     {
         long seq = 0;
-        var sinceLastSend = Stopwatch.StartNew();
         var fallbackFrames = 0;
+        // Bounded wait for a change: keeps refine passes and grant checks timely while the screen is idle
+        var acquireWaitMs = (int)Math.Clamp(pacer.IntervalMs, 8, 16);
 
         while (!context.CancellationToken.IsCancellationRequested)
         {
@@ -142,12 +147,8 @@ public sealed class RemoteManagementService(
             }
 
             // Frame-rate cap: wait *before* capturing so what we send is always the freshest image
-            var waitMs = intervalMs - sinceLastSend.Elapsed.TotalMilliseconds;
-            if (waitMs > 1)
-            {
-                try { await Task.Delay(TimeSpan.FromMilliseconds(waitMs), context.CancellationToken); }
-                catch (OperationCanceledException) { break; }
-            }
+            try { await pacer.WaitAsync(context.CancellationToken); }
+            catch (OperationCanceledException) { break; }
 
             ScreenFrame? frame;
             try
@@ -155,13 +156,17 @@ public sealed class RemoteManagementService(
                 if (tiles.Available)
                 {
                     fallbackFrames = 0;
-                    frame = tiles.Next(quality, waitMs: 16);
+                    frame = tiles.Next(options, acquireWaitMs); // blocks until the desktop or pointer changes
                 }
                 else
                 {
                     // GPU capture is down: keep the picture alive with a few GDI frames per second
-                    var (jpeg, w, h) = cap.CaptureJpeg(quality, 0);
-                    frame = new ScreenFrame { Jpeg = Google.Protobuf.ByteString.CopyFrom(jpeg), Width = w, Height = h };
+                    var (jpeg, w, h) = cap.CaptureJpeg(options.Quality, 0);
+                    frame = new ScreenFrame
+                    {
+                        Jpeg = Google.Protobuf.UnsafeByteOperations.UnsafeWrap(jpeg), Width = w, Height = h,
+                        CaptureUnixMs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()
+                    };
                     fallbackFrames++;
                     await Task.Delay(fallbackFrames < 3 ? 100 : 400, context.CancellationToken);
                 }
@@ -169,11 +174,12 @@ public sealed class RemoteManagementService(
             catch (OperationCanceledException) { break; }
             catch (Exception ex) { log.Write($"[screen] capture error: {ex.Message}"); break; }
 
-            if (frame is null) continue;
+            if (frame is null) continue; // nothing changed: nothing encoded, nothing sent
 
+            var capturedAt = Stopwatch.GetTimestamp();
             frame.Sequence = ++seq;
             await responseStream.WriteAsync(frame);
-            sinceLastSend.Restart();
+            pacer.MarkSent(capturedAt);
         }
     }
 

@@ -49,7 +49,10 @@ public sealed class ScreenCapturer : IDisposable
     public const int RefineQuality = 95;
 
     /// <summary>How long the screen must stay unchanged before the sharp frame is sent.</summary>
-    private const long RefineAfterMs = 300;
+    public long RefineAfterMs { get; set; } = 300;
+
+    /// <summary>true = 4:4:4 JPEG (sharp coloured text), false = 4:2:0 (smaller frames).</summary>
+    public bool FullChroma { get; set; } = true;
 
     private WicJpegEncoder? _wic;
     private bool _wicFailed;
@@ -209,7 +212,7 @@ public sealed class ScreenCapturer : IDisposable
         }
     }
 
-    /// <summary>JPEG with full 4:4:4 colour via WIC; falls back to GDI+ (4:2:0) if WIC is unavailable.</summary>
+    /// <summary>JPEG via WIC (4:4:4 unless <see cref="FullChroma"/> is off); falls back to GDI+ (4:2:0) if WIC is unavailable.</summary>
     private byte[] Encode(Bitmap bmp, byte[] pixels, int stride, int quality)
     {
         if (!_wicFailed)
@@ -217,7 +220,7 @@ public sealed class ScreenCapturer : IDisposable
             try
             {
                 _wic ??= new WicJpegEncoder();
-                return _wic.Encode(pixels, bmp.Width, bmp.Height, stride, quality, fullChroma: true);
+                return _wic.Encode(pixels, bmp.Width, bmp.Height, stride, quality, FullChroma);
             }
             catch
             {
