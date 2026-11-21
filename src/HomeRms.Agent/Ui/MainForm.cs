@@ -1,14 +1,16 @@
 using System.Diagnostics;
 using System.Drawing;
+using System.Globalization;
 using System.Reflection;
 using System.Windows.Forms;
 using HomeRms.Agent.Core;
+using HomeRms.Shared.Updates;
 
 namespace HomeRms.Agent.Ui;
 
 /// <summary>
 /// The agent's main window: current status, the active remote session (with a
-/// one-click stop), and the live activity log. Closing it hides to the tray; the
+/// one-click stop), agent updates, and the live activity log. Closing it hides to the tray; the
 /// agent keeps running until "Exit agent" is chosen.
 /// </summary>
 internal sealed class MainForm : Form
@@ -27,9 +29,29 @@ internal sealed class MainForm : Form
 
     private readonly CheckBox _autoApproveCheck;
 
-    public MainForm(ActivityLog log, int port, bool initialAutoApprove = false)
+    // ---------- updates card ----------
+    private const int UpdatesCollapsedHeight = 112;
+    private const int UpdatesExpandedHeight = 288;
+    private readonly AgentUpdater _updater;
+    private readonly RoundPanel _updCard;
+    private readonly Label _updStatus;
+    private readonly Label _updMeta;
+    private readonly Label _updDetail;
+    private readonly Label _updLatest;
+    private readonly TextBox _updNotes;
+    private readonly RoundPanel _updNotesCard;
+    private readonly Button _updCheckBtn;
+    private readonly Button _updNowBtn;
+    private readonly ThinProgressBar _updProgress;
+    private readonly Label _updProgressText;
+    private readonly CheckBox _updAutoCheck;
+    private readonly ToolTip _tips = new();
+    private bool _updBusy;
+
+    public MainForm(ActivityLog log, int port, AgentUpdater updater, bool initialAutoApprove = false)
     {
         _log = log;
+        _updater = updater;
 
         var ver = Assembly.GetExecutingAssembly().GetName().Version ?? new Version(1, 0, 0);
         var verStr = $"v{ver.Major}.{ver.Minor}.{ver.Build}";
@@ -37,8 +59,8 @@ internal sealed class MainForm : Form
         AutoScaleMode = AutoScaleMode.None;
         Text = $"Home RMS Agent {verStr} — Endpoint Monitor";
         Icon = Theme.LoadAppIcon();
-        ClientSize = new Size(880, 620);
-        MinimumSize = new Size(760, 520);
+        ClientSize = new Size(880, 800);
+        MinimumSize = new Size(760, 700);
         StartPosition = FormStartPosition.CenterScreen;
         BackColor = Theme.Bg;
         ForeColor = Theme.Text;
@@ -123,7 +145,7 @@ internal sealed class MainForm : Form
             FlowDirection = FlowDirection.RightToLeft,
             BackColor = Theme.Bg,
         };
-        var exitBtn = Theme.Flat("Exit Agent", Theme.Danger, Color.White, (_, _) => RequestExit(), 130);
+        var exitBtn = Theme.Flat("Exit Agent", Theme.Danger, Theme.OnAccent, (_, _) => RequestExit(), 130);
         var hideBtn = Theme.Flat("Hide to Tray", Theme.Card, Theme.Text, (_, _) => Hide(), 130);
         var tfaBtn = Theme.Flat("🔐 2FA Setup", Theme.Card, Theme.Accent, (_, _) => TrayApplicationContext.Show2FaDialog(), 135);
         actions.Controls.Add(exitBtn);
@@ -166,13 +188,58 @@ internal sealed class MainForm : Form
         _sessionDetail = new Label { Font = Theme.UiFont, ForeColor = Theme.Muted, AutoSize = true, Location = new Point(0, 44) };
         sessionText.Controls.Add(_sessionTitle);
         sessionText.Controls.Add(_sessionDetail);
-        _stopButton = Theme.Flat("Stop Session", Theme.Danger, Color.White, (_, _) => RevokeRequested?.Invoke(), 148);
+        _stopButton = Theme.Flat("Stop Session", Theme.Danger, Theme.OnAccent, (_, _) => RevokeRequested?.Invoke(), 148);
         _stopButton.Dock = DockStyle.Right;
         _stopButton.Enabled = false;
         var stopWrap = new Panel { Dock = DockStyle.Right, Width = 152, Padding = new Padding(0, 24, 0, 24), BackColor = Theme.Card };
         stopWrap.Controls.Add(_stopButton);
         sessionCard.Controls.Add(sessionText);
         sessionCard.Controls.Add(stopWrap);
+
+        // Updates card (collapsed: status row; expanded when a release is available)
+        var updHost = new Panel { Dock = DockStyle.Top, Height = UpdatesCollapsedHeight + 16, Padding = new Padding(0, 16, 0, 0), BackColor = Theme.Bg };
+        _updCard = new RoundPanel { Dock = DockStyle.Fill, BackColor = Theme.Card, Radius = 16 };
+        var updCaption = new Label { Text = "AGENT UPDATES", Font = Theme.CaptionFont, ForeColor = Theme.Muted, AutoSize = true, Location = new Point(22, 14), BackColor = Theme.Card };
+        _updStatus = new Label { Font = Theme.ValueFont, ForeColor = Theme.Text, AutoSize = true, Location = new Point(22, 34), BackColor = Theme.Card };
+        _updMeta = new Label { Font = Theme.UiFont, ForeColor = Theme.Muted, AutoSize = true, Location = new Point(22, 62), BackColor = Theme.Card };
+        _updDetail = new Label { Font = Theme.UiFont, ForeColor = Theme.Muted, AutoSize = false, AutoEllipsis = true, Location = new Point(22, 84), Height = 20, BackColor = Theme.Card };
+        _updCheckBtn = Theme.Flat("Check for updates", Theme.Surface, Theme.Text, (_, _) => StartUpdateCheck(), 180);
+        _updAutoCheck = new CheckBox
+        {
+            Text = "Install updates automatically",
+            Checked = updater.AutoInstall,
+            ForeColor = Theme.Text,
+            BackColor = Theme.Card,
+            Font = Theme.UiFont,
+            AutoSize = true,
+            Cursor = Cursors.Hand,
+        };
+        _updAutoCheck.CheckedChanged += (_, _) => _updater.SetAutoInstall(_updAutoCheck.Checked);
+        _tips.SetToolTip(_updAutoCheck, "On: new releases are downloaded, verified and installed in the background.\nOff: you get a notification and install them yourself.");
+
+        _updLatest = new Label { Font = Theme.CaptionFont, ForeColor = Theme.AccentLight, AutoSize = true, Location = new Point(22, 118), BackColor = Theme.Card };
+        _updNotes = new TextBox
+        {
+            Multiline = true,
+            ReadOnly = true,
+            ScrollBars = ScrollBars.Vertical,
+            BackColor = Theme.Field,
+            ForeColor = Theme.Text,
+            BorderStyle = BorderStyle.None,
+            Font = Theme.UiFont,
+            Dock = DockStyle.Fill,
+        };
+        _updNotes.HandleCreated += (_, _) => Theme.UseDarkScrollbars(_updNotes);
+        _updNotesCard = new RoundPanel { BackColor = Theme.Field, Padding = new Padding(12, 10, 4, 10), Radius = 12, Location = new Point(22, 142), Height = 128 };
+        _updNotesCard.Controls.Add(_updNotes);
+        _updNowBtn = Theme.Flat("Update now", Theme.Accent, Theme.OnAccent, (_, _) => StartUpdate(), 190);
+        _updProgress = new ThinProgressBar { Width = 190, Visible = false };
+        _updProgressText = new Label { Font = Theme.UiFont, ForeColor = Theme.Muted, AutoSize = false, Width = 190, Height = 54, BackColor = Theme.Card };
+
+        _updCard.Controls.AddRange([updCaption, _updStatus, _updMeta, _updDetail, _updCheckBtn, _updAutoCheck,
+            _updLatest, _updNotesCard, _updNowBtn, _updProgress, _updProgressText]);
+        _updCard.Resize += (_, _) => LayoutUpdatesCard();
+        updHost.Controls.Add(_updCard);
 
         // Stat cards
         var stats = new FlowLayoutPanel { Dock = DockStyle.Top, Height = 104, BackColor = Theme.Bg, Padding = new Padding(0, 0, 0, 16), WrapContents = false };
@@ -183,6 +250,7 @@ internal sealed class MainForm : Form
 
         body.Controls.Add(logHost);
         body.Controls.Add(bottomBar);
+        body.Controls.Add(updHost);
         body.Controls.Add(sessionCard);
         body.Controls.Add(stats);
 
@@ -193,6 +261,146 @@ internal sealed class MainForm : Form
         _log.LineAdded += OnLogLine;
 
         SetSession(null);
+
+        _updater.StatusChanged += OnUpdaterStatus;
+        RenderUpdateStatus(_updater.GetStatus());
+        // Status events are dropped while the window has never been shown (no handle yet)
+        VisibleChanged += (_, _) => { if (Visible) RenderUpdateStatus(_updater.GetStatus()); };
+    }
+
+    // ------------------------------------------------------------------ updates
+    /// <summary>Starts a GitHub check off the UI thread; the card refreshes from StatusChanged.</summary>
+    public void StartUpdateCheck()
+    {
+        if (_updBusy) return;
+        _updBusy = true;
+        _updCheckBtn.Enabled = false;
+        _ = Task.Run(async () =>
+        {
+            try { await _updater.CheckAsync(); }
+            catch (Exception ex) { _log.Write($"[updater] check failed: {ex.Message}"); }
+            finally { OnUi(() => { _updBusy = false; RenderUpdateStatus(_updater.GetStatus()); }); }
+        });
+    }
+
+    /// <summary>Downloads and installs the available release (asks first; UAC when the swap needs admin).</summary>
+    public void StartUpdate()
+    {
+        var s = _updater.GetStatus();
+        if (_updBusy || s.LastResult is not { UpdateAvailable: true } r) return;
+        if (s.SelfUpdateBlockedReason is { } blocked)
+        {
+            MessageBox.Show(this, blocked, "Home RMS Agent — Update", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            return;
+        }
+
+        var needsAdmin = _updater.NeedsElevationForSwap(out var adminReason);
+        var prompt = $"Install Home RMS Agent {r.LatestTag} now?\n\nThe agent restarts after the update; an active remote session will be disconnected." +
+                     (needsAdmin ? $"\n\n{adminReason}\nWindows will ask for administrator approval for the install step." : "");
+        if (MessageBox.Show(this, prompt, "Home RMS Agent — Update", MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes)
+            return;
+
+        _updBusy = true;
+        RenderUpdateStatus(_updater.GetStatus());
+        _ = Task.Run(async () =>
+        {
+            // Percent is rendered from StatusChanged, so no IProgress sink is needed here.
+            try { await _updater.DownloadAndApplyAsync(null, allowElevationPrompt: needsAdmin); }
+            catch (Exception ex) { _log.Write($"[updater] update not installed: {ex.Message}"); }
+            finally { OnUi(() => { _updBusy = false; RenderUpdateStatus(_updater.GetStatus()); }); }
+        });
+    }
+
+    private void OnUpdaterStatus(AgentUpdateStatus status) => OnUi(() => RenderUpdateStatus(status));
+
+    private void OnUi(Action action)
+    {
+        if (IsDisposed || !IsHandleCreated) return; // the constructor renders the initial state itself
+        if (InvokeRequired) BeginInvoke(action);
+        else action();
+    }
+
+    private void RenderUpdateStatus(AgentUpdateStatus s)
+    {
+        if (IsDisposed) return;
+        var r = s.LastResult;
+        var latest = r?.LatestTag ?? "";
+        (_updStatus.Text, _updStatus.ForeColor) = s.State switch
+        {
+            AgentUpdateState.Checking => ("Checking for updates…", Theme.Text),
+            AgentUpdateState.UpToDate => ("You're up to date", Theme.Ok),
+            AgentUpdateState.Available => ($"Update available: {latest}", Theme.AccentLight),
+            AgentUpdateState.Downloading => ($"Downloading {latest}… {s.ProgressPercent}%", Theme.AccentLight),
+            AgentUpdateState.Applying => ($"Installing {latest} and restarting…", Theme.AccentLight),
+            AgentUpdateState.Error => (r is { UpdateAvailable: true } ? "Update failed" : "Update check failed", Theme.Danger),
+            _ => ("Not checked yet", Theme.Text),
+        };
+
+        var lastChecked = s.LastChecked is { } lc
+            ? (lc.Date == DateTimeOffset.Now.Date ? "today " + lc.ToString("HH:mm", CultureInfo.InvariantCulture)
+                                                : lc.ToString("d MMM yyyy HH:mm", CultureInfo.InvariantCulture))
+            : "never";
+        _updMeta.Text = $"Installed {ReleaseVersion.Display(s.Current)}   •   Last checked {lastChecked}   •   " +
+                        (s.AutoInstall ? "Checks every 15 min" : "Checks every 15 min (notify only)");
+
+        string detail;
+        var detailColor = Theme.Muted;
+        if (s.State == AgentUpdateState.Error) { detail = s.Message; detailColor = Theme.Danger; }
+        else if (r is { UpdateAvailable: true } && s.SelfUpdateBlockedReason is { } why) detail = why;
+        else if (r is { UpdateAvailable: true } && s.AutoInstall) detail = "It will be installed automatically shortly, or click Update now.";
+        else detail = "";
+        _updDetail.Text = detail;
+        _updDetail.ForeColor = detailColor;
+        _tips.SetToolTip(_updDetail, detail);
+
+        var working = s.State is AgentUpdateState.Downloading or AgentUpdateState.Applying;
+        var expanded = r is { UpdateAvailable: true } || working;
+        if (expanded && r is not null)
+        {
+            var parts = new List<string> { $"LATEST RELEASE  {latest}" };
+            if (r.PublishedAt is { } pub) parts.Add("PUBLISHED " + pub.ToLocalTime().ToString("d MMM yyyy", CultureInfo.InvariantCulture).ToUpperInvariant());
+            if (r.AssetSize > 0) parts.Add((r.AssetSize / 1048576.0).ToString("0.0", CultureInfo.InvariantCulture) + " MB");
+            _updLatest.Text = string.Join("   •   ", parts);
+            var notes = string.IsNullOrWhiteSpace(r.ReleaseNotes) ? "(This release has no release notes.)" : r.ReleaseNotes;
+            if (_updNotes.Text != notes) _updNotes.Text = notes;
+        }
+
+        _updProgress.Value = s.State == AgentUpdateState.Applying ? 100 : s.ProgressPercent;
+        _updProgress.Visible = working;
+        _updProgressText.Text = working ? s.Message
+            : s.SelfUpdateBlockedReason is not null ? "Install is unavailable for this build (see above)."
+            : "Downloads, verifies the SHA-256 checksum and restarts the agent.";
+        _updNowBtn.Enabled = !working && !_updBusy && s.CanSelfUpdate && r is { UpdateAvailable: true };
+        _updCheckBtn.Enabled = !working && !_updBusy && s.State != AgentUpdateState.Checking;
+        if (_updAutoCheck.Checked != s.AutoInstall) _updAutoCheck.Checked = s.AutoInstall;
+
+        foreach (var c in new Control[] { _updLatest, _updNotesCard, _updNowBtn, _updProgressText })
+            c.Visible = expanded;
+
+        var height = (expanded ? UpdatesExpandedHeight : UpdatesCollapsedHeight) + 16;
+        if (_updCard.Parent is { } host && host.Height != height) host.Height = height;
+        LayoutUpdatesCard();
+    }
+
+    private void LayoutUpdatesCard()
+    {
+        var w = _updCard.ClientSize.Width;
+        const int right = 22, colW = 190;
+        _updCheckBtn.Location = new Point(w - right - _updCheckBtn.Width, 18);
+        _updAutoCheck.Location = new Point(w - right - _updAutoCheck.PreferredSize.Width, 70);
+        _updDetail.Width = Math.Max(120, _updAutoCheck.Left - 16 - _updDetail.Left);
+        var colX = w - right - colW;
+        _updNowBtn.Location = new Point(colX, 142);
+        _updProgress.Location = new Point(colX, 194);
+        _updProgressText.Location = new Point(colX, 212);
+        _updNotesCard.Width = Math.Max(160, colX - 20 - _updNotesCard.Left);
+    }
+
+    /// <summary>Closes the window for real (used by the UI preview / screenshot mode).</summary>
+    public void ForceClose()
+    {
+        _exiting = true;
+        Close();
     }
 
     public void SetAutoApproveChecked(bool enabled)
@@ -254,7 +462,12 @@ internal sealed class MainForm : Form
 
     protected override void Dispose(bool disposing)
     {
-        if (disposing) _log.LineAdded -= OnLogLine;
+        if (disposing)
+        {
+            _log.LineAdded -= OnLogLine;
+            _updater.StatusChanged -= OnUpdaterStatus;
+            _tips.Dispose();
+        }
         base.Dispose(disposing);
     }
 

@@ -20,6 +20,8 @@ internal static class Theme
     public static readonly Color AccentLight = Color.FromArgb(183, 156, 255);
     public static readonly Color Danger = Color.FromArgb(244, 63, 94);
     public static readonly Color Ok = Color.FromArgb(52, 211, 153);
+    /// <summary>Text drawn on Accent / Danger fills.</summary>
+    public static readonly Color OnAccent = Color.White;
 
     // Use GraphicsUnit.Pixel so layout coordinates and font sizes stay 1:1 on any monitor DPI.
     public static readonly Font UiFont = new("Segoe UI", 13.5f, FontStyle.Regular, GraphicsUnit.Pixel);
@@ -225,6 +227,47 @@ internal sealed class PillButton : Button
         TextRenderer.DrawText(g, Text, Font, ClientRectangle,
             Enabled ? ForeColor : Color.FromArgb(140, ForeColor),
             TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.SingleLine);
+    }
+}
+
+/// <summary>Thin rounded progress bar in the accent gradient (the native ProgressBar ignores the theme).</summary>
+internal sealed class ThinProgressBar : Control
+{
+    private int _value;
+
+    public ThinProgressBar()
+    {
+        SetStyle(ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer | ControlStyles.ResizeRedraw, true);
+        Height = 8;
+        BackColor = Theme.Card;
+    }
+
+    [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)]
+    public int Value
+    {
+        get => _value;
+        set { var v = Math.Clamp(value, 0, 100); if (v != _value) { _value = v; Invalidate(); } }
+    }
+
+    protected override void OnPaint(PaintEventArgs e)
+    {
+        var g = e.Graphics;
+        g.SmoothingMode = SmoothingMode.AntiAlias;
+        using (var bg = new SolidBrush(Parent?.BackColor ?? Theme.Card)) g.FillRectangle(bg, ClientRectangle);
+        var track = new RectangleF(0.5f, 0.5f, Width - 1.5f, Height - 1.5f);
+        var radius = Math.Max(1f, track.Height / 2f);
+        using (var path = Theme.RoundRect(track, radius))
+        using (var trackBrush = new SolidBrush(Theme.Field))
+        using (var pen = new Pen(Theme.Line))
+        {
+            g.FillPath(trackBrush, path);
+            g.DrawPath(pen, path);
+        }
+        if (_value <= 0) return;
+        var fill = new RectangleF(track.X, track.Y, Math.Max(track.Height, track.Width * _value / 100f), track.Height);
+        using var fillPath = Theme.RoundRect(fill, radius);
+        using var brush = new LinearGradientBrush(ClientRectangle, Theme.Accent, Theme.Accent2, 0f);
+        g.FillPath(brush, fillPath);
     }
 }
 
