@@ -631,6 +631,9 @@ public sealed class RemoteManagementService(
     public override Task RunWinget(WingetRequest request, IServerStreamWriter<WingetProgress> responseStream, ServerCallContext context) =>
         WingetRunner.RunAsync(request, responseStream, context, OperatorOf(context), log.Write);
 
+    public override Task UpgradeAll(UpgradeAllRequest request, IServerStreamWriter<WingetProgress> responseStream, ServerCallContext context) =>
+        PackageUpgrader.RunAsync(request, responseStream, context, OperatorOf(context), log.Write);
+
     // ---------------- File manager ----------------
     public override Task<DriveList> ListDrives(Empty request, ServerCallContext context) =>
         Task.FromResult(files.ListDrives(OperatorOf(context)));
