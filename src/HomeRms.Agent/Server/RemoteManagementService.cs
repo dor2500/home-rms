@@ -16,7 +16,7 @@ namespace HomeRms.Agent.Server;
 /// <summary>Server-side implementation of the consent-gated remote management RPCs.</summary>
 [SupportedOSPlatform("windows")]
 public sealed class RemoteManagementService(
-    ConsentCoordinator consent, ActivityLog log, ControllerPairing pairing, FileManagerOps files)
+    ConsentCoordinator consent, ActivityLog log, ControllerPairing pairing, FileManagerOps files, AgentUpdater updater)
     : RemoteManagement.RemoteManagementBase
 {
     private volatile int _activeMonitorIndex;
@@ -679,7 +679,7 @@ public sealed class RemoteManagementService(
         var extra = string.IsNullOrWhiteSpace(request.Extra) ? "" : $" extra='{Trunc(request.Extra)}'";
         log.Write($"[system] '{op}' requested {request.Area}/{request.Action}{detail}{extra}");
 
-        var result = await SystemOps.RunAsync(request, context.CancellationToken);
+        var result = await SystemOps.RunAsync(request, context.CancellationToken, updater);
         log.Write($"[system] {request.Area}/{request.Action} -> {(result.Success ? "OK" : "FAILED: " + Trunc(result.Message.Split('\n')[0]))}");
         return result;
 

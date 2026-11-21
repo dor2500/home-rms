@@ -17,7 +17,8 @@ namespace HomeRms.Agent.Server;
 /// <summary>Builds the Kestrel + gRPC host that enforces mutual TLS against the deployment CA.</summary>
 public static class AgentHost
 {
-    public static WebApplication Build(ConsentCoordinator consent, ActivityLog log, int port, AgentSecurityOptions? security = null)
+    public static WebApplication Build(ConsentCoordinator consent, ActivityLog log, int port, AgentSecurityOptions? security = null,
+        AgentUpdater? updater = null)
     {
         var agentCert = DevCertificates.Load(RmsPaths.CertDir, DevCertificates.AgentFileName, RmsPaths.CertPassword);
         var caCert = DevCertificates.LoadCaPublicOnly(RmsPaths.CertDir, RmsPaths.CertPassword);
@@ -40,6 +41,8 @@ public static class AgentHost
         builder.Services.AddSingleton(new FileManagerOps(log.Write));
         builder.Services.AddSingleton(consent);
         builder.Services.AddSingleton(log);
+        // Remote agent/update-* ops; without an explicit instance (tests) checks work but applying is refused
+        builder.Services.AddSingleton(updater ?? new AgentUpdater(log, [], applyDisabledReason: "Self-update is disabled in this host."));
 
         builder.WebHost.ConfigureKestrel(k =>
         {

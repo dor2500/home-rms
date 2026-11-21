@@ -3,6 +3,7 @@ using System.Runtime.Versioning;
 using System.Security.Principal;
 using System.Text;
 using System.Text.RegularExpressions;
+using HomeRms.Agent.Core;
 using HomeRms.Shared.Protocol;
 
 namespace HomeRms.Agent.Features;
@@ -228,7 +229,15 @@ public static class SystemOps
             Remove-ItemProperty 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run' -Name 'HomeRmsAgent' -ErrorAction SilentlyContinue
             'Agent Auto-Start disabled.'
             """, false, Short),
+
+        // ---------------- Agent self-update (handled in-process by AgentUpdater) ----------------
+        ["agent/update-status"] = new(InProcess, true, Short),
+        ["agent/update-now"] = new(InProcess, false, Short),
     };
+
+    /// <summary>Marker script: the operation is answered by C# code in this process, not PowerShell.</summary>
+    private const string InProcess = "<in-process>";
+    private static readonly Regex VersionTag = new(@"^[vV]?\d{1,4}\.\d{1,4}(\.\d{1,6})?$", RegexOptions.Compiled);
 
     private const string InstallScript = """
         $s=New-Object -ComObject Microsoft.Update.Session
@@ -322,12 +331,17 @@ public static class SystemOps
                 return HostName.IsMatch(t) ? null : "Computer name: 1-15 letters, digits or hyphens.";
             case "system/timezone":
                 return ZoneId.IsMatch(t) ? null : "Invalid time-zone id (e.g. 'Israel Standard Time').";
+            case "agent/update-status":
+                return null; // read-only; target/extra are ignored
+            case "agent/update-now":
+                // Optional guard: Target = the version the operator expects to install (e.g. v2.3.0)
+                return t.Length == 0 || VersionTag.IsMatch(t) ? null : "Target must be empty or a version such as v2.3.0.";
             default:
                 return null;
         }
     }
 
-    public static async Task<SystemOpResult> RunAsync(SystemOpRequest request, CancellationToken ct)
+    public static async Task<SystemOpResult> RunAsync(SystemOpRequest request, CancellationToken ct, AgentUpdater? updater = null)
     {
         var elevated = IsElevated();
         var key = $"{request.Area}/{request.Action}";
@@ -338,6 +352,9 @@ public static class SystemOps
         var error = Validate(request, env);
         if (error is not null)
             return new SystemOpResult { Success = false, Message = error, IsElevated = elevated };
+
+        if (op.Script == InProcess)
+            return await RunInProcessAsync(key, env, updater, elevated, ct);
 
         var script = Prefix + "\n" + "try {\n" + op.Script + "\n} catch { [Console]::Error.WriteLine($_.Exception.Message); exit 1 }";
         var encoded = Convert.ToBase64String(Encoding.Unicode.GetBytes(script));
@@ -398,5 +415,33 @@ public static class SystemOps
             result.Message = string.IsNullOrWhiteSpace(stdout) ? "Done." : stdout;
         }
         return result;
+    }
+
+    private static async Task<SystemOpResult> RunInProcessAsync(
+        string key, IDictionary<string, string?> env, AgentUpdater? updater, bool elevated, CancellationToken ct)
+    {
+        if (updater is null)
+            return new SystemOpResult { Success = false, Message = "The agent updater is not available in this process.", IsElevated = elevated };
+
+        switch (key)
+        {
+            case "agent/update-status":
+                // Refresh when never checked or the cached answer is older than the background interval
+                if (updater.LastChecked is not { } last || DateTimeOffset.Now - last > TimeSpan.FromMinutes(15))
+                    await updater.CheckAsync(ct);
+                var s = updater.GetStatus();
+                return new SystemOpResult
+                {
+                    Success = true,
+                    JsonData = updater.StatusJson(),
+                    Message = s.LastResult?.Error ?? s.Message,
+                    IsElevated = elevated,
+                };
+            case "agent/update-now":
+                var (ok, message) = await updater.StartRemoteUpdateAsync(env["HRMS_TARGET"], ct);
+                return new SystemOpResult { Success = ok, Message = message, IsElevated = elevated };
+            default:
+                return new SystemOpResult { Success = false, Message = $"Unknown or disallowed operation '{key}'.", IsElevated = elevated };
+        }
     }
 }

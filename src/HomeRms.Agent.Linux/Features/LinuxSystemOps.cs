@@ -53,6 +53,13 @@ public static class LinuxSystemOps
     {
         var elevated = IsElevated();
         var key = $"{request.Area}/{request.Action}";
+        if (key is "agent/update-status" or "agent/update-now")
+            return new SystemOpResult
+            {
+                Success = false,
+                Message = "Agent self-update is not supported on Linux. Update the Linux agent manually (replace the binary and restart the service).",
+                IsElevated = elevated
+            };
         if (!Ops.TryGetValue(key, out var op))
             return new SystemOpResult { Success = false, Message = $"Operation '{key}' is not supported on Linux.", IsElevated = elevated };
 
