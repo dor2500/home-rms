@@ -5,20 +5,24 @@ using System.Runtime.Versioning;
 namespace HomeRms.Agent.Features;
 
 /// <summary>
-/// JPEG encoder built on the Windows Imaging Component (WIC).
+/// JPEG / PNG encoder built on the Windows Imaging Component (WIC).
 /// Unlike GDI+ (which always uses 4:2:0 chroma subsampling), WIC lets us encode with full
 /// 4:4:4 chroma, so coloured text and thin UI lines stay sharp in the remote-desktop stream.
+/// PNG is used for the lossless refine pass of still screen regions.
+/// One instance per thread (the WIC factory is free-threaded, but the instance is not meant to be shared).
 /// </summary>
 [SupportedOSPlatform("windows")]
-internal sealed class WicJpegEncoder
+public sealed class WicJpegEncoder
 {
     private static readonly Guid ClsidWicImagingFactory = new("cacaf262-9370-4615-a13b-9f5539da4c0a");
     private static readonly Guid ContainerFormatJpeg = new("19e4a5aa-5662-4fc5-a0c0-1758028e1057");
+    private static readonly Guid ContainerFormatPng = new("1b7cfaf4-713f-473c-bbcd-6137425faeaf");
     private static readonly Guid PixelFormat24bppBgr = new("6fddc324-4e03-4bfe-b185-3d77768dc90c");
 
     private const uint WICBitmapEncoderNoCache = 2;
     private const byte WICJpegYCrCbSubsampling444 = 3;
     private const byte WICJpegYCrCbSubsampling420 = 1;
+    private const byte WICPngFilterSub = 2;
 
     private readonly IWICImagingFactory _factory;
 
@@ -31,7 +35,23 @@ internal sealed class WicJpegEncoder
     /// <summary>Encodes a 24-bit BGR pixel buffer (GDI+ Format24bppRgb layout) as JPEG.</summary>
     /// <param name="quality">1–100.</param>
     /// <param name="fullChroma">true = 4:4:4 (sharp colour edges), false = 4:2:0 (smaller).</param>
-    public byte[] Encode(byte[] bgr, int width, int height, int stride, int quality, bool fullChroma)
+    public byte[] Encode(byte[] bgr, int width, int height, int stride, int quality, bool fullChroma) =>
+        EncodeCore(ContainerFormatJpeg, bgr, width, height, stride, options =>
+        {
+            WriteOption(options, "ImageQuality", (float)(Math.Clamp(quality, 1, 100) / 100.0));
+            WriteOption(options, "JpegYCrCbSubsampling", fullChroma ? WICJpegYCrCbSubsampling444 : WICJpegYCrCbSubsampling420);
+        });
+
+    /// <summary>Encodes a 24-bit BGR pixel buffer losslessly as a 24-bit PNG (no alpha channel).</summary>
+    public byte[] EncodePng(byte[] bgr, int width, int height, int stride) =>
+        EncodeCore(ContainerFormatPng, bgr, width, height, stride, options =>
+        {
+            // "Sub" is several times faster than the default adaptive filter and compresses
+            // flat screen content (text, UI) almost as well.
+            WriteOption(options, "FilterOption", WICPngFilterSub);
+        });
+
+    private byte[] EncodeCore(Guid container, byte[] bgr, int width, int height, int stride, Action<IPropertyBag2> setOptions)
     {
         CreateStreamOnHGlobal(IntPtr.Zero, true, out var stream);
         IWICBitmapEncoder? encoder = null;
@@ -39,13 +59,12 @@ internal sealed class WicJpegEncoder
         IPropertyBag2? options = null;
         try
         {
-            var fmt = ContainerFormatJpeg;
+            var fmt = container;
             _factory.CreateEncoder(ref fmt, IntPtr.Zero, out encoder);
             encoder.Initialize(stream, WICBitmapEncoderNoCache);
             encoder.CreateNewFrame(out frame, out options);
 
-            WriteOption(options, "ImageQuality", (float)(Math.Clamp(quality, 1, 100) / 100.0));
-            WriteOption(options, "JpegYCrCbSubsampling", fullChroma ? WICJpegYCrCbSubsampling444 : WICJpegYCrCbSubsampling420);
+            setOptions(options);
 
             frame.Initialize(options);
             frame.SetSize((uint)width, (uint)height);
@@ -53,7 +72,7 @@ internal sealed class WicJpegEncoder
             var pf = PixelFormat24bppBgr;
             frame.SetPixelFormat(ref pf);
             if (pf != PixelFormat24bppBgr)
-                throw new InvalidOperationException("WIC JPEG encoder rejected 24bpp BGR input.");
+                throw new InvalidOperationException("WIC encoder rejected 24bpp BGR input.");
 
             var handle = GCHandle.Alloc(bgr, GCHandleType.Pinned);
             try

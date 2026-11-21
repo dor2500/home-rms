@@ -30,7 +30,7 @@ public sealed class FfmpegScreenStream : IDisposable
     }
 
     /// <summary>Starts capture on X11, or returns null if this is not an X11 session or ffmpeg is missing.</summary>
-    public static FfmpegScreenStream? TryStart(int fps, int quality, int maxWidth, int screenW, int screenH)
+    public static FfmpegScreenStream? TryStart(int fps, int quality, int maxWidth, int screenW, int screenH, bool fullChroma = true)
     {
         var display = Environment.GetEnvironmentVariable("DISPLAY");
         var wayland = !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("WAYLAND_DISPLAY"));
@@ -38,7 +38,7 @@ public sealed class FfmpegScreenStream : IDisposable
             return null;
 
         // ffmpeg -q:v: 2 = best … 31 = worst
-        var q = Math.Clamp((int)Math.Round((100 - Math.Clamp(quality, 20, 95)) / 4.0) + 1, 2, 31);
+        var q = Math.Clamp((int)Math.Round((100 - Math.Clamp(quality, 20, 100)) / 4.0) + 1, 2, 31);
         var outW = screenW;
         var outH = screenH;
         var scale = "";
@@ -51,7 +51,7 @@ public sealed class FfmpegScreenStream : IDisposable
 
         var args = $"-loglevel error -nostdin -f x11grab -draw_mouse 1 -framerate {Math.Clamp(fps, 1, 60)} " +
                    $"-video_size {screenW}x{screenH} -i {display} {scale}" +
-                   $"-pix_fmt yuvj444p -c:v mjpeg -q:v {q} -f image2pipe -";
+                   $"-pix_fmt {(fullChroma ? "yuvj444p" : "yuvj420p")} -c:v mjpeg -q:v {q} -f image2pipe -";
         try
         {
             var proc = Process.Start(new ProcessStartInfo

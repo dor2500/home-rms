@@ -59,19 +59,23 @@ public sealed class RemoteManagementService(
         if (!consent.RequestGrant(op, "view your screen"))
             throw new RpcException(new Status(StatusCode.PermissionDenied, "Screen sharing was declined on the Linux device."));
 
+        // x11grab tops out at 60 fps here; faster requests (LAN presets ask for up to 120) are capped.
+        // lossless_refine / refine_delay_ms / supports_tiles are Windows-agent features: full MJPEG frames only.
         var fps = Math.Clamp(request.Fps <= 0 ? 15 : request.Fps, 1, 60);
         var intervalMs = 1000.0 / fps;
-        var quality = request.Quality <= 0 ? 65 : request.Quality;
+        var quality = Math.Clamp(request.Quality <= 0 ? 65 : request.Quality, 1, 100);
         var maxWidth = request.MaxWidth;
+        var fullChroma = request.Chroma != 1; // 0 = default (4:4:4), 1 = 4:2:0, 2 = 4:4:4
 
-        log.Write($"[screen] '{op}' started viewing the screen");
+        log.Write($"[screen] '{op}' started viewing the screen ({fps} fps, q{quality}, {(fullChroma ? "4:4:4" : "4:2:0")}" +
+                  $"{(request.LosslessRefine ? "; lossless refine not supported on Linux" : "")})");
         using var cap = new LinuxScreenCapturer();
         var sw = new Stopwatch();
         long seq = 0;
 
         // X11: one continuous ffmpeg capture (much faster than a screenshot tool per frame)
         var (sw0, sh0) = cap.PrimaryBounds;
-        using var live = FfmpegScreenStream.TryStart(fps, quality, maxWidth, sw0, sh0);
+        using var live = FfmpegScreenStream.TryStart(fps, quality, maxWidth, sw0, sh0, fullChroma);
         if (live is not null)
         {
             log.Write($"[screen] continuous X11 capture active ({live.Width}×{live.Height} @ {fps} fps)");

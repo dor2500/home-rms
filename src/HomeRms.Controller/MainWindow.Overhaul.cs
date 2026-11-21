@@ -192,18 +192,15 @@ public partial class MainWindow
         win.Show();
 
         var conn = _conn;
+        // Same preset as the main view, but full frames at native size (GDI capture: at most 30 fps)
+        var settings = CurrentStreamSettings();
+        var request = StreamPresets.ToRequest(settings with { Fps = Math.Min(settings.Fps, 30), MaxWidth = 0 },
+            Environment.UserName, monitorIndex: 1, supportsTiles: false);
         _ = Task.Run(async () =>
         {
             try
             {
-                using var call = conn.Client.StreamScreen(new ScreenRequest
-                {
-                    Fps = 24,
-                    Quality = 85,
-                    MaxWidth = 0,
-                    SupportsTiles = false,
-                    MonitorIndex = 1,
-                }, cancellationToken: cts.Token);
+                using var call = conn.Client.StreamScreen(request, cancellationToken: cts.Token);
 
                 while (await call.ResponseStream.MoveNext(cts.Token))
                 {

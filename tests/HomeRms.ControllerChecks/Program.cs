@@ -179,6 +179,10 @@ try
     AnnounceChecks.Run(Check);
     Console.WriteLine("[checks] Services view CollectionView refill");
     CollectionViewChecks.Run(Check);
+
+    // ---------------- 8. Remote desktop quality presets ----------------
+    Console.WriteLine("[checks] remote desktop quality presets");
+    StreamPresetChecks.Run(Check);
 }
 catch (Exception ex)
 {

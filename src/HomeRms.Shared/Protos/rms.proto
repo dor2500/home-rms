@@ -287,15 +287,20 @@ message ScreenRequest {
   int32 max_width = 4;       // optional max frame width for faster streaming (0 = native)
   bool supports_tiles = 5;   // controller can apply partial (dirty-tile) frames
   int32 monitor_index = 6;   // 0 = primary monitor, 1+ = secondary monitors
+  // LAN quality options (older agents ignore them; 0 / false keeps the original behaviour):
+  int32 chroma = 7;           // JPEG chroma: 0 = agent default (4:4:4 on Windows), 1 = 4:2:0, 2 = 4:4:4
+  bool lossless_refine = 8;   // tile streams: regions that stay still are re-sent losslessly as PNG tiles
+  int32 refine_delay_ms = 9;  // how long a region must be still before it is refined (0 = agent default)
 }
 
-// A changed rectangle of the remote screen, JPEG-encoded at its own size.
+// A changed rectangle of the remote screen, encoded at its own size.
 message ScreenTile {
   int32 x = 1;
   int32 y = 2;
   int32 width = 3;
   int32 height = 4;
-  bytes jpeg = 5;
+  bytes jpeg = 5;     // the encoded image: JPEG when format = 0, PNG when format = 1 (name kept for compatibility)
+  int32 format = 6;   // 0 = JPEG, 1 = PNG (lossless refine; only sent when the request set lossless_refine)
 }
 
 // Remote mouse pointer (sent with tile frames; the pointer is not drawn into the tiles).
