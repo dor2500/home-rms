@@ -68,7 +68,7 @@ public static partial class WingetUpgradeParser
     [GeneratedRegex(@"^-{10,}\s*$")]
     private static partial Regex SeparatorRegex();
 
-    [GeneratedRegex(@"exit code:?\s*(-?\d+|0x[0-9A-Fa-f]+)", RegexOptions.IgnoreCase)]
+    [GeneratedRegex(@"exit code:?\s*(0x[0-9A-Fa-f]+|-?\d+)", RegexOptions.IgnoreCase)]
     private static partial Regex InstallerExitRegex();
 
     /// <summary>Splits on CR and LF (winget redraws progress bars with CR) and drops empty / whitespace-only pieces.</summary>
@@ -89,7 +89,7 @@ public static partial class WingetUpgradeParser
     public static List<UpgradeCandidate> ParseUpgradeList(string output)
     {
         var result = new List<UpgradeCandidate>();
-        var lines = output.Split(['\r', '\n']);
+        var lines = output.Replace("\r\n", "\n").Split(['\r', '\n']); // a lone CR = spinner / progress redraw
         int[]? cols = null;  // Name, Id, Version, Available, Source (-1 when there is no Source column)
         var inRows = false;
         var explicitSection = false;

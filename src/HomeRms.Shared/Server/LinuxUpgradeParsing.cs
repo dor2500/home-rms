@@ -101,6 +101,8 @@ public static partial class LinuxUpgradeParser
     // ---- dnf / yum ----
     [GeneratedRegex(@"^\s*(?:\[\s*\d+/\d+\]\s*)?(?:Upgrading|Updating)\s*:?\s+(\S+)", RegexOptions.IgnoreCase)]
     private static partial Regex DnfUpgradingRegex();
+    [GeneratedRegex(@"^\(\d+/\d+\):\s+(\S+\.rpm)")]
+    private static partial Regex DnfDownloadRegex();
     [GeneratedRegex(@"^\s*Verifying\s*:\s+(\S+)")]
     private static partial Regex DnfVerifyRegex();
     [GeneratedRegex(@"^\s(\S+)\s+(x86_64|noarch|aarch64|i686|i386|armv7hl|ppc64le|s390x)\s+\S+\s+\S+\s+[\d.]+\s*[kMG]?\s*$")]
@@ -216,6 +218,7 @@ public static partial class LinuxUpgradeParser
                 if ((x = DnfTableRowRegex().Match(line)).Success) events.Add(new(LinuxLineKind.Queued, x.Groups[1].Value));
                 else if ((x = DnfUpgradingRegex().Match(line)).Success && LooksLikeNevra(x.Groups[1].Value)) events.Add(new(LinuxLineKind.Installing, NameFromNevra(x.Groups[1].Value)));
                 else if ((x = DnfVerifyRegex().Match(line)).Success) events.Add(new(LinuxLineKind.Installed, NameFromNevra(x.Groups[1].Value)));
+                else if ((x = DnfDownloadRegex().Match(trimmed)).Success) events.Add(new(LinuxLineKind.Downloading, NameFromNevra(x.Groups[1].Value)));
                 break;
             }
             case LinuxPackageManager.Zypper:
