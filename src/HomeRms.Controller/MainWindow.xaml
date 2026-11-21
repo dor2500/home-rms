@@ -543,11 +543,27 @@
                                                 <TextBlock Text="{Binding OsTag}" FontSize="10.5" Foreground="{StaticResource TextSecondaryBrush}" VerticalAlignment="Center"/>
                                             </StackPanel>
                                         </Border>
-                                        <TextBlock Text="{Binding Address}" FontFamily="{StaticResource MonoFont}" FontSize="{StaticResource FontSizeSmall}" Foreground="{StaticResource TextSecondaryBrush}" VerticalAlignment="Center"/>
+                                        <TextBlock Text="{Binding AddressLine}" ToolTip="{Binding AddressToolTip}" FontFamily="{StaticResource MonoFont}" FontSize="{StaticResource FontSizeSmall}"
+                                                   Foreground="{StaticResource TextSecondaryBrush}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" Margin="0,0,8,0"/>
                                     </DockPanel>
 
-                                    <!-- Uptime / last seen -->
-                                    <TextBlock Text="{Binding HealthLine}" Style="{StaticResource MetaText}" Margin="16,0,0,12" TextTrimming="CharacterEllipsis"/>
+                                    <!-- Uptime / last seen (+ "IP auto-updates" when the endpoint connects by IP but its computer name is known) -->
+                                    <DockPanel Margin="16,0,0,12">
+                                        <TextBlock DockPanel.Dock="Right" Text="IP auto-updates" ToolTip="{Binding AddressToolTip}" FontSize="10.5"
+                                                   Foreground="{StaticResource AccentBrush}" Margin="8,0,0,0" VerticalAlignment="Center">
+                                            <TextBlock.Style>
+                                                <Style TargetType="TextBlock">
+                                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding ShowIpAutoHint}" Value="True">
+                                                            <Setter Property="Visibility" Value="Visible"/>
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </TextBlock.Style>
+                                        </TextBlock>
+                                        <TextBlock Text="{Binding HealthLine}" Style="{StaticResource MetaText}" TextTrimming="CharacterEllipsis"/>
+                                    </DockPanel>
 
                                     <!-- CPU / RAM -->
                                     <Grid Margin="0,0,0,12">
@@ -1014,21 +1030,46 @@
                             <TextBlock Text="Display name" Style="{StaticResource FieldLabel}"/>
                             <TextBox x:Name="NameBox" Text="Living Room PC" Margin="0,0,0,16"/>
 
-                            <Grid Margin="0,0,0,16">
+                            <Grid Margin="0,0,0,6">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="2*"/>
                                     <ColumnDefinition Width="8"/>
                                     <ColumnDefinition Width="*"/>
                                 </Grid.ColumnDefinitions>
                                 <StackPanel Grid.Column="0">
-                                    <TextBlock Text="Host / LAN IP" Style="{StaticResource FieldLabel}"/>
-                                    <TextBox x:Name="HostBox" FontFamily="{StaticResource MonoFont}" Text="localhost"/>
+                                    <TextBlock Text="Computer name or IP address" Style="{StaticResource FieldLabel}"/>
+                                    <TextBox x:Name="HostBox" Style="{StaticResource HintBox}" Tag="e.g. LAPTOP-TEST or 192.168.1.20"
+                                             FontFamily="{StaticResource MonoFont}" Text="localhost" TextChanged="OnHostBoxTextChanged"
+                                             ToolTip="A computer name (LAPTOP-TEST, laptop-test.local, an FQDN) keeps working when the IP changes."/>
                                 </StackPanel>
                                 <StackPanel Grid.Column="2">
                                     <TextBlock Text="Port" Style="{StaticResource FieldLabel}"/>
                                     <TextBox x:Name="PortBox" FontFamily="{StaticResource MonoFont}" Text="7443"/>
                                 </StackPanel>
                             </Grid>
+                            <TextBlock x:Name="HostErrorText" Foreground="{StaticResource DangerBrush}" FontSize="{StaticResource FontSizeCaption}"
+                                       TextWrapping="Wrap" Margin="0,0,0,6" Visibility="Collapsed"/>
+
+                            <!-- Shown when editing an endpoint whose computer name is known -->
+                            <Border x:Name="ConnectUsingPanel" Style="{StaticResource WellStyle}" Padding="12,10" Margin="0,4,0,16" Visibility="Collapsed">
+                                <StackPanel>
+                                    <TextBlock Text="Connect using" Style="{StaticResource FieldLabel}" Margin="0,0,0,8"/>
+                                    <RadioButton x:Name="ConnectByNameRadio" GroupName="ConnectUsing" Margin="0,0,0,6" Checked="OnConnectUsingChecked">
+                                        <TextBlock>
+                                            <Run Text="Computer name"/>
+                                            <Run x:Name="ConnectByNameDetail" Foreground="{StaticResource TextMutedBrush}" FontFamily="{StaticResource MonoFont}"/>
+                                        </TextBlock>
+                                    </RadioButton>
+                                    <RadioButton x:Name="ConnectByIpRadio" GroupName="ConnectUsing" Checked="OnConnectUsingChecked">
+                                        <TextBlock>
+                                            <Run Text="IP address"/>
+                                            <Run x:Name="ConnectByIpDetail" Foreground="{StaticResource TextMutedBrush}" FontFamily="{StaticResource MonoFont}"/>
+                                        </TextBlock>
+                                    </RadioButton>
+                                    <TextBlock x:Name="ConnectUsingHint" Style="{StaticResource MetaText}" TextWrapping="Wrap" Margin="24,6,0,0"/>
+                                </StackPanel>
+                            </Border>
+                            <Border x:Name="ConnectUsingSpacer" Height="10"/>
 
                             <TextBlock Text="MAC address (Wake-on-LAN)" Style="{StaticResource FieldLabel}"/>
                             <TextBox x:Name="MacBox" FontFamily="{StaticResource MonoFont}" Text="" Margin="0,0,0,16"/>

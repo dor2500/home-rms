@@ -69,6 +69,8 @@ public partial class MainWindow : Window
         try { DevCertificates.EnsureDeploymentCertificates(RmsPaths.CertDir, RmsPaths.CertPassword); }
         catch { /* surfaced on connect if missing */ }
 
+        // Screenshot runs decorate the list with sample data: never write it back to machines.json.
+        if (IsScreenshotRun) MachineStore.ReadOnly = true;
         foreach (var m in MachineStore.Load())
             _machines.Add(m);
 
@@ -95,6 +97,7 @@ public partial class MainWindow : Window
 
         InitializeOverhaulServices();
         InitializeFeatureViews();
+        InitializeEndpointLocator(); // MainWindow.Locator.cs: follow endpoints whose IP changes
         InitializeShell(); // MainWindow.Shell.cs: live console, sidebar state, nav badges, transitions
         UpdateDynamicTabVisibility(SelectedMachine);
 
@@ -724,6 +727,7 @@ public partial class MainWindow : Window
         HostBox.Text = "";
         PortBox.Text = "7443";
         MacBox.Text = "";
+        SetupConnectUsing(null); // MainWindow.Locator.cs
         EndpointDrawerOverlay.Visibility = Visibility.Visible;
         NameBox.Focus();
     }
@@ -740,7 +744,7 @@ public partial class MainWindow : Window
         HostBox.Text = m.Host;
         PortBox.Text = m.Port.ToString();
         MacBox.Text = m.MacAddress;
-        MacBox.Text = m.MacAddress;
+        SetupConnectUsing(m); // MainWindow.Locator.cs
         EndpointDrawerOverlay.Visibility = Visibility.Visible;
     }
 
@@ -790,14 +794,23 @@ public partial class MainWindow : Window
     private void OnSaveMachineClick(object sender, RoutedEventArgs e)
     {
         var draft = BuildProfileFromDrawer();
-        if (string.IsNullOrWhiteSpace(draft.Host)) return;
+        if (!ValidateDrawerAddress(draft)) return; // MainWindow.Locator.cs
         if (string.IsNullOrWhiteSpace(draft.Name)) draft.Name = draft.Host;
 
-        var existing = _machines.FirstOrDefault(m =>
-            string.Equals(m.Host, draft.Host, StringComparison.OrdinalIgnoreCase) && m.Port == draft.Port);
+        // Editing keeps the same profile even when its address changes (e.g. switched to the computer name).
+        var existing = _editingProfile is not null && _machines.Contains(_editingProfile)
+            ? _editingProfile
+            : _machines.FirstOrDefault(m => string.Equals(m.Host, draft.Host, StringComparison.OrdinalIgnoreCase) && m.Port == draft.Port);
 
         if (existing is not null)
         {
+            if (!string.Equals(existing.Host, draft.Host, StringComparison.OrdinalIgnoreCase) || existing.Port != draft.Port)
+            {
+                _pool.Evict(existing.DialHost, existing.Port);
+                _centralHub.EvictConnection(existing.DialHost, existing.Port);
+                existing.Host = draft.Host;
+                existing.Port = draft.Port;
+            }
             existing.Name = draft.Name;
             existing.MacAddress = draft.MacAddress;
             existing.Kind = draft.Kind;
@@ -844,13 +857,33 @@ public partial class MainWindow : Window
 
     private async Task ProbeAllMachinesAsync()
     {
+        if (_scanRunning) return;
+        _scanRunning = true;
         if (ProbeBtn is not null) ProbeBtn.IsEnabled = false;
         try
         {
-            await DiscoverLanAgentsAsync();
+            // Find agents on the LAN first so endpoints whose IP changed are probed at the new address.
+            await RunHealAsync(addNew: true);
 
-            var tasks = _machines.ToList().Select(async m =>
-            {
+            var tasks = _machines.ToList().Select(ProbeOneAsync);
+            await Task.WhenAll(tasks);
+            MachineStore.Save(_machines); // computer names, addresses and "last seen" learned by the probes
+
+            var onlineCount = _machines.Count(x => x.IsOnline || x.IsConnected);
+            AddActivity("LAN SCAN", $"Probed {_machines.Count} endpoint(s): {onlineCount} online, {_machines.Count - onlineCount} offline.");
+            RecordTrendSample();
+            UpdateOverviewMetrics();
+        }
+        finally
+        {
+            _scanRunning = false;
+            if (ProbeBtn is not null) ProbeBtn.IsEnabled = true;
+        }
+    }
+
+    /// <summary>Probes one endpoint and updates its card state (agents: a GetAgentInfo round trip).</summary>
+    private async Task ProbeOneAsync(MachineProfile m)
+    {
                 if (m == _connectedProfile && _conn is not null)
                 {
                     m.IsOnline = true;
@@ -891,7 +924,7 @@ public partial class MainWindow : Window
                 try
                 {
                     var sw = Stopwatch.StartNew();
-                    using var temp = new RmsConnection(m.Host, m.Port);
+                    using var temp = new RmsConnection(m.DialHost, m.Port);
                     var info = await temp.Client.GetAgentInfoAsync(
                         new Empty(), deadline: DateTime.UtcNow.AddSeconds(2.5));
                     sw.Stop();
@@ -901,91 +934,21 @@ public partial class MainWindow : Window
                     m.LatencyMs = (int)Math.Max(1, sw.ElapsedMilliseconds);
                     m.OsName = info.OsVersion;
                     m.UserAndOs = $"{info.LoggedInUser} • {info.PrimaryScreenWidth}×{info.PrimaryScreenHeight}";
-                    m.LastSeenUtc = DateTime.UtcNow;
+                    RecordAgentContact(m, temp, info); // computer name, IP reached, certificate, last seen (MainWindow.Locator.cs)
                     // Real CPU / RAM / disk values come from the live telemetry stream (TelemetryHub);
                     // the probe only tracks reachability for the offline alert.
                     _alerts.EvaluateSample(m.DisplayTitle, m.Host, true, m.CpuPercent, m.RamPercent);
                 }
-                catch
+                catch (Exception ex)
                 {
+                    // Offline is the expected outcome for a powered-off endpoint; the reason goes to the card tooltip only.
+                    Debug.WriteLine($"Probe of {m.DisplayTitle} ({m.DialHost}:{m.Port}) failed: {Short(ex)}");
                     m.IsOnline = false;
                     m.IsConnected = false;
                     m.StatusLabel = "Offline";
                     m.LatencyMs = 0;
                     _alerts.EvaluateSample(m.DisplayTitle, m.Host, false, 0, 0);
                 }
-            });
-            await Task.WhenAll(tasks);
-
-            var onlineCount = _machines.Count(x => x.IsOnline || x.IsConnected);
-            AddActivity("LAN SCAN", $"Probed {_machines.Count} endpoint(s): {onlineCount} online, {_machines.Count - onlineCount} offline.");
-            RecordTrendSample();
-            UpdateOverviewMetrics();
-        }
-        finally
-        {
-            if (ProbeBtn is not null) ProbeBtn.IsEnabled = true;
-        }
-    }
-
-    private async Task DiscoverLanAgentsAsync()
-    {
-        try
-        {
-            using var udp = new UdpClient { EnableBroadcast = true };
-            var probe = Encoding.UTF8.GetBytes("HOMERMS_DISCOVER_V1");
-            await udp.SendAsync(probe, probe.Length, new IPEndPoint(IPAddress.Broadcast, 7443));
-
-            var changed = false;
-            using var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(450));
-            while (!cts.IsCancellationRequested)
-            {
-                var packet = await udp.ReceiveAsync(cts.Token);
-                var text = Encoding.UTF8.GetString(packet.Buffer).Trim();
-                var parts = text.Split('|');
-                if (parts.Length < 3 || parts[0] != "HOMERMS_AGENT_V1") continue;
-
-                var machineName = parts[1];
-                if (!int.TryParse(parts[2], out var port)) port = 7443;
-                var ip = packet.RemoteEndPoint.Address.ToString();
-
-                // Skip our own machine if localhost is already listed
-                if (string.Equals(machineName, Environment.MachineName, StringComparison.OrdinalIgnoreCase) &&
-                    _machines.Any(m => m.Host is "localhost" or "127.0.0.1"))
-                {
-                    continue;
-                }
-
-                var existing = _machines.FirstOrDefault(m =>
-                    (string.Equals(m.Host, ip, StringComparison.OrdinalIgnoreCase) ||
-                     string.Equals(m.Name, machineName, StringComparison.OrdinalIgnoreCase)) &&
-                    m.Port == port);
-
-                if (existing is null)
-                {
-                    _machines.Add(new MachineProfile
-                    {
-                        Name = machineName,
-                        Host = ip,
-                        Port = port,
-                        StatusLabel = "Discovered"
-                    });
-                    changed = true;
-                }
-                else if (existing.Host != ip && !string.Equals(existing.Host, "localhost", StringComparison.OrdinalIgnoreCase))
-                {
-                    existing.Host = ip;
-                    changed = true;
-                }
-            }
-
-            if (changed)
-                MachineStore.Save(_machines);
-        }
-        catch
-        {
-            // Expected timeout when UDP listen window closes
-        }
     }
 
     // ---------------- Connection & Card Quick Actions ----------------
@@ -1078,7 +1041,7 @@ public partial class MainWindow : Window
         HostBox.Text = m.Host;
         PortBox.Text = m.Port.ToString();
         MacBox.Text = m.MacAddress;
-        return await ConnectToCurrentFieldsAsync();
+        return await ConnectToCurrentFieldsAsync(m);
     }
 
     private TaskCompletionSource<string?>? _agent2FaTcs;
@@ -1096,11 +1059,16 @@ public partial class MainWindow : Window
         _agent2FaTcs?.TrySetResult(null);
     }
 
-    private async Task<bool> ConnectToCurrentFieldsAsync()
+    /// <summary>
+    /// Connects to <paramref name="target"/> (or, without a profile, to the Host / Port fields). When the
+    /// endpoint does not answer (transport error), it is looked up again once — name resolution, its other
+    /// known addresses, LAN discovery by computer name — and the connection is retried at the new address.
+    /// </summary>
+    private async Task<bool> ConnectToCurrentFieldsAsync(MachineProfile? target = null)
     {
-        var host = HostBox.Text.Trim();
+        var host = target?.DialHost ?? HostBox.Text.Trim();
         if (string.IsNullOrWhiteSpace(host)) host = "localhost";
-        if (!int.TryParse(PortBox.Text, out var port)) port = 7443;
+        var port = target?.Port ?? (int.TryParse(PortBox.Text, out var p) ? p : 7443);
 
         try
         {
@@ -1111,8 +1079,27 @@ public partial class MainWindow : Window
             var conn = new RmsConnection(host, port);
             try
             {
-                _agentInfo = await conn.Client.GetAgentInfoAsync(new Empty(),
-                    deadline: DateTime.UtcNow.AddSeconds(8));
+                try
+                {
+                    _agentInfo = await conn.Client.GetAgentInfoAsync(new Empty(),
+                        deadline: DateTime.UtcNow.AddSeconds(8));
+                }
+                catch (Exception ex) when (target is not null && EndpointLocator.IsTransportError(ex))
+                {
+                    conn.Dispose();
+                    StatusText.Text = $"{target.DisplayTitle} is not answering at {host}:{port} — looking for it on the network…";
+                    if (!await RelocateProfileAsync(target, CancellationToken.None)) throw;
+
+                    host = target.DialHost;
+                    port = target.Port;
+                    StatusText.Text = target.ConnectsByIp
+                        ? $"{target.DisplayTitle} changed IP to {host} — reconnecting…"
+                        : $"{target.DisplayTitle} found at {host} — reconnecting…";
+                    sw.Restart();
+                    conn = new RmsConnection(host, port);
+                    _agentInfo = await conn.Client.GetAgentInfoAsync(new Empty(),
+                        deadline: DateTime.UtcNow.AddSeconds(8));
+                }
             }
             catch (RpcException rpcEx) when (rpcEx.StatusCode == StatusCode.Unauthenticated)
             {
@@ -1143,10 +1130,11 @@ public partial class MainWindow : Window
 
             var rtt = (int)Math.Max(1, sw.ElapsedMilliseconds);
 
-            var profile = _machines.FirstOrDefault(m =>
-                string.Equals(m.Host, host, StringComparison.OrdinalIgnoreCase) && m.Port == port);
+            var profile = target ?? _machines.FirstOrDefault(m =>
+                string.Equals(m.DialHost, host, StringComparison.OrdinalIgnoreCase) && m.Port == port);
             if (profile is not null)
             {
+                if (RecordAgentContact(profile, conn, _agentInfo)) MachineStore.Save(_machines);
                 _connectedProfile = profile;
                 profile.IsOnline = true;
                 profile.IsConnected = true;
