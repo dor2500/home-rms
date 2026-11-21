@@ -9,6 +9,7 @@ using HomeRms.Shared;
 using HomeRms.Shared.Protocol;
 using HomeRms.Shared.Security;
 using HomeRms.Shared.Server;
+using HomeRms.Shared.Updates;
 
 // Automated local-loopback test: start the agent's gRPC host in-process, connect
 // with a mutual-TLS client, and verify:
@@ -23,6 +24,8 @@ using HomeRms.Shared.Server;
 // 10. RunWinget input validation (nothing is installed)
 // 11. File manager round-trip + path rejection
 // 12. Live telemetry
+// 13. Agent self-update: tag parsing / version comparison (offline), agent/update-status via
+//     SystemOp, and a real GitHub check (current build + a simulated older build). Never installs.
 //
 // The pinned-controller store is redirected to a temp directory, so the test neither
 // depends on nor modifies the machine's real pin store.
@@ -31,6 +34,9 @@ const int port = 7444;
 var failures = new List<string>();
 
 DevCertificates.EnsureDeploymentCertificates(RmsPaths.CertDir, RmsPaths.CertPassword);
+
+// U) offline unit checks for the updater's version logic
+RunUpdaterUnitChecks(failures);
 
 var log = new ActivityLog();
 log.LineAdded += line => Console.WriteLine("  agent| " + line);
@@ -282,6 +288,37 @@ try
     if (inject.Success || badReg.Success || unknown.Success)
         failures.Add("SystemOp accepted invalid/malicious input");
 
+    // 9b) agent/update-status answers in-process with JSON (agent/update-now is deliberately NOT called)
+    var updStatus = await client.SystemOpAsync(new SystemOpRequest { Area = "agent", Action = "update-status" }, deadline: Deadline(60));
+    var expectedCurrent = ReleaseVersion.Display(typeof(AgentHost).Assembly.GetName().Version!);
+    string? reportedCurrent = null, reportedState = null, reportedLatest = null;
+    try
+    {
+        using var doc = System.Text.Json.JsonDocument.Parse(updStatus.JsonData);
+        var root = doc.RootElement;
+        reportedCurrent = root.GetProperty("current").GetString();
+        reportedLatest = root.GetProperty("latest").GetString();
+        reportedState = root.GetProperty("state").GetString();
+        foreach (var k in new[] { "available", "lastChecked", "autoUpdate" })
+            if (!root.TryGetProperty(k, out _)) failures.Add($"agent/update-status JSON lacks '{k}'");
+    }
+    catch (Exception ex) when (ex is System.Text.Json.JsonException or KeyNotFoundException or InvalidOperationException)
+    {
+        failures.Add($"agent/update-status did not return valid JSON: {ex.Message} ('{updStatus.JsonData}')");
+    }
+    var statusRows = SystemCatalog.ParseTable(updStatus.JsonData).Rows.Count;
+    Console.WriteLine($"[test] SystemOp agent/update-status -> success={updStatus.Success}, current={reportedCurrent}, latest={reportedLatest}, " +
+                      $"state={reportedState}, rows={statusRows}, message='{updStatus.Message}'");
+    if (!updStatus.Success) failures.Add("agent/update-status failed: " + updStatus.Message);
+    if (reportedCurrent != expectedCurrent) failures.Add($"agent/update-status current='{reportedCurrent}', expected '{expectedCurrent}'");
+    if (statusRows != 1) failures.Add("agent/update-status JSON does not render as one row in the Controller table");
+    var badUpdateNow = await client.SystemOpAsync(new SystemOpRequest { Area = "agent", Action = "update-now", Target = "v1; calc.exe" }, deadline: Deadline(10));
+    if (badUpdateNow.Success) failures.Add("agent/update-now accepted an invalid version target");
+    var catalogHasAgentOps = SystemCatalog.Win11Pages.Any(p => p.Id == "agent" &&
+        p.Items.Any(i => i.Action == "update-status") && p.Items.Any(i => i.Action == "update-now" && i.Dangerous));
+    if (!catalogHasAgentOps) failures.Add("SystemCatalog has no 'Agent' page listing update-status / update-now (dangerous)");
+    Console.WriteLine($"[test] agent/update-now validation -> bad target rejected={!badUpdateNow.Success} ('{badUpdateNow.Message}'), catalog page={catalogHasAgentOps}");
+
     // 10) RunWinget: malicious / malformed package IDs reject the WHOLE request before anything runs
     async Task<StatusCode?> WingetStatus(WingetRequest req) => await StatusOf(async () =>
     {
@@ -493,6 +530,43 @@ try
     Console.WriteLine($"[test] Telemetry OK -> {samples.Count} samples, gap={gapMs} ms, cpu={last?.CpuPercent:F1}%, " +
                       $"mem={last?.MemUsedBytes / (1024 * 1024)}/{last?.MemTotalBytes / (1024 * 1024)} MB, disks={last?.Disks.Count}, " +
                       $"rx={last?.NetRxBytesPerSec:F0} B/s, tx={last?.NetTxBytesPerSec:F0} B/s, uptime={last?.UptimeSeconds}s, procs={last?.ProcessCount}");
+
+    // 13) real GitHub checks (apply is disabled on these instances; nothing is downloaded or replaced)
+    using (var realUpdater = new AgentUpdater(log, [], applyDisabledReason: "test"))
+    using (var olderUpdater = new AgentUpdater(log, [], currentVersionOverride: new Version(2, 1, 0), applyDisabledReason: "test"))
+    {
+        var now = await realUpdater.CheckAsync();
+        var older = await olderUpdater.CheckAsync();
+        Console.WriteLine($"[test] CheckAsync (this build {ReleaseVersion.Display(now.Current)}) -> latest={now.LatestTag}, available={now.UpdateAvailable}, " +
+                          $"state={realUpdater.GetStatus().State}, published={now.PublishedAt:yyyy-MM-dd}, error={now.Error ?? "none"}");
+        Console.WriteLine($"[test] CheckAsync (simulated v2.1.0) -> latest={older.LatestTag}, available={older.UpdateAvailable}, " +
+                          $"asset={older.AssetSize:N0} B, notes={older.ReleaseNotes.Length} chars, state={olderUpdater.GetStatus().State}");
+        if (now.NetworkError || older.NetworkError)
+        {
+            Console.WriteLine("[test] WARN GitHub unreachable - real update checks skipped: " + (now.Error ?? older.Error));
+        }
+        else
+        {
+            if (now.Error is not null || older.Error is not null) failures.Add($"CheckAsync failed: {now.Error ?? older.Error}");
+            if (now.Latest is null || ReleaseVersion.IsNewer(now.Latest, now.Current) != now.UpdateAvailable)
+                failures.Add("CheckAsync availability does not match the version comparison");
+            if (!now.UpdateAvailable && realUpdater.GetStatus().State != AgentUpdateState.UpToDate)
+                failures.Add("an up-to-date check did not end in the UpToDate state");
+            if (!older.UpdateAvailable || olderUpdater.GetStatus().State != AgentUpdateState.Available || string.IsNullOrEmpty(older.AssetUrl))
+                failures.Add("a simulated v2.1.0 build did not report the latest release as available");
+            if (realUpdater.LastChecked is null) failures.Add("CheckAsync did not record LastChecked");
+
+            try
+            {
+                await olderUpdater.DownloadAndApplyAsync(null);
+                failures.Add("DownloadAndApplyAsync ran on an updater with applying disabled");
+            }
+            catch (InvalidOperationException ex) when (ex.Message == "test")
+            {
+                Console.WriteLine("[test] DownloadAndApplyAsync refused on a disabled updater (nothing downloaded or installed)");
+            }
+        }
+    }
 }
 catch (Exception ex)
 {
@@ -515,6 +589,58 @@ foreach (var f in failures) Console.WriteLine("  - " + f);
 return 1;
 
 static DateTime Deadline(int seconds) => DateTime.UtcNow.AddSeconds(seconds);
+
+static void RunUpdaterUnitChecks(List<string> failures)
+{
+    var before = failures.Count;
+    void Check(bool ok, string what) { if (!ok) failures.Add("updater unit check: " + what); }
+
+    Check(ReleaseVersion.TryParseTag("v2.2.0", out var v220) && v220 == new Version(2, 2, 0), "'v2.2.0' parses to 2.2.0");
+    Check(ReleaseVersion.TryParseTag("2.2", out var v22) && v22 == new Version(2, 2, 0), "'2.2' parses to 2.2.0");
+    Check(ReleaseVersion.TryParseTag("V10.0.1", out var v1001) && v1001 == new Version(10, 0, 1), "'V10.0.1' parses");
+    Check(!ReleaseVersion.IsNewer(v220, new Version(2, 2, 0, 0)), "v2.2.0 is not newer than assembly 2.2.0.0");
+    Check(!ReleaseVersion.IsNewer(v220, new Version(2, 2, 0, 7)), "the revision part is ignored");
+    Check(ReleaseVersion.IsNewer(v220, new Version(2, 1, 9, 0)), "v2.2.0 is newer than 2.1.9.0");
+    Check(ReleaseVersion.IsNewer(v1001, new Version(9, 99, 99)), "numeric (not string) comparison");
+    Check(!ReleaseVersion.IsNewer(new Version(2, 1, 0), new Version(2, 2, 0)), "older is not newer");
+    foreach (var bad in new[] { "v2.3.0-beta.1", "v2.3.0-rc1", "2.3.0+build5", "latest", "", "v", "v2", "v2.3.0.1.5" })
+        Check(!ReleaseVersion.TryParseTag(bad, out _), $"'{bad}' is rejected (pre-release / not a version)");
+    Check(ReleaseVersion.Display(new Version(2, 2, 0, 0)) == "v2.2.0", "Display drops the revision");
+
+    const string release = """
+        {"tag_name":"v2.3.0","prerelease":false,"draft":false,"published_at":"2026-11-20T10:00:00Z",
+         "body":"## What's new\r\n- **Faster** screen streaming\r\n- See [docs](https://example.invalid/x)\r\n\r\n`code` and <b>html</b>",
+         "assets":[{"name":"HomeRmsAgent.exe","size":123456,"browser_download_url":"https://example.invalid/HomeRmsAgent.exe"},
+                   {"name":"checksums.sha256","size":10,"browser_download_url":"https://example.invalid/checksums.sha256"}]}
+        """;
+    var info = ReleaseInfo.Parse(release, AgentUpdater.AssetName);
+    Check(info.Version == new Version(2, 3, 0) && info.AssetSize == 123456 && info.ChecksumUrl is not null, "release JSON parsed");
+    var avail = AgentUpdater.Evaluate(info, new Version(2, 2, 0, 0));
+    Check(avail.UpdateAvailable && avail.Error is null && avail.AssetUrl is not null, "2.2.0.0 sees v2.3.0 as available");
+    Check(!AgentUpdater.Evaluate(info, new Version(2, 3, 0, 0)).UpdateAvailable, "2.3.0.0 is up to date with v2.3.0");
+    Check(avail.ReleaseNotes.StartsWith("What's new", StringComparison.Ordinal) && avail.ReleaseNotes.Contains("• Faster screen streaming")
+          && avail.ReleaseNotes.Contains("See docs") && !avail.ReleaseNotes.Contains("**") && !avail.ReleaseNotes.Contains("<b>"),
+          $"markdown stripped lightly (got: {avail.ReleaseNotes.Replace(Environment.NewLine, " | ")})");
+
+    var pre = ReleaseInfo.Parse(release.Replace("\"prerelease\":false", "\"prerelease\":true"), AgentUpdater.AssetName);
+    Check(!AgentUpdater.Evaluate(pre, new Version(2, 2, 0)).UpdateAvailable, "a release flagged prerelease is ignored");
+    var preTag = ReleaseInfo.Parse(release.Replace("v2.3.0", "v2.3.0-beta.2"), AgentUpdater.AssetName);
+    Check(!AgentUpdater.Evaluate(preTag, new Version(2, 2, 0)).UpdateAvailable, "a pre-release tag is ignored");
+    var noAsset = ReleaseInfo.Parse(release.Replace("\"HomeRmsAgent.exe\"", "\"Other.exe\""), AgentUpdater.AssetName);
+    var noAssetEval = AgentUpdater.Evaluate(noAsset, new Version(2, 2, 0));
+    Check(!noAssetEval.UpdateAvailable && noAssetEval.Error is not null, "a release without HomeRmsAgent.exe is reported, not offered");
+
+    // dual-instance coordination: while one holder has the machine-wide update lock, a second cannot take it
+    using (var first = AgentUpdater.TryAcquireMachineLock())
+    {
+        Check(first is not null, "machine-wide update lock can be acquired");
+        Check(AgentUpdater.TryAcquireMachineLock() is null, "a second acquirer is refused while the lock is held");
+    }
+    using (var again = AgentUpdater.TryAcquireMachineLock())
+        Check(again is not null, "the lock is free again after release");
+
+    Console.WriteLine($"[test] Updater unit checks -> {(failures.Count == before ? "all passed" : $"{failures.Count - before} failed")}");
+}
 
 static string? GetShortPath(string path)
 {
