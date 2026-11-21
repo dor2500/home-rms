@@ -222,7 +222,7 @@ public partial class FileManagerView : UserControl
         }
         catch (RpcException ex) when (ex.StatusCode == StatusCode.PermissionDenied)
         {
-            _ctx!.Pool.MarkUnpaired(remote.Endpoint.Host, remote.Endpoint.Port);
+            _ctx!.Pool.MarkUnpaired(remote.Endpoint);
             throw;
         }
     }
@@ -299,7 +299,7 @@ public partial class FileManagerView : UserControl
         }
         catch (RpcException ex) when (ex.StatusCode == StatusCode.PermissionDenied)
         {
-            _ctx.Pool.MarkUnpaired(remote.Endpoint.Host, remote.Endpoint.Port);
+            _ctx.Pool.MarkUnpaired(remote.Endpoint);
             try { File.Delete(tmp); } catch { }
             throw;
         }

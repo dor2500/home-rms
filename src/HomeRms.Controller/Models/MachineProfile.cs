@@ -57,13 +57,122 @@ public sealed class MachineProfile : INotifyPropertyChanged
     public string Host
     {
         get => _host;
-        set { _host = value; OnPropertyChanged(); OnPropertyChanged(nameof(Address)); OnPropertyChanged(nameof(Subtitle)); }
+        set
+        {
+            if (!string.Equals(_host, value, StringComparison.OrdinalIgnoreCase)) _dialOverride = null;
+            _host = value;
+            OnPropertyChanged(); OnPropertyChanged(nameof(Address)); OnPropertyChanged(nameof(Subtitle));
+            OnAddressingChanged();
+        }
     }
 
     public int Port
     {
         get => _port;
-        set { _port = value; OnPropertyChanged(); OnPropertyChanged(nameof(Address)); OnPropertyChanged(nameof(Subtitle)); }
+        set { _port = value; OnPropertyChanged(); OnPropertyChanged(nameof(Address)); OnPropertyChanged(nameof(Subtitle)); OnAddressingChanged(); }
+    }
+
+    private string _computerName = "";
+    private string _lastKnownIp = "";
+    private List<string> _knownAddresses = [];
+    private string _agentCertThumbprint = "";
+    private string _agentCertificate = "";
+    private string? _dialOverride;
+
+    /// <summary>The agent's own machine name (GetAgentInfo / discovery), used to find the endpoint after its IP changes.</summary>
+    public string ComputerName
+    {
+        get => _computerName;
+        set { _computerName = value ?? ""; OnPropertyChanged(); OnAddressingChanged(); }
+    }
+
+    /// <summary>The IP address the endpoint was last reached at (TLS connection, discovery reply or verified announce).</summary>
+    public string LastKnownIp
+    {
+        get => _lastKnownIp;
+        set { _lastKnownIp = value ?? ""; OnPropertyChanged(); OnAddressingChanged(); }
+    }
+
+    /// <summary>Every address the agent reported for itself (multi-NIC, VPN), tried when the primary address fails.</summary>
+    public List<string> KnownAddresses
+    {
+        get => _knownAddresses;
+        set { _knownAddresses = value ?? []; OnPropertyChanged(); }
+    }
+
+    /// <summary>SHA-256 (hex) of the agent TLS certificate seen on the last successful connection; announces must match it.</summary>
+    public string AgentCertThumbprint
+    {
+        get => _agentCertThumbprint;
+        set { _agentCertThumbprint = value ?? ""; OnPropertyChanged(); }
+    }
+
+    /// <summary>The agent TLS certificate (DER, Base64) matching <see cref="AgentCertThumbprint"/>, used to verify its announces.</summary>
+    public string AgentCertificate
+    {
+        get => _agentCertificate;
+        set { _agentCertificate = value ?? ""; OnPropertyChanged(); }
+    }
+
+    /// <summary>
+    /// Session-only address to dial instead of <see cref="Host"/> when the endpoint connects by computer
+    /// name and the name did not resolve but the agent was found elsewhere (cleared when Host changes).
+    /// </summary>
+    [JsonIgnore]
+    public string? DialOverride
+    {
+        get => _dialOverride;
+        set { _dialOverride = string.IsNullOrWhiteSpace(value) ? null : value; OnPropertyChanged(); }
+    }
+
+    /// <summary>The address connections actually dial.</summary>
+    [JsonIgnore]
+    public string DialHost => _dialOverride ?? _host;
+
+    [JsonIgnore]
+    public bool ConnectsByIp => Services.EndpointAddress.IsIpAddress(_host);
+
+    /// <summary>"laptop-test · 192.168.1.140:7443" (by name) or "192.168.1.140:7443 · LAPTOP-TEST" (by IP).</summary>
+    [JsonIgnore]
+    public string AddressLine
+    {
+        get
+        {
+            if (Services.EndpointAddress.IsLoopbackHost(_host)) return Address;
+            if (ConnectsByIp)
+                return string.IsNullOrWhiteSpace(_computerName) ? Address : $"{Address} · {_computerName}";
+            return string.IsNullOrWhiteSpace(_lastKnownIp) || string.Equals(_lastKnownIp, _host, StringComparison.OrdinalIgnoreCase)
+                ? Address
+                : $"{_host} · {_lastKnownIp}:{_port}";
+        }
+    }
+
+    /// <summary>The endpoint connects by IP but its computer name is known, so a changed IP is followed automatically.</summary>
+    [JsonIgnore]
+    public bool ShowIpAutoHint => ConnectsByIp && !Services.EndpointAddress.IsLoopbackHost(_host) && !string.IsNullOrWhiteSpace(_computerName);
+
+    [JsonIgnore]
+    public string AddressToolTip
+    {
+        get
+        {
+            if (Services.EndpointAddress.IsLoopbackHost(_host)) return "This computer.";
+            if (ShowIpAutoHint)
+                return $"Connects by IP address. When the IP changes, Home RMS finds {_computerName} again (LAN discovery, signed agent announces, other known addresses) and updates it automatically. Edit the endpoint to connect by computer name instead.";
+            if (ConnectsByIp)
+                return "Connects by IP address. Connect once so Home RMS learns the computer name and can follow IP changes.";
+            return string.IsNullOrWhiteSpace(_lastKnownIp)
+                ? $"Connects by computer name ({_host}); the IP address is looked up on every connection."
+                : $"Connects by computer name ({_host}); last reached at {_lastKnownIp}.";
+        }
+    }
+
+    private void OnAddressingChanged()
+    {
+        OnPropertyChanged(nameof(AddressLine));
+        OnPropertyChanged(nameof(ShowIpAutoHint));
+        OnPropertyChanged(nameof(AddressToolTip));
+        OnPropertyChanged(nameof(ConnectsByIp));
     }
 
     public string MacAddress

@@ -506,8 +506,8 @@ public sealed class CentralHubService : IDisposable
             return;
         }
 
-        var conn = GetOrCreateConnection(host, port);
-        var key = $"{host}:{port}";
+        var conn = GetOrCreateConnection(profile.DialHost, port);
+        var key = $"{profile.DialHost}:{port}";
 
         // The agent refuses every RPC except GetAgentInfo / PairWith2Fa from an unpinned controller,
         // so run the GetAgentInfo pairing handshake first. The relay is headless: a 2FA-only agent

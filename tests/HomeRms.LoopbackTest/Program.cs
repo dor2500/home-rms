@@ -23,6 +23,7 @@ using HomeRms.Shared.Server;
 // 10. RunWinget input validation (nothing is installed)
 // 11. File manager round-trip + path rejection
 // 12. Live telemetry
+// 13. Signed call-home announce received and verified by a controller-side listener
 //
 // The pinned-controller store is redirected to a temp directory, so the test neither
 // depends on nor modifies the machine's real pin store.
@@ -40,7 +41,24 @@ var workDir = Path.Combine(Path.GetTempPath(), $"homerms-loopback-{Guid.NewGuid(
 Directory.CreateDirectory(workDir);
 var security = new AgentSecurityOptions { TrustedStorePath = Path.Combine(workDir, "trusted-controllers.json") };
 
-var host = AgentHost.Build(consent, log, port, security);
+// 13) "call home": a controller-side listener on a test port receives and verifies the agent's signed announce
+const int announcePort = 47445;
+var caForAnnounce = DevCertificates.LoadCaPublicOnly(RmsPaths.CertDir, RmsPaths.CertPassword);
+var agentCertPublic = X509CertificateLoader.LoadCertificate(
+    DevCertificates.Load(RmsPaths.CertDir, DevCertificates.AgentFileName, RmsPaths.CertPassword).RawData);
+var agentThumb = HomeRms.Shared.Network.AgentAnnounce.Thumbprint(agentCertPublic);
+var announceVerifier = new HomeRms.Shared.Network.AnnounceVerifier(caForAnnounce, t => t == agentThumb ? agentCertPublic : null);
+using var announceListener = new HomeRms.Shared.Network.AnnounceListener(announcePort, announceVerifier, m => Console.WriteLine("  ctrl | " + m));
+var announceReceived = new TaskCompletionSource<HomeRms.Shared.Network.AnnounceResult>(TaskCreationOptions.RunContinuationsAsynchronously);
+announceListener.Verified += (r, from) => announceReceived.TrySetResult(r);
+if (!announceListener.Start(out var announceBindError)) failures.Add($"announce test listener could not bind UDP {announcePort}: {announceBindError}");
+var announceOptions = new AgentAnnouncerOptions
+{
+    TargetPort = announcePort,
+    StorePath = Path.Combine(workDir, "known-controllers.json"),
+};
+
+var host = AgentHost.Build(consent, log, port, security, announceOptions);
 await host.StartAsync();
 Console.WriteLine($"[test] host started on {port} (pin store: {security.TrustedStorePath})\n");
 
@@ -493,6 +511,27 @@ try
     Console.WriteLine($"[test] Telemetry OK -> {samples.Count} samples, gap={gapMs} ms, cpu={last?.CpuPercent:F1}%, " +
                       $"mem={last?.MemUsedBytes / (1024 * 1024)}/{last?.MemTotalBytes / (1024 * 1024)} MB, disks={last?.Disks.Count}, " +
                       $"rx={last?.NetRxBytesPerSec:F0} B/s, tx={last?.NetTxBytesPerSec:F0} B/s, uptime={last?.UptimeSeconds}s, procs={last?.ProcessCount}");
+
+    // 13) the pinned test controller connected from 127.0.0.1, so the agent remembered that address and
+    //     announced itself there (signed with its TLS certificate) without waiting for the 60 s timer.
+    var announceDone = await Task.WhenAny(announceReceived.Task, Task.Delay(TimeSpan.FromSeconds(20)));
+    var announcer = host.Services.GetService(typeof(AgentAnnouncer)) as AgentAnnouncer;
+    var remembered = announcer?.KnownControllers ?? [];
+    if (announceDone != announceReceived.Task)
+    {
+        failures.Add($"no verified announce arrived on UDP {announcePort} within 20 s (remembered controllers: {string.Join(", ", remembered)})");
+    }
+    else
+    {
+        var ann = announceReceived.Task.Result.Payload!;
+        Console.WriteLine($"[test] Announce OK -> {ann.MachineName}:{ann.Port}, addresses={string.Join(",", ann.Addresses)}, " +
+                          $"thumb={ann.Thumbprint[..12]}…, remembered={string.Join(", ", remembered)}");
+        if (!string.Equals(ann.MachineName, Environment.MachineName, StringComparison.OrdinalIgnoreCase)) failures.Add("announce carried the wrong machine name");
+        if (ann.Port != port) failures.Add($"announce carried port {ann.Port}, expected {port}");
+        if (ann.Thumbprint != agentThumb) failures.Add("announce was not signed with the agent certificate");
+    }
+    if (!remembered.Contains("127.0.0.1") && !remembered.Contains("::1")) failures.Add("agent did not remember the pinned controller's address");
+    if (!File.Exists(announceOptions.StorePath!)) failures.Add("known controller addresses were not persisted");
 }
 catch (Exception ex)
 {

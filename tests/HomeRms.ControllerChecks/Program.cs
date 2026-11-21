@@ -169,6 +169,14 @@ try
     // ---------------- 5. Central Hub relay ----------------
     Console.WriteLine("[checks] Central Hub relay access control");
     await CheckHubAsync(Check);
+
+    // ---------------- 6. Connect by computer name / IP healing ----------------
+    Console.WriteLine("[checks] endpoint addressing, discovery replies and IP healing");
+    EndpointChecks.Run(Check);
+
+    // ---------------- 7. Signed agent announces ----------------
+    Console.WriteLine("[checks] signed agent announces");
+    AnnounceChecks.Run(Check);
 }
 catch (Exception ex)
 {

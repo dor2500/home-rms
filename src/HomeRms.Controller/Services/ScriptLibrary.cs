@@ -298,7 +298,7 @@ public sealed class ScriptExecutor(AgentConnectionPool pool, AgentlessService ag
         }
         catch (Exception ex)
         {
-            if (ex is RpcException { StatusCode: StatusCode.PermissionDenied }) pool.MarkUnpaired(m.Host, m.Port);
+            if (ex is RpcException { StatusCode: StatusCode.PermissionDenied }) pool.MarkUnpaired(m);
             Ui(() =>
             {
                 run.State = ScriptRunState.Failed;

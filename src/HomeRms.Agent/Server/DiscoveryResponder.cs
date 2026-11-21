@@ -1,20 +1,21 @@
 using System.Net;
 using System.Net.Sockets;
 using System.Text;
+using HomeRms.Shared.Network;
 using HomeRms.Agent.Core;
 
 namespace HomeRms.Agent.Server;
 
 /// <summary>
 /// Listens on UDP for Home RMS LAN discovery probes ("HOMERMS_DISCOVER_V1") and replies
-/// with "HOMERMS_AGENT_V1|{MachineName}|{GrpcPort}" so the Controller can discover all
+/// with "HOMERMS_AGENT_V1|{MachineName}|{GrpcPort}|{ip1,ip2,...}" (addresses: v2.3+) so the Controller can discover all
 /// LAN devices that have the Home RMS service installed and then verify them over mTLS.
 /// </summary>
 public sealed class DiscoveryResponder : IDisposable
 {
-    public const int DiscoveryUdpPort = 7443;
-    public const string ProbeToken = "HOMERMS_DISCOVER_V1";
-    public const string ReplyPrefix = "HOMERMS_AGENT_V1";
+    public const int DiscoveryUdpPort = RmsNetwork.DiscoveryUdpPort;
+    public const string ProbeToken = RmsNetwork.ProbeToken;
+    public const string ReplyPrefix = RmsNetwork.ReplyPrefix;
 
     private readonly int _grpcPort;
     private readonly ActivityLog _log;
@@ -64,7 +65,7 @@ public sealed class DiscoveryResponder : IDisposable
                 if (string.Equals(msg, ProbeToken, StringComparison.Ordinal))
                 {
                     lastReplyUtc = now;
-                    var reply = $"{ReplyPrefix}|{Environment.MachineName}|{_grpcPort}";
+                    var reply = RmsNetwork.BuildDiscoveryReply(Environment.MachineName, _grpcPort, RmsNetwork.GetLocalAddresses());
                     var bytes = Encoding.UTF8.GetBytes(reply);
                     await _udp.SendAsync(bytes, received.RemoteEndPoint, ct);
                 }
