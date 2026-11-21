@@ -68,8 +68,10 @@ public partial class MainWindow
         Shot("install-powershell");
         InstallV.SelectTab(InstallTab.Deploy);
         ShowUpdateAllDemoRows(); // MainWindow.UpdateAll.cs: sample rows only, nothing runs
+        InstallV.Scroll.ScrollToVerticalOffset(380); // buttons above the selection bar
         await Task.Delay(600);
         Shot("install-update-all");
+        InstallV.Scroll.ScrollToTop();
         _upgradeRows.Clear();
         ShowUpgradeQueue(false);
 
