@@ -77,9 +77,15 @@ public sealed class AgentAnnouncer : IDisposable
         if (remote is null || clientCert is null) return;
         var ip = RmsNetwork.Normalize(remote).ToString();
         var now = DateTime.UtcNow;
-        if (_observed.TryGetValue(ip, out var last) && now - last < TimeSpan.FromMinutes(10)) return;
-        _observed[ip] = now;
-        if (!isPinned(clientCert)) return;
+        // A pinned controller is re-checked every 10 minutes; an unpinned peer every few seconds, so a
+        // controller that pairs a moment later is remembered without waiting.
+        if (_observed.TryGetValue(ip, out var next) && now < next) return;
+        if (!isPinned(clientCert))
+        {
+            _observed[ip] = now + TimeSpan.FromSeconds(5);
+            return;
+        }
+        _observed[ip] = now + TimeSpan.FromMinutes(10);
 
         bool isNew;
         lock (_lock)
