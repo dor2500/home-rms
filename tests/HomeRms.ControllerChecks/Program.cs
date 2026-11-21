@@ -177,6 +177,10 @@ try
     // ---------------- 7. Signed agent announces ----------------
     Console.WriteLine("[checks] signed agent announces");
     AnnounceChecks.Run(Check);
+
+    // ---------------- 8. Remote desktop quality presets ----------------
+    Console.WriteLine("[checks] remote desktop quality presets");
+    StreamPresetChecks.Run(Check);
 }
 catch (Exception ex)
 {

@@ -19,7 +19,8 @@ using HomeRms.Shared.Updates;
 // 2. Software & hardware inventory
 // 3. Interactive PowerShell command round-trip
 // 4. Screen streaming denied when no consent grant exists
-// 5. Screen streaming succeeds and delivers valid JPEG frames once consent is granted
+// 5. Screen streaming succeeds and delivers valid JPEG frames once consent is granted (old-style request),
+//    and with the LAN fields (60 fps, 4:4:4, lossless refine -> PNG tiles); LAN HQ vs Balanced measured
 // 6-9. Deployment, clipboard, certificate gates, system control
 // 10. RunWinget input validation (nothing is installed)
 // 11. File manager round-trip + path rejection
@@ -38,6 +39,7 @@ DevCertificates.EnsureDeploymentCertificates(RmsPaths.CertDir, RmsPaths.CertPass
 
 // U) offline unit checks for the updater's version logic
 RunUpdaterUnitChecks(failures);
+ScreenStreamChecks.RunEncoderUnitChecks(failures);
 
 var log = new ActivityLog();
 log.LineAdded += line => Console.WriteLine("  agent| " + line);
@@ -190,7 +192,7 @@ try
         Console.WriteLine("[test] Consent gate OK -> screen denied without a grant");
     }
 
-    // 5) screen WITH simulated consent grant streams a real JPEG frame
+    // 5) screen WITH simulated consent grant streams a real JPEG frame (old-style request: no LAN fields)
     consent.AttachUi(new AutoApproveConsentUi());
     using (var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10)))
     using (var stream = client.StreamScreen(new ScreenRequest { Fps = 10, Quality = 60, OperatorName = "loopback-test" }, cancellationToken: cts.Token))
@@ -207,6 +209,9 @@ try
             failures.Add("StreamScreen ended without delivering a frame");
         }
     }
+
+    // 5b) LAN quality fields (60 fps, 4:4:4, lossless PNG refine) + LAN HQ vs Balanced measurement
+    await ScreenStreamChecks.RunStreamChecksAsync(client, failures);
 
     // 6) silent software deployment (DeployPackage streaming upload + silent execution)
     using (var deployCall = client.DeployPackage(deadline: DateTime.UtcNow.AddSeconds(30)))
