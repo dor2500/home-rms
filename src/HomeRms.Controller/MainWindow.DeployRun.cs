@@ -7,6 +7,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
 using Grpc.Core;
+using HomeRms.Controller.Models;
 using HomeRms.Controller.Services;
 using HomeRms.Controller.Views.Deploy;
 using HomeRms.Shared.Protocol;
@@ -34,6 +35,7 @@ public partial class MainWindow
         InstallV.ClearLogBtn.Click += OnClearDeployLogClick;
         InstallV.AddMoreBtn.Click += (_, _) => DeployShell.Show(DeployView.Apps);
         InstallV.BackBtn.Click += (_, _) => DeployShell.Show(DeployShell.Previous);
+        InitializeUpdateAll(); // MainWindow.UpdateAll.cs
 
         FilesV.BrowseBtn.Click += OnBrowseDeployFileClick;
         FilesV.RunFilesBtn.Click += OnStartDeployClick;
@@ -149,15 +151,17 @@ public partial class MainWindow
     {
         var wasChecked = _deployTargets.Where(t => t.IsChecked).Select(t => t.Profile).ToHashSet();
         _deployTargets.Clear();
-        foreach (var m in _machines.Where(m => m.IsWindows))
+        // Linux endpoints are listed for Update All (Linux agents) and skipped by app deploys.
+        foreach (var m in _machines.Where(m => m.IsWindows || m.Kind == EndpointKind.Linux))
         {
-            var mode = m.IsAgentless ? "WinRM" : "agent";
+            var mode = m.IsAgentless ? "WinRM" : m.Kind != EndpointKind.Linux ? "agent"
+                : IsLinuxAgent(m) ? "Linux agent · Update All only" : "SSH · not supported";
             var state = m.IsConnected ? "connected" : m.IsOnline ? "online" : "offline";
             _deployTargets.Add(new DeployTarget { Profile = m, Detail = $"  {mode} · {state}", IsChecked = wasChecked.Contains(m) });
         }
         InstallV.TargetHint.Text = _deployTargets.Count == 0
             ? "No saved Windows endpoints: deploys go to the connected session."
-            : "Nothing checked = the connected (or selected WinRM) endpoint. Check several to deploy to each in turn.";
+            : "Nothing checked = the connected (or selected WinRM) endpoint. Check several to deploy to each in turn. Update All upgrades every installed package.";
     }
 
     private async Task<List<WingetTarget>?> ResolveWingetTargetsAsync()
@@ -221,6 +225,15 @@ public partial class MainWindow
             return;
         }
         if (targets is null || targets.Count == 0) return;
+        var nonWindows = targets.Where(t => t.Profile is { IsWindows: false }).ToList();
+        foreach (var t in nonWindows)
+            DeployLog(t.Label, null, "Skipped: app deploys need a Windows endpoint (Linux agents support Update All).");
+        targets = targets.Except(nonWindows).ToList();
+        if (targets.Count == 0)
+        {
+            StatusText.Text = "None of the checked endpoints runs Windows: app deploys use winget.";
+            return;
+        }
         var targetCount = targets.Count;
 
         var options = InstallV.Options;
@@ -229,8 +242,8 @@ public partial class MainWindow
         var batches = BuildWingetBatches(items, options.Scope);
 
         var cts = _wingetDeployCts = new CancellationTokenSource();
-        InstallV.DeployBtn.IsEnabled = false;
-        InstallV.CancelBtn.IsEnabled = true;
+        SetDeployButtonsBusy(true);
+        ShowUpgradeQueue(false);
         DeployStatusBadge.Text = "DEPLOYING...";
 
         var outcomes = items.ToDictionary(i => i, _ => new List<WingetOutcome>());
@@ -307,8 +320,7 @@ public partial class MainWindow
             var wasCancelled = cts.IsCancellationRequested;
             _wingetDeployCts = null;
             cts.Dispose();
-            InstallV.DeployBtn.IsEnabled = true;
-            InstallV.CancelBtn.IsEnabled = false;
+            SetDeployButtonsBusy(false);
             DeployStatusBadge.Text = wasCancelled ? "CANCELLED" : failed > 0 ? "COMPLETED WITH ERRORS" : "COMPLETE";
             var summary = $"Finished: {ok} installed, {skipped} up to date, {failed} failed, {cancelled} cancelled.";
             DeployLog("winget", null, summary);
@@ -326,19 +338,8 @@ public partial class MainWindow
 
         try
         {
-            RmsConnection conn;
-            var p = target.Profile;
-            if (_conn is not null && (p is null || p == _connectedProfile ||
-                                      (string.Equals(_conn.Host, p.Host, StringComparison.OrdinalIgnoreCase) && _conn.Port == p.Port)))
-            {
-                conn = _conn;
-            }
-            else if (p is not null)
-            {
-                // Pooled + paired; the pool also follows an endpoint whose IP changed (re-resolve, one retry).
-                conn = await _pool.GetPairedAsync(p, interactive: true, ct);
-            }
-            else
+            var conn = await ResolveAgentConnectionAsync(target.Profile, ct);
+            if (conn is null)
             {
                 failure = "Not connected to an agent.";
                 return;
@@ -400,7 +401,7 @@ public partial class MainWindow
         }
         catch (RpcException ex) when (ex.StatusCode is StatusCode.PermissionDenied or StatusCode.Unauthenticated)
         {
-            failure = $"Endpoint refused the request ({ex.StatusCode}): pair this endpoint first. Connect to it from Fleet and enter the 2FA code shown on the agent so it pins this Controller, then retry.";
+            failure = PairFirstMessage(ex.StatusCode);
         }
         catch (RpcException ex) when (ex.StatusCode == StatusCode.Cancelled || ct.IsCancellationRequested)
         {
@@ -431,6 +432,19 @@ public partial class MainWindow
             record(item, target.Label, failure is null ? DeployItemStatus.Failed : failureStatus,
                 failure ?? "The agent ended the stream without a result for this package.");
     }
+
+    /// <summary>The live session when it is this endpoint, else a pooled + paired connection; null when there is neither.</summary>
+    private async Task<RmsConnection?> ResolveAgentConnectionAsync(MachineProfile? p, CancellationToken ct)
+    {
+        if (_conn is not null && (p is null || p == _connectedProfile ||
+                                  (string.Equals(_conn.Host, p.Host, StringComparison.OrdinalIgnoreCase) && _conn.Port == p.Port)))
+            return _conn;
+        // Pooled + paired; the pool also follows an endpoint whose IP changed (re-resolve, one retry).
+        return p is null ? null : await _pool.GetPairedAsync(p, interactive: true, ct);
+    }
+
+    private static string PairFirstMessage(StatusCode code) =>
+        $"Endpoint refused the request ({code}): pair this endpoint first. Connect to it from Fleet and enter the 2FA code shown on the agent so it pins this Controller, then retry.";
 
     private async Task DeployWingetAgentlessAsync(WingetTarget target, List<WingetBatch> batches, bool silent, bool upgrade,
         Action<WingetAppItem, string, DeployItemStatus, string> record, CancellationToken ct)

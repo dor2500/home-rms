@@ -67,6 +67,11 @@ public partial class MainWindow
         await Task.Delay(600);
         Shot("install-powershell");
         InstallV.SelectTab(InstallTab.Deploy);
+        ShowUpdateAllDemoRows(); // MainWindow.UpdateAll.cs: sample rows only, nothing runs
+        await Task.Delay(600);
+        Shot("install-update-all");
+        _upgradeRows.Clear();
+        ShowUpgradeQueue(false);
 
         DeployShell.Show(DeployView.Apps);
         await Task.Delay(500);

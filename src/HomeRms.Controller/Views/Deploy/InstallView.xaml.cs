@@ -24,7 +24,7 @@ public partial class InstallView : UserControl
             rb.Checked += (_, _) => { ApplyTab(); OptionsChanged?.Invoke(this, EventArgs.Empty); };
         foreach (var rb in new[] { ScopeDefault, ScopeUser, ScopeMachine })
             rb.Checked += (_, _) => RaiseOptions();
-        foreach (var cb in new[] { SilentCheck, UpgradeCheck, InteractiveCheck, ForceCheck })
+        foreach (var cb in new[] { SilentCheck, UpgradeCheck, InteractiveCheck, ForceCheck, IncludeUnknownCheck })
         {
             cb.Checked += (_, _) => RaiseOptions();
             cb.Unchecked += (_, _) => RaiseOptions();
@@ -67,6 +67,9 @@ public partial class InstallView : UserControl
         SilentCheck.IsChecked == true,
         UpgradeCheck.IsChecked == true);
 
+    /// <summary>Update All: pass --include-unknown to winget.</summary>
+    public bool IncludeUnknown => IncludeUnknownCheck.IsChecked == true;
+
     private void RaiseOptions()
     {
         UpdateSummary();
@@ -82,6 +85,7 @@ public partial class InstallView : UserControl
         if (o.UpgradeIfInstalled) parts.Add("upgrade");
         if (o.Interactive) parts.Add("interactive");
         if (o.Force) parts.Add("force");
+        if (IncludeUnknownCheck.IsChecked == true) parts.Add("update all: include unknown");
         OptionsSummary.Text = string.Join(" · ", parts);
     }
 
