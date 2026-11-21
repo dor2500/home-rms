@@ -64,13 +64,13 @@ public partial class MainWindow : Window
         }
 
         ShellOutput.Text =
-            "Home RMS Interactive PowerShell Console (macOS -> Windows Agent)\r\n" +
+            "Home RMS Interactive Shell Console (Cross-Platform -> Windows PowerShell / Linux Bash)\r\n" +
             "Connected over Mutual TLS (HTTP/2). Every command executed here is recorded in the remote agent's visible activity log.\r\n" +
             "--------------------------------------------------------------------------------------------------------------------\r\n";
 
         DeployOutputBox.Text =
-            "Home RMS Silent Software Deployment Console (macOS -> Windows Agent)\r\n" +
-            "Select any .exe, .msi, .msp, or .ps1 file above to stream it over mTLS and install it silently on the remote Windows computer.\r\n" +
+            "Home RMS Software Deployment & Update Console (Cross-Platform -> Windows / Linux Agent)\r\n" +
+            "Select an installer (.exe, .msi, .msp, .ps1) or click Update All Packages to upgrade via winget / apt / dnf / pacman.\r\n" +
             "--------------------------------------------------------------------------------------------------------------------\r\n";
 
         Opened += async (_, _) =>
@@ -91,7 +91,7 @@ public partial class MainWindow : Window
             var ver = typeof(MainWindow).Assembly.GetName().Version ?? new Version(1, 0, 0);
             var cur = new Version(ver.Major, ver.Minor, ver.Build);
             using var http = new System.Net.Http.HttpClient { Timeout = TimeSpan.FromSeconds(10) };
-            http.DefaultRequestHeaders.UserAgent.ParseAdd("HomeRmsControllerMac-Updater/1.0");
+            http.DefaultRequestHeaders.UserAgent.ParseAdd("HomeRmsControllerCrossPlatform/1.0");
             var json = await http.GetStringAsync("https://api.github.com/repos/dor2500/home-rms/releases/latest");
             using var doc = System.Text.Json.JsonDocument.Parse(json);
             var tag = doc.RootElement.TryGetProperty("tag_name", out var t) ? t.GetString() ?? "" : "";
@@ -132,6 +132,79 @@ public partial class MainWindow : Window
     }
 
     // ---------------- Navigation ----------------
+    private TaskCompletionSource<string?>? _agent2FaTcs;
+
+    private async Task<string?> Prompt2FaCodeAsync(string target)
+    {
+        _agent2FaTcs?.TrySetResult(null);
+        _agent2FaTcs = new TaskCompletionSource<string?>();
+        Agent2FaCodeBox.Text = "";
+        AgentPairPromptText.Text = $"Enter the 6-digit 2FA code shown on {target} to pair:";
+        AgentPair2FaOverlay.IsVisible = true;
+        Agent2FaCodeBox.Focus();
+        return await _agent2FaTcs.Task;
+    }
+
+    private void OnSubmitAgent2FaClick(object? sender, RoutedEventArgs e)
+    {
+        AgentPair2FaOverlay.IsVisible = false;
+        _agent2FaTcs?.TrySetResult(Agent2FaCodeBox.Text);
+    }
+
+    private void OnCancelAgent2FaClick(object? sender, RoutedEventArgs e)
+    {
+        AgentPair2FaOverlay.IsVisible = false;
+        _agent2FaTcs?.TrySetResult(null);
+    }
+
+    private void OnThemeComboChanged(object? sender, SelectionChangedEventArgs e)
+    {
+        if (ThemeCombo?.SelectedItem is not ComboBoxItem item || item.Tag is not string tag) return;
+        if (Application.Current is null) return;
+        Application.Current.RequestedThemeVariant = tag switch
+        {
+            "System" => Avalonia.Styling.ThemeVariant.Default,
+            "Light" => Avalonia.Styling.ThemeVariant.Light,
+            _ => Avalonia.Styling.ThemeVariant.Dark,
+        };
+    }
+
+    private async void OnUpgradeAllClick(object? sender, RoutedEventArgs e)
+    {
+        if (_conn is null && !await ConnectToCurrentFieldsAsync()) return;
+        if (_conn is null) return;
+
+        UpgradeAllBtn.IsEnabled = false;
+        DeployStatusBadge.Text = "Updating all…";
+        DeployOutputBox.Text += $"\r\n[{DateTime.Now:HH:mm:ss}] Starting UpgradeAll on {_agentInfo?.MachineName ?? "agent"}...\r\n";
+        try
+        {
+            using var call = _conn.Client.UpgradeAll(new UpgradeAllRequest());
+            await foreach (var p in call.ResponseStream.ReadAllAsync())
+            {
+                if (!string.IsNullOrWhiteSpace(p.LogLine))
+                    DeployOutputBox.Text += p.LogLine + "\r\n";
+                else if (!string.IsNullOrWhiteSpace(p.ExitMessage))
+                    DeployOutputBox.Text += $"[{p.Phase}] {p.PackageId} {p.ExitMessage}\r\n";
+                DeployOutputBox.CaretIndex = DeployOutputBox.Text.Length;
+                if (p.Done)
+                {
+                    DeployStatusBadge.Text = p.ExitCode == 0 ? "Done" : $"Exit {p.ExitCode}";
+                    DeployOutputBox.Text += $"[{DateTime.Now:HH:mm:ss}] UpgradeAll finished (exit {p.ExitCode}).\r\n";
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            DeployStatusBadge.Text = "Failed";
+            DeployOutputBox.Text += $"UpgradeAll failed: {Short(ex)}\r\n";
+        }
+        finally
+        {
+            UpgradeAllBtn.IsEnabled = true;
+        }
+    }
+
     private void OnNavTabChanged(object? sender, RoutedEventArgs e)
     {
         if (FleetPanel is null || InventoryPanel is null || DesktopPanel is null || ShellPanel is null || DeployPanel is null || SystemPanel is null) return;
@@ -605,8 +678,24 @@ public partial class MainWindow : Window
 
             var sw = Stopwatch.StartNew();
             var conn = new RmsConnection(host, port);
-            _agentInfo = await conn.Client.GetAgentInfoAsync(new Empty(),
-                deadline: DateTime.UtcNow.AddSeconds(8));
+            try
+            {
+                _agentInfo = await conn.Client.GetAgentInfoAsync(new Empty(),
+                    deadline: DateTime.UtcNow.AddSeconds(75));
+            }
+            catch (RpcException rpcEx) when (rpcEx.StatusCode == StatusCode.Unauthenticated && rpcEx.Status.Detail == "2FA_REQUIRED")
+            {
+                var code = await Prompt2FaCodeAsync($"{host}:{port}");
+                if (string.IsNullOrWhiteSpace(code))
+                    throw new InvalidOperationException("2FA pairing cancelled.");
+                var pairRes = await conn.Client.PairWith2FaAsync(
+                    new PairRequest { TotpCode = code.Trim(), ControllerName = Environment.MachineName },
+                    deadline: DateTime.UtcNow.AddSeconds(10));
+                if (!pairRes.Success)
+                    throw new InvalidOperationException($"2FA pairing failed: {pairRes.Message}");
+                _agentInfo = await conn.Client.GetAgentInfoAsync(new Empty(),
+                    deadline: DateTime.UtcNow.AddSeconds(10));
+            }
             sw.Stop();
             _conn = conn;
             _frameWidth = _agentInfo.PrimaryScreenWidth;
@@ -933,7 +1022,7 @@ public partial class MainWindow : Window
                     new ScreenRequest
                     {
                         Fps = fps, Quality = quality, OperatorName = Environment.UserName,
-                        MaxWidth = maxWidth, SupportsTiles = true
+                        MaxWidth = maxWidth, SupportsTiles = true, Chroma = 2
                     },
                     cancellationToken: token);
 

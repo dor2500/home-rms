@@ -18,6 +18,11 @@
         <Border x:Name="TopBarBorder" Grid.Row="0" Background="#10131D" BorderBrush="#23293B" BorderThickness="0,0,0,1" Padding="18,11">
             <DockPanel>
                 <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center" Spacing="10">
+                    <ComboBox x:Name="ThemeCombo" Width="96" SelectedIndex="1" SelectionChanged="OnThemeComboChanged">
+                        <ComboBoxItem Content="System" Tag="System"/>
+                        <ComboBoxItem Content="Dark" Tag="Dark"/>
+                        <ComboBoxItem Content="Light" Tag="Light"/>
+                    </ComboBox>
                     <Button x:Name="UpdateBtn" Content="↻ Updates" FontSize="11.5" Padding="10,5"
                             Click="OnCheckOrApplyUpdateClick"/>
                     <Border Background="#131824" BorderBrush="#23293B" BorderThickness="1" CornerRadius="8" Padding="11,6" VerticalAlignment="Center">
@@ -400,6 +405,8 @@
                     <Border DockPanel.Dock="Top" Background="#151926" BorderBrush="#23293B" BorderThickness="1" CornerRadius="14" Padding="14,10" Margin="0,0,0,14">
                         <DockPanel>
                             <Button DockPanel.Dock="Right" Content="Clear" Click="OnClearDeployLogClick"/>
+                            <Button DockPanel.Dock="Right" x:Name="UpgradeAllBtn" Content="⬆ Update All Packages" Margin="0,0,8,0"
+                                    Background="#0284C7" BorderBrush="#38BDF8" Foreground="White" Click="OnUpgradeAllClick"/>
                             <WrapPanel VerticalAlignment="Center">
                                 <TextBlock Text="WINGET 1-CLICK:" FontSize="10.5" FontWeight="Bold" Foreground="#94A3B8" VerticalAlignment="Center" Margin="0,0,10,0"/>
                                 <Button Content="7-Zip" Tag="7zip.7zip" Margin="0,0,6,0" Click="OnWingetQuickInstallClick"/>
@@ -479,6 +486,25 @@
                 </Grid>
 
             </Grid>
+        </Grid>
+        <!-- ==================== 2FA PAIRING OVERLAY ==================== -->
+        <Grid x:Name="AgentPair2FaOverlay" Grid.RowSpan="2" IsVisible="False" Background="#B0050609">
+            <Border Width="380" VerticalAlignment="Center" HorizontalAlignment="Center"
+                    Background="#151926" BorderBrush="#23293B" BorderThickness="1" CornerRadius="14" Padding="22">
+                <StackPanel Spacing="12">
+                    <TextBlock Text="Endpoint 2FA Pairing" FontSize="16" FontWeight="Bold"/>
+                    <TextBlock x:Name="AgentPairPromptText" Text="Enter the 6-digit 2FA code displayed on the remote endpoint:"
+                               FontSize="12" Foreground="#94A3B8" TextWrapping="Wrap"/>
+                    <TextBox x:Name="Agent2FaCodeBox" FontFamily="Menlo, Consolas, monospace" FontSize="20"
+                             TextAlignment="Center" Height="42"/>
+                    <Grid ColumnDefinitions="*,10,*">
+                        <Button Grid.Column="0" Content="Verify &amp; Pair" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
+                                Background="#0284C7" BorderBrush="#38BDF8" Foreground="White" Click="OnSubmitAgent2FaClick"/>
+                        <Button Grid.Column="2" Content="Cancel" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
+                                Click="OnCancelAgent2FaClick"/>
+                    </Grid>
+                </StackPanel>
+            </Border>
         </Grid>
     </Grid>
 </Window>

@@ -5,8 +5,8 @@
     <TargetFramework>net11.0</TargetFramework>
     <RootNamespace>HomeRms.Controller.Mac</RootNamespace>
     <AssemblyName>HomeRmsController</AssemblyName>
-    <AssemblyTitle>Home RMS Controller Console (macOS)</AssemblyTitle>
-    <Description>Home RMS Remote Management Console for macOS (mTLS / HTTP2)</Description>
+    <AssemblyTitle>Home RMS Controller Console (Linux &amp; macOS)</AssemblyTitle>
+    <Description>Home RMS Cross-Platform Remote Management Console for Linux &amp; macOS (mTLS / HTTP2)</Description>
     <BuiltInComInteropSupport>true</BuiltInComInteropSupport>
   </PropertyGroup>
 
@@ -14,6 +14,7 @@
     <PackageReference Include="Avalonia" Version="11.2.3" />
     <PackageReference Include="Avalonia.Desktop" Version="11.2.3" />
     <PackageReference Include="Avalonia.Themes.Fluent" Version="11.2.3" />
+    <PackageReference Include="Tmds.DBus.Protocol" Version="0.21.2" />
   </ItemGroup>
 
   <ItemGroup>
