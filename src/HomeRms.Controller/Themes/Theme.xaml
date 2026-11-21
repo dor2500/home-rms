@@ -7,5 +7,7 @@
     -->
     <ResourceDictionary.MergedDictionaries>
         <ResourceDictionary Source="/HomeRmsController;component/Themes/Controls.xaml"/>
+        <!-- winstall-style Deploy tab (Views\Deploy) -->
+        <ResourceDictionary Source="/HomeRmsController;component/Themes/DeployStyles.xaml"/>
     </ResourceDictionary.MergedDictionaries>
 </ResourceDictionary>

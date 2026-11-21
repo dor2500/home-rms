@@ -121,6 +121,90 @@
     <SolidColorBrush x:Key="DangerBrush" Color="{StaticResource DangerColor}"/>
     <SolidColorBrush x:Key="SelectBrush" Color="#2E8B96FF"/>
 
+    <!-- ===== Deploy catalog (winstall-style) =====
+         The Deploy tab mirrors winstall.app's dark theme: near-black canvas, graphite rounded cards and one
+         vivid purple accent for selection, pills and the bottom selection bar. Category tiles each get a
+         muted tint (fill / icon badge / ink). -->
+    <Color x:Key="DeployCanvasColor">#121212</Color>
+    <Color x:Key="DeployCardColor">#2A2B2D</Color>
+    <Color x:Key="DeployCardHoverColor">#323336</Color>
+    <Color x:Key="DeployFieldColor">#1C1C1E</Color>
+    <Color x:Key="DeployCodeColor">#0C0C0E</Color>
+    <Color x:Key="DeployBorderColor">#333438</Color>
+    <Color x:Key="DeployBorderHoverColor">#4A4B4E</Color>
+    <Color x:Key="DeployMutedTextColor">#9C9CA4</Color>
+    <Color x:Key="DeployAccentColor">#9B2EFF</Color>
+    <Color x:Key="DeployAccentHoverColor">#A847FF</Color>
+    <Color x:Key="DeployAccentPressedColor">#6B14BD</Color>
+    <Color x:Key="DeployAccentSoftColor">#2E9B2EFF</Color>
+    <Color x:Key="DeployAccentLineColor">#809B2EFF</Color>
+    <Color x:Key="DeployAccentTextColor">#C08BFF</Color>
+    <Color x:Key="DeployBarButtonColor">#1B1B1E</Color>
+    <Color x:Key="DeployBarButtonHoverColor">#2A2A2E</Color>
+    <Color x:Key="DeployOnAccentMutedColor">#D9FFFFFF</Color>
+    <Color x:Key="DeployHeroStartColor">#2C1446</Color>
+    <Color x:Key="DeployHeroEndColor">#18161D</Color>
+
+    <Color x:Key="DeployToneBrowserFillColor">#2E1C3F</Color>
+    <Color x:Key="DeployToneBrowserBadgeColor">#492965</Color>
+    <Color x:Key="DeployToneBrowserInkColor">#C8AEE0</Color>
+    <Color x:Key="DeployToneDevFillColor">#1F1C3F</Color>
+    <Color x:Key="DeployToneDevBadgeColor">#2E2965</Color>
+    <Color x:Key="DeployToneDevInkColor">#B3AFDE</Color>
+    <Color x:Key="DeployToneDocsFillColor">#1C273F</Color>
+    <Color x:Key="DeployToneDocsBadgeColor">#293C65</Color>
+    <Color x:Key="DeployToneDocsInkColor">#AEBDE0</Color>
+    <Color x:Key="DeployToneCommsFillColor">#1C353F</Color>
+    <Color x:Key="DeployToneCommsBadgeColor">#295365</Color>
+    <Color x:Key="DeployToneCommsInkColor">#AED1E0</Color>
+    <Color x:Key="DeployToneUtilFillColor">#243836</Color>
+    <Color x:Key="DeployToneUtilBadgeColor">#2F605B</Color>
+    <Color x:Key="DeployToneUtilInkColor">#BBD3D1</Color>
+
+    <SolidColorBrush x:Key="DeployCanvasBrush" Color="{StaticResource DeployCanvasColor}"/>
+    <SolidColorBrush x:Key="DeployCardBrush" Color="{StaticResource DeployCardColor}"/>
+    <SolidColorBrush x:Key="DeployCardHoverBrush" Color="{StaticResource DeployCardHoverColor}"/>
+    <SolidColorBrush x:Key="DeployFieldBrush" Color="{StaticResource DeployFieldColor}"/>
+    <SolidColorBrush x:Key="DeployCodeBrush" Color="{StaticResource DeployCodeColor}"/>
+    <SolidColorBrush x:Key="DeployBorderBrush" Color="{StaticResource DeployBorderColor}"/>
+    <SolidColorBrush x:Key="DeployBorderHoverBrush" Color="{StaticResource DeployBorderHoverColor}"/>
+    <SolidColorBrush x:Key="DeployMutedTextBrush" Color="{StaticResource DeployMutedTextColor}"/>
+    <SolidColorBrush x:Key="DeployAccentBrush" Color="{StaticResource DeployAccentColor}"/>
+    <SolidColorBrush x:Key="DeployAccentHoverBrush" Color="{StaticResource DeployAccentHoverColor}"/>
+    <SolidColorBrush x:Key="DeployAccentPressedBrush" Color="{StaticResource DeployAccentPressedColor}"/>
+    <SolidColorBrush x:Key="DeployAccentSoftBrush" Color="{StaticResource DeployAccentSoftColor}"/>
+    <SolidColorBrush x:Key="DeployAccentLineBrush" Color="{StaticResource DeployAccentLineColor}"/>
+    <SolidColorBrush x:Key="DeployAccentTextBrush" Color="{StaticResource DeployAccentTextColor}"/>
+    <SolidColorBrush x:Key="DeployBarButtonBrush" Color="{StaticResource DeployBarButtonColor}"/>
+    <SolidColorBrush x:Key="DeployBarButtonHoverBrush" Color="{StaticResource DeployBarButtonHoverColor}"/>
+    <SolidColorBrush x:Key="DeployOnAccentMutedBrush" Color="{StaticResource DeployOnAccentMutedColor}"/>
+    <SolidColorBrush x:Key="DeployHeroPanelBrush" Color="#26000000"/>
+    <SolidColorBrush x:Key="DeployOnAccentLayerBrush" Color="#38FFFFFF"/>
+    <LinearGradientBrush x:Key="DeployHeroBrush" StartPoint="0,0" EndPoint="1,1">
+        <GradientStop Color="{StaticResource DeployHeroStartColor}" Offset="0"/>
+        <GradientStop Color="{StaticResource DeployHeroEndColor}" Offset="1"/>
+    </LinearGradientBrush>
+
+    <SolidColorBrush x:Key="DeployToneBrowserFillBrush" Color="{StaticResource DeployToneBrowserFillColor}"/>
+    <SolidColorBrush x:Key="DeployToneBrowserBadgeBrush" Color="{StaticResource DeployToneBrowserBadgeColor}"/>
+    <SolidColorBrush x:Key="DeployToneBrowserInkBrush" Color="{StaticResource DeployToneBrowserInkColor}"/>
+    <SolidColorBrush x:Key="DeployToneDevFillBrush" Color="{StaticResource DeployToneDevFillColor}"/>
+    <SolidColorBrush x:Key="DeployToneDevBadgeBrush" Color="{StaticResource DeployToneDevBadgeColor}"/>
+    <SolidColorBrush x:Key="DeployToneDevInkBrush" Color="{StaticResource DeployToneDevInkColor}"/>
+    <SolidColorBrush x:Key="DeployToneDocsFillBrush" Color="{StaticResource DeployToneDocsFillColor}"/>
+    <SolidColorBrush x:Key="DeployToneDocsBadgeBrush" Color="{StaticResource DeployToneDocsBadgeColor}"/>
+    <SolidColorBrush x:Key="DeployToneDocsInkBrush" Color="{StaticResource DeployToneDocsInkColor}"/>
+    <SolidColorBrush x:Key="DeployToneCommsFillBrush" Color="{StaticResource DeployToneCommsFillColor}"/>
+    <SolidColorBrush x:Key="DeployToneCommsBadgeBrush" Color="{StaticResource DeployToneCommsBadgeColor}"/>
+    <SolidColorBrush x:Key="DeployToneCommsInkBrush" Color="{StaticResource DeployToneCommsInkColor}"/>
+    <SolidColorBrush x:Key="DeployToneUtilFillBrush" Color="{StaticResource DeployToneUtilFillColor}"/>
+    <SolidColorBrush x:Key="DeployToneUtilBadgeBrush" Color="{StaticResource DeployToneUtilBadgeColor}"/>
+    <SolidColorBrush x:Key="DeployToneUtilInkBrush" Color="{StaticResource DeployToneUtilInkColor}"/>
+
+    <CornerRadius x:Key="DeployRadiusCard">16</CornerRadius>
+    <CornerRadius x:Key="DeployRadiusControl">10</CornerRadius>
+    <CornerRadius x:Key="DeployRadiusPill">20</CornerRadius>
+
     <!-- ===== Typography ===== -->
     <FontFamily x:Key="UiFont">Segoe UI Variable Text, Segoe UI, Inter</FontFamily>
     <FontFamily x:Key="DisplayFont">Segoe UI Variable Display, Segoe UI Semibold, Segoe UI</FontFamily>
