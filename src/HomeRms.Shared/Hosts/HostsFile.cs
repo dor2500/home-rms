@@ -40,6 +40,7 @@ public static class HostsFile
     private const string OptionsPrefix = "# options:";
     public const string BlockedIp = "0.0.0.0";
     public const string BlockedIpv6 = "::";
+    public const string LoopbackIpv6 = "::1";
     public const string DefaultLoopbackIp = "127.0.0.1";
     public const int MaxDomains = 5000;
 
@@ -221,10 +222,11 @@ public static class HostsFile
         sb.Append(BeginMarker).Append(newLine);
         sb.Append("# Managed by Home RMS. Edit the block list from the Home RMS console; lines inside this block are rewritten.").Append(newLine);
         sb.Append(OptionsPrefix).Append(" include-www=").Append(includeWww ? '1' : '0').Append(newLine);
+        var ipv6 = string.Equals(mappingIp, BlockedIp, StringComparison.Ordinal) ? BlockedIpv6 : LoopbackIpv6;
         foreach (var h in ExpandHosts(domains, includeWww))
         {
             sb.Append(mappingIp).Append(' ').Append(h).Append(newLine);
-            sb.Append(BlockedIpv6).Append(' ').Append(h).Append(newLine);
+            sb.Append(ipv6).Append(' ').Append(h).Append(newLine);
         }
         sb.Append(EndMarker).Append(newLine);
         return sb.ToString();

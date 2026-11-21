@@ -55,24 +55,31 @@ public sealed class SinkholeListener : IDisposable
     public int HttpsPort => _httpsPort;
     public IReadOnlyList<string> Warnings { get; private set; } = [];
 
-    /// <summary>Binds both ports (best effort) and starts the accept loops.</summary>
+    /// <summary>Binds both ports (best effort) on IPv4 loopback and IPv6 ::1, and starts the accept loops.</summary>
     public void Start()
     {
         var warnings = new List<string>();
-        HttpBound = TryBind(_httpPort, isTls: false, warnings);
-        HttpsBound = TryBind(_httpsPort, isTls: true, warnings);
+        HttpBound = TryBind(_ip, _httpPort, isTls: false, warnings);
+        HttpsBound = TryBind(_ip, _httpsPort, isTls: true, warnings);
+        // Also bind ::1 (best-effort, no warning if IPv6 is disabled) so browsers preferring IPv6 hit the sinkhole instead of failing with ERR_ADDRESS_INVALID.
+        if (System.Net.Sockets.Socket.OSSupportsIPv6)
+        {
+            var v6Warnings = new List<string>();
+            TryBind(IPAddress.IPv6Loopback, _httpPort, isTls: false, v6Warnings);
+            TryBind(IPAddress.IPv6Loopback, _httpsPort, isTls: true, v6Warnings);
+        }
         Warnings = warnings;
         foreach (var w in warnings) _log("[blocker] WARNING " + w);
         if (HttpBound || HttpsBound)
             _log($"[blocker] listener running on {_ip} (HTTP {(HttpBound ? _httpPort : "-")}, HTTPS {(HttpsBound ? _httpsPort : "-")})");
     }
 
-    private bool TryBind(int port, bool isTls, List<string> warnings)
+    private bool TryBind(IPAddress ip, int port, bool isTls, List<string> warnings)
     {
         TcpListener? l = null;
         try
         {
-            l = new TcpListener(_ip, port);
+            l = new TcpListener(ip, port);
             l.Server.ExclusiveAddressUse = OperatingSystem.IsWindows();
             l.Start(128);
             _listeners.Add(l);
@@ -89,13 +96,13 @@ public sealed class SinkholeListener : IDisposable
                 SocketError.AddressNotAvailable => "is not available on this machine",
                 _ => $"could not be bound ({ex.SocketErrorCode})",
             };
-            warnings.Add($"Port {port} ({(isTls ? "HTTPS" : "HTTP")}) on {_ip} {why}.");
+            warnings.Add($"Port {port} ({(isTls ? "HTTPS" : "HTTP")}) on {ip} {why}.");
             return false;
         }
         catch (Exception ex)
         {
             l?.Stop();
-            warnings.Add($"Port {port} ({(isTls ? "HTTPS" : "HTTP")}) on {_ip} could not be bound: {ex.Message}");
+            warnings.Add($"Port {port} ({(isTls ? "HTTPS" : "HTTP")}) on {ip} could not be bound: {ex.Message}");
             return false;
         }
     }
