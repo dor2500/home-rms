@@ -13,6 +13,8 @@ public sealed class UiSettings
     public bool SidebarCollapsed { get; set; }
     /// <summary>Active UI theme: "Dark" (default) or "Light".</summary>
     public string Theme { get; set; } = "Dark";
+    public bool MinimizeToTray { get; set; } = true;
+    public bool CloseToTray { get; set; } = true;
 
     /// <summary>Remote-desktop quality preset chosen per endpoint (key: StreamPresets.EndpointKey, value: StreamPreset name).</summary>
     public Dictionary<string, string> StreamPresetByEndpoint { get; set; } = new();

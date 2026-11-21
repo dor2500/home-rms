@@ -60,6 +60,7 @@ public partial class MainWindow
         SetConsoleOpen(_ui.ConsoleOpen, persist: false);
         UpdateConsoleCount();
         UpdateNavBadges();
+        InitializeTrayIcon();
     }
 
     private void OnThemeComboChanged(object sender, SelectionChangedEventArgs e)

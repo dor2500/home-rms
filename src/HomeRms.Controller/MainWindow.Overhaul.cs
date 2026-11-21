@@ -71,6 +71,7 @@ public partial class MainWindow
         }
         var showToast = _alerts.Thresholds.DesktopToastEnabled ||
                         (item.Category == AlertCategory.ControllerUpdate && _alerts.Thresholds.AlertOnControllerUpdate);
+        ShowTrayAlertBalloon(item);
         if (!showToast) return;
 
         AlertToastTitle.Text = $"{item.Title} — {item.EndpointName}";

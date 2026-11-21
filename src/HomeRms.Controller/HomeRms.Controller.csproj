@@ -6,6 +6,7 @@
     <TargetFramework>net11.0-windows10.0.19041.0</TargetFramework>
     <SupportedOSPlatformVersion>10.0.17763.0</SupportedOSPlatformVersion>
     <UseWPF>true</UseWPF>
+    <UseWindowsForms>true</UseWindowsForms>
     <RootNamespace>HomeRms.Controller</RootNamespace>
     <AssemblyName>HomeRmsController</AssemblyName>
     <AssemblyTitle>Home RMS Controller Console</AssemblyTitle>
@@ -30,6 +31,11 @@
   <ItemGroup>
     <!-- Central Hub web console (single-page app served by CentralHubService; no external CDNs) -->
     <EmbeddedResource Include="Web\*.html;Web\*.js;Web\*.css;Web\*.svg" LogicalName="HomeRms.Web.%(Filename)%(Extension)" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Remove="System.Windows.Forms" />
+    <Using Remove="System.Drawing" />
   </ItemGroup>
 
   <ItemGroup>
