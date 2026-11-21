@@ -99,6 +99,17 @@ public static class SystemCatalog
             new("rename", "Rename computer", NeedsTarget: true, Dangerous: true),
             new("timezone", "Set time zone", NeedsTarget: true),
         ]),
+        new("agent", "Home RMS Agent", "Expected version for 'Update now' (optional, e.g. v2.3.0)",
+        [
+            new("update-status", "Update status"),
+            new("update-now", "Update agent now", Dangerous: true),
+            new("update-interval", "Set update check interval (target: 24 or 48 hours)"),
+            new("auto-update-on", "Install updates automatically"),
+            new("auto-update-off", "Notify only (no auto-install)"),
+            new("autostart-status", "Auto-start status"),
+            new("autostart-enable", "Enable auto-start"),
+            new("autostart-disable", "Disable auto-start", Dangerous: true),
+        ]),
     ];
 
     public static SystemArea? Find(string id) => Areas.FirstOrDefault(a => a.Id == id);
@@ -217,6 +228,14 @@ public static class SystemCatalog
             new("agent", "autostart-status", "Agent Auto-Start Status", "Check if Home RMS Agent is registered to start automatically with Windows", "Check Status"),
             new("agent", "autostart-enable", "Enable Agent Auto-Start (Startup / Logon)", "Register elevated Task Scheduler auto-start at logon/startup without UAC prompts", "Enable Auto-Start"),
             new("agent", "autostart-disable", "Disable Agent Auto-Start", "Remove Home RMS Agent auto-start task and registry entry", "Disable Auto-Start", Dangerous: true),
+        ]),
+        new("agent", "AGT", "Agent", "Home RMS Agent version and self-update (auto-start is under Privacy & security)", "Expected version (optional, e.g. v2.3.0)",
+        [
+            new("agent", "update-status", "Agent Update Status", "Installed vs latest Home RMS Agent release, last check time, and auto-update setting", "Check Status"),
+            new("agent", "update-now", "Update Agent Now", "Download, verify and install the latest Home RMS Agent release; the agent restarts and the connection drops for about a minute", "Update Now", Dangerous: true),
+            new("agent", "update-interval", "Update Check Interval", "How often the agent checks for a new release in the background — enter 24 or 48 (hours) in the field above", "Set Interval"),
+            new("agent", "auto-update-on", "Silent Auto-Install On", "New releases are downloaded, verified and installed silently in the background", "Turn On"),
+            new("agent", "auto-update-off", "Silent Auto-Install Off", "The agent only notifies about new releases; install them with Update Now", "Turn Off"),
         ]),
         new("updates", "UPD", "Windows Update", "Check, install, pause, and manage Windows Updates", "KB number (e.g. KB5030211)",
         [

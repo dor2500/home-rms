@@ -53,6 +53,14 @@ internal static class Program
             return;
         }
 
+        // UI-only preview: opens the main window without the gRPC host, discovery, firewall or
+        // certificate changes. Update checks work; installing is refused. Used for screenshots/QA.
+        if (args.Any(a => string.Equals(a, "--ui-preview", StringComparison.OrdinalIgnoreCase)))
+        {
+            RunUiPreview(args);
+            return;
+        }
+
         // First-run bootstrap: automatically deploy/sync the embedded deployment PKI
         // into %ProgramData%\HomeRMS\certs so the end-user PC trusts and presents the
         // exact same CA chain as the Controller with zero manual setup.
@@ -73,7 +81,8 @@ internal static class Program
         var log = new ActivityLog();
         var consent = new ConsentCoordinator(log);
 
-        var host = AgentHost.Build(consent, log, port);
+        using var updater = new AgentUpdater(log, args);
+        var host = AgentHost.Build(consent, log, port, updater: updater);
         try
         {
             host.StartAsync().GetAwaiter().GetResult();
@@ -88,14 +97,39 @@ internal static class Program
         using var discovery = new DiscoveryResponder(port, log);
         discovery.Start();
 
-        using var updater = new AgentUpdater(log, args);
         updater.Start();
 
         log.Write("[agent] started (PKI certificates synced)");
-        Application.Run(new TrayApplicationContext(consent, log, port, autoConsent, screenshotPath, showWindow));
+        Application.Run(new TrayApplicationContext(consent, log, port, updater, autoConsent, screenshotPath, showWindow));
 
         log.Write("[agent] shutting down");
         host.StopAsync(TimeSpan.FromSeconds(3)).GetAwaiter().GetResult();
+    }
+
+    private static void RunUiPreview(string[] args)
+    {
+        Application.EnableVisualStyles();
+        Application.SetCompatibleTextRenderingDefault(false);
+        Application.SetHighDpiMode(HighDpiMode.PerMonitorV2);
+
+        var log = new ActivityLog();
+        // --preview-version 2.1.0 pretends to be an older build so the "update available" state can be reviewed
+        Version? fakeVersion = ParseStringArg(args, "--preview-version") is { } pv && Version.TryParse(pv, out var v) ? v : null;
+        using var updater = new AgentUpdater(log, args, fakeVersion, applyDisabledReason: "Installing updates is disabled in UI preview mode.");
+        log.Write("[agent] UI preview mode (no gRPC host, discovery or firewall changes)");
+
+        using var form = new MainForm(log, RmsPaths.DefaultPort, updater);
+        var shot = ParseStringArg(args, "--screenshot-updates");
+        form.Shown += async (_, _) =>
+        {
+            try { await updater.CheckAsync(); }
+            catch (Exception ex) { log.Write($"[updater] preview check failed: {ex.Message}"); }
+            if (shot is null) return;
+            await Task.Delay(800); // let the BeginInvoke'd status update paint
+            form.SaveScreenshot(shot);
+            form.ForceClose();
+        };
+        Application.Run(form);
     }
 
     private static void EnsureFirewallRules(int port)
@@ -104,10 +138,17 @@ internal static class Program
         {
             var markerPath = Path.Combine(
                 Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-                "HomeRMS", $"fw-{port}.done");
+                "HomeRMS", $"fw-v2-{port}.done");
             if (File.Exists(markerPath)) return;
 
-            RunNetsh($"advfirewall firewall add rule name=\"Home RMS Agent (mTLS TCP {port})\" dir=in action=allow protocol=TCP localport={port} remoteip=LocalSubnet profile=private,domain");
+            // v2: accept the mTLS port from every private / VPN range (other subnets, VLANs, Tailscale's
+            // 100.64.0.0/10), not just the local subnet, on any network profile (VPN adapters are often
+            // "Public"). Every call is still mutually authenticated and limited to pinned Controllers.
+            const string privateRanges = "LocalSubnet,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16,100.64.0.0/10,fc00::/7,fe80::/10";
+            var tcpRule = $"Home RMS Agent (mTLS TCP {port})";
+            RunNetsh($"advfirewall firewall delete rule name=\"{tcpRule}\"");
+            RunNetsh($"advfirewall firewall add rule name=\"{tcpRule}\" dir=in action=allow protocol=TCP localport={port} remoteip={privateRanges} profile=any");
+            RunNetsh($"advfirewall firewall delete rule name=\"Home RMS Agent (Discovery UDP {DiscoveryResponder.DiscoveryUdpPort})\"");
             RunNetsh($"advfirewall firewall add rule name=\"Home RMS Agent (Discovery UDP {DiscoveryResponder.DiscoveryUdpPort})\" dir=in action=allow protocol=UDP localport={DiscoveryResponder.DiscoveryUdpPort} remoteip=LocalSubnet profile=private,domain");
 
             Directory.CreateDirectory(Path.GetDirectoryName(markerPath)!);

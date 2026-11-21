@@ -25,11 +25,14 @@ internal sealed class TrayApplicationContext : ApplicationContext, IConsentUi
     private readonly Icon _activeIcon;
     private volatile bool _autoConsent;
     private readonly string? _screenshotPath;
+    private readonly AgentUpdater _updater;
+    private readonly ToolStripMenuItem _updateNowItem;
 
     public TrayApplicationContext(
         ConsentCoordinator consent,
         ActivityLog log,
         int port,
+        AgentUpdater updater,
         bool autoConsent = false,
         string? screenshotPath = null,
         bool showWindowOnStartup = false)
@@ -42,7 +45,8 @@ internal sealed class TrayApplicationContext : ApplicationContext, IConsentUi
         _idleIcon = Theme.CreateDot(Theme.Accent);
         _activeIcon = Theme.CreateDot(Theme.Danger);
 
-        _form = new MainForm(log, port, _autoConsent);
+        _updater = updater;
+        _form = new MainForm(log, port, updater, _autoConsent);
         _form.RevokeRequested += () => _consent.RevokeAll();
         _form.ExitRequested += () => ExitThread();
 
@@ -79,6 +83,11 @@ internal sealed class TrayApplicationContext : ApplicationContext, IConsentUi
         menu.Items.Add(startupItem);
         menu.Items.Add("🔐 2FA Security Setup", null, (_, _) => Show2FaDialog());
         menu.Items.Add("Security: Reset Pinned Controllers", null, (_, _) => ResetPinning());
+        menu.Items.Add(new ToolStripSeparator());
+        menu.Items.Add("Check for updates…", null, (_, _) => { ShowMain(); _form.StartUpdateCheck(); });
+        _updateNowItem = new ToolStripMenuItem("Update") { Visible = false, Font = new Font(menu.Font, FontStyle.Bold) };
+        _updateNowItem.Click += (_, _) => { ShowMain(); _form.StartUpdate(); };
+        menu.Items.Add(_updateNowItem);
         menu.Items.Add("About Home RMS Agent", null, (_, _) => ShowAbout());
         menu.Items.Add(new ToolStripSeparator());
         menu.Items.Add("Exit agent", null, (_, _) => ExitThread());
@@ -91,6 +100,11 @@ internal sealed class TrayApplicationContext : ApplicationContext, IConsentUi
             ContextMenuStrip = menu,
         };
         _tray.DoubleClick += (_, _) => ShowMain();
+        _tray.BalloonTipClicked += (_, _) => ShowMain();
+
+        _updater.StatusChanged += OnUpdaterStatus;
+        _updater.UpdateAvailableNotification += OnUpdateAvailable;
+        OnUpdaterStatus(_updater.GetStatus());
 
         _consent.AttachUi(this);
 
@@ -99,6 +113,21 @@ internal sealed class TrayApplicationContext : ApplicationContext, IConsentUi
             _form.Show();
         }
     }
+
+    // Raised on worker threads: marshal to the UI thread.
+    private void OnUpdaterStatus(AgentUpdateStatus s) => _ui.Post(_ =>
+    {
+        var r = s.LastResult;
+        var show = r is { UpdateAvailable: true } && s.State is not (AgentUpdateState.Downloading or AgentUpdateState.Applying);
+        _updateNowItem.Text = $"Update to {r?.LatestTag}";
+        _updateNowItem.Visible = show;
+        _updateNowItem.Enabled = s.CanSelfUpdate;
+    }, null);
+
+    private void OnUpdateAvailable(UpdateCheckResult r) => _ui.Post(_ =>
+        _tray.ShowBalloonTip(10_000, $"Home RMS Agent {r.LatestTag} available",
+            $"You have {Shared.Updates.ReleaseVersion.Display(r.Current)}. Open Home RMS (or right-click the tray icon) to install the update.",
+            ToolTipIcon.Info), null);
 
     private void ShowMain()
     {
@@ -405,6 +434,8 @@ internal sealed class TrayApplicationContext : ApplicationContext, IConsentUi
     {
         if (disposing)
         {
+            _updater.StatusChanged -= OnUpdaterStatus;
+            _updater.UpdateAvailableNotification -= OnUpdateAvailable;
             _tray.Visible = false;
             _tray.Dispose();
             _banner.Dispose();

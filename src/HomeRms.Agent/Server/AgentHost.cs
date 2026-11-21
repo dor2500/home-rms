@@ -18,7 +18,7 @@ namespace HomeRms.Agent.Server;
 public static class AgentHost
 {
     public static WebApplication Build(ConsentCoordinator consent, ActivityLog log, int port, AgentSecurityOptions? security = null,
-        AgentAnnouncerOptions? announce = null)
+        AgentAnnouncerOptions? announce = null, AgentUpdater? updater = null)
     {
         var agentCert = DevCertificates.Load(RmsPaths.CertDir, DevCertificates.AgentFileName, RmsPaths.CertPassword);
         var caCert = DevCertificates.LoadCaPublicOnly(RmsPaths.CertDir, RmsPaths.CertPassword);
@@ -41,6 +41,8 @@ public static class AgentHost
         builder.Services.AddSingleton(new FileManagerOps(log.Write));
         builder.Services.AddSingleton(consent);
         builder.Services.AddSingleton(log);
+        // Remote agent/update-* ops; without an explicit instance (tests) checks work but applying is refused
+        builder.Services.AddSingleton(updater ?? new AgentUpdater(log, [], applyDisabledReason: "Self-update is disabled in this host."));
 
         // "Call home": signed unicast announces to the pinned controllers that connected to this agent.
         var announcer = new AgentAnnouncer(agentCert, port, announce, security.TrustedStorePath, log.Write);
