@@ -11,7 +11,8 @@ namespace HomeRms.Agent.Linux.Server;
 
 /// <summary>Linux implementation of the consent-gated Home RMS gRPC service.</summary>
 public sealed class RemoteManagementService(
-    ConsentCoordinator consent, ActivityLog log, ControllerPairing pairing, FileManagerOps files)
+    ConsentCoordinator consent, ActivityLog log, ControllerPairing pairing, FileManagerOps files,
+    HomeRms.Shared.Hosts.HostsManager hosts)
     : RemoteManagement.RemoteManagementBase
 {
     private const long MaxDeployBytes = 512L * 1024 * 1024;
@@ -490,6 +491,25 @@ public sealed class RemoteManagementService(
     // ---------------- Telemetry ----------------
     public override Task GetTelemetry(TelemetryRequest request, IServerStreamWriter<TelemetrySample> responseStream, ServerCallContext context) =>
         TelemetryStreamer.RunAsync(new LinuxTelemetrySampler(), request, responseStream, context, OperatorOf(context), log.Write);
+
+    // ---------------- Hosts file & website blocker (/etc/hosts) ----------------
+    public override Task<HostsConfig> GetHostsConfig(Empty request, ServerCallContext context)
+    {
+        log.Write($"[hosts] '{OperatorOf(context)}' read the hosts file");
+        return Task.FromResult(hosts.GetConfig());
+    }
+
+    public override Task<HostsOpResult> SetHostsBlocklist(HostsBlocklistRequest request, ServerCallContext context) =>
+        hosts.SetBlocklistAsync(request, OperatorOf(context));
+
+    public override Task<HostsOpResult> SetHostsRaw(HostsRawRequest request, ServerCallContext context) =>
+        hosts.SetRawAsync(request, OperatorOf(context));
+
+    public override Task<HostsOpResult> SetBlockListener(BlockListenerRequest request, ServerCallContext context) =>
+        hosts.SetListenerAsync(request, OperatorOf(context));
+
+    public override Task WatchAgentEvents(Empty request, IServerStreamWriter<AgentEvent> responseStream, ServerCallContext context) =>
+        hosts.Events.StreamAsync(responseStream, context, OperatorOf(context), log.Write);
 
     private static string? TryReadClipboard(string tool, string args)
     {

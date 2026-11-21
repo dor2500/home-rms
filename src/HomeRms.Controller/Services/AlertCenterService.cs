@@ -15,13 +15,42 @@ public enum AlertSeverity
     Info,
 }
 
+public enum AlertCategory
+{
+    General,
+    EndpointOffline,
+    HighCpu,
+    HighMemory,
+    LowDisk,
+    Thermal,
+    BlockedSite,
+    AgentWarning,
+}
+
 public sealed class AlertThresholds
 {
     public double CpuThresholdPercent { get; set; } = 90;
     public double RamThresholdPercent { get; set; } = 90;
     public double DiskFreeMinPercent { get; set; } = 10;
     public double TempThresholdC { get; set; } = 85;
+
+    // Selectable alert categories
     public bool AlertOnOffline { get; set; } = true;
+    public bool AlertOnHighCpu { get; set; } = true;
+    public bool AlertOnHighRam { get; set; } = true;
+    public bool AlertOnLowDisk { get; set; } = true;
+    public bool AlertOnThermal { get; set; } = true;
+    public bool AlertOnBlockedSite { get; set; } = true;
+    public bool AlertOnAgentWarning { get; set; } = true;
+
+    // Optional notifications
+    public bool DesktopToastEnabled { get; set; }
+    public bool SoundEnabled { get; set; }
+
+    // Background LAN scan & auto-connect for alerts
+    public bool AutoScanLanEnabled { get; set; }
+    public int AutoScanIntervalSeconds { get; set; } = 30;
+    public bool AutoConnectForAlerts { get; set; } = true;
 }
 
 public sealed class AlertItem
@@ -30,6 +59,7 @@ public sealed class AlertItem
     public required string EndpointName { get; init; }
     public required string Host { get; init; }
     public required AlertSeverity Severity { get; init; }
+    public AlertCategory Category { get; init; } = AlertCategory.General;
     public required string Title { get; init; }
     public required string Detail { get; init; }
     public DateTimeOffset Timestamp { get; init; } = DateTimeOffset.Now;
@@ -65,6 +95,7 @@ public sealed class AlertCenterService
     public int UnreadCount => Alerts.Count(a => !a.Acknowledged);
 
     public event Action? AlertsChanged;
+    public event Action<AlertItem>? AlertRaised;
 
     public AlertCenterService()
     {
@@ -99,55 +130,72 @@ public sealed class AlertCenterService
         }
     }
 
+    public bool IsEnabled(AlertCategory category) => category switch
+    {
+        AlertCategory.EndpointOffline => Thresholds.AlertOnOffline,
+        AlertCategory.HighCpu => Thresholds.AlertOnHighCpu,
+        AlertCategory.HighMemory => Thresholds.AlertOnHighRam,
+        AlertCategory.LowDisk => Thresholds.AlertOnLowDisk,
+        AlertCategory.Thermal => Thresholds.AlertOnThermal,
+        AlertCategory.BlockedSite => Thresholds.AlertOnBlockedSite,
+        AlertCategory.AgentWarning => Thresholds.AlertOnAgentWarning,
+        _ => true,
+    };
+
     public void EvaluateSample(string endpointName, string host, bool isOnline, double cpuPercent, double ramPercent, double? minDiskFreePercent = null, double? maxTempC = null)
     {
         if (_wasOnline.TryGetValue(host, out var prevOnline) && prevOnline && !isOnline && Thresholds.AlertOnOffline)
         {
             Raise(endpointName, host, AlertSeverity.Critical, "Endpoint Offline",
-                $"{endpointName} ({host}) stopped responding to health probes.", cooldownMinutes: 5);
+                $"{endpointName} ({host}) stopped responding to health probes.", cooldownMinutes: 5, category: AlertCategory.EndpointOffline);
         }
         _wasOnline[host] = isOnline;
 
         if (!isOnline) return;
 
-        if (cpuPercent >= Thresholds.CpuThresholdPercent)
+        if (Thresholds.AlertOnHighCpu && cpuPercent >= Thresholds.CpuThresholdPercent)
         {
             Raise(endpointName, host, AlertSeverity.Warning, "High CPU Utilization",
-                $"CPU load at {cpuPercent:0}% (threshold {Thresholds.CpuThresholdPercent:0}%).", cooldownMinutes: 3);
+                $"CPU load at {cpuPercent:0}% (threshold {Thresholds.CpuThresholdPercent:0}%).", cooldownMinutes: 3, category: AlertCategory.HighCpu);
         }
 
-        if (ramPercent >= Thresholds.RamThresholdPercent)
+        if (Thresholds.AlertOnHighRam && ramPercent >= Thresholds.RamThresholdPercent)
         {
             Raise(endpointName, host, AlertSeverity.Warning, "High Memory Utilization",
-                $"RAM usage at {ramPercent:0}% (threshold {Thresholds.RamThresholdPercent:0}%).", cooldownMinutes: 3);
+                $"RAM usage at {ramPercent:0}% (threshold {Thresholds.RamThresholdPercent:0}%).", cooldownMinutes: 3, category: AlertCategory.HighMemory);
         }
 
-        if (minDiskFreePercent is < 100 && minDiskFreePercent.Value < Thresholds.DiskFreeMinPercent)
+        if (Thresholds.AlertOnLowDisk && minDiskFreePercent is < 100 && minDiskFreePercent.Value < Thresholds.DiskFreeMinPercent)
         {
             Raise(endpointName, host, AlertSeverity.Critical, "Low Disk Space",
-                $"Free disk space dropped to {minDiskFreePercent.Value:0.0}% (min {Thresholds.DiskFreeMinPercent:0}%).", cooldownMinutes: 15);
+                $"Free disk space dropped to {minDiskFreePercent.Value:0.0}% (min {Thresholds.DiskFreeMinPercent:0}%).", cooldownMinutes: 15, category: AlertCategory.LowDisk);
         }
 
-        if (maxTempC is > 0 && maxTempC.Value >= Thresholds.TempThresholdC)
+        if (Thresholds.AlertOnThermal && maxTempC is > 0 && maxTempC.Value >= Thresholds.TempThresholdC)
         {
             Raise(endpointName, host, AlertSeverity.Critical, "Thermal Warning",
-                $"Hardware temperature reached {maxTempC.Value:0}°C (limit {Thresholds.TempThresholdC:0}°C).", cooldownMinutes: 5);
+                $"Hardware temperature reached {maxTempC.Value:0}°C (limit {Thresholds.TempThresholdC:0}°C).", cooldownMinutes: 5, category: AlertCategory.Thermal);
         }
     }
 
-    public void Raise(string endpointName, string host, AlertSeverity severity, string title, string detail, int cooldownMinutes = 2)
+    public void Raise(string endpointName, string host, AlertSeverity severity, string title, string detail, int cooldownMinutes = 2, AlertCategory category = AlertCategory.General)
     {
+        if (!IsEnabled(category)) return;
         var key = $"{host}|{title}";
         var now = DateTimeOffset.Now;
-        if (_cooldowns.TryGetValue(key, out var until) && now < until)
-            return;
-        _cooldowns[key] = now.AddMinutes(cooldownMinutes);
+        if (cooldownMinutes > 0)
+        {
+            if (_cooldowns.TryGetValue(key, out var until) && now < until)
+                return;
+            _cooldowns[key] = now.AddMinutes(cooldownMinutes);
+        }
 
         var item = new AlertItem
         {
             EndpointName = endpointName,
             Host = host,
             Severity = severity,
+            Category = category,
             Title = title,
             Detail = detail,
             Timestamp = now,
@@ -163,6 +211,7 @@ public sealed class AlertCenterService
             Alerts.Insert(0, item);
             while (Alerts.Count > 200) Alerts.RemoveAt(Alerts.Count - 1);
             AlertsChanged?.Invoke();
+            AlertRaised?.Invoke(item);
         }
 
         if (System.Windows.Application.Current?.Dispatcher is { } d && !d.CheckAccess())

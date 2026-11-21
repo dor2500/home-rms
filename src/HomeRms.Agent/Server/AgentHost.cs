@@ -41,6 +41,9 @@ public static class AgentHost
         builder.Services.AddSingleton(new FileManagerOps(log.Write));
         builder.Services.AddSingleton(consent);
         builder.Services.AddSingleton(log);
+        // Hosts editor / website blocker; its loopback sinkhole listener stays OFF unless enabled from the console.
+        var hosts = new HomeRms.Shared.Hosts.HostsManager(null, log.Write);
+        builder.Services.AddSingleton(hosts);
         // Remote agent/update-* ops; without an explicit instance (tests) checks work but applying is refused
         builder.Services.AddSingleton(updater ?? new AgentUpdater(log, [], applyDisabledReason: "Self-update is disabled in this host."));
 
@@ -77,6 +80,8 @@ public static class AgentHost
         });
         app.Lifetime.ApplicationStarted.Register(announcer.Start);
         app.Lifetime.ApplicationStopping.Register(announcer.Dispose);
+        app.Lifetime.ApplicationStarted.Register(hosts.Start);
+        app.Lifetime.ApplicationStopping.Register(hosts.Dispose);
         app.MapGrpcService<RemoteManagementService>();
         log.Write($"[host] listening on port {port} (mutual TLS required)");
         return app;

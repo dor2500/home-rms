@@ -34,14 +34,59 @@ public partial class MainWindow
     {
         AlertsListBox.ItemsSource = _alerts.Alerts;
         _alerts.AlertsChanged += RefreshAlertBadge;
+        _alerts.AlertRaised += OnAlertRaised;
         RefreshAlertBadge();
 
-        CpuThresholdBox.Text = _alerts.Thresholds.CpuThresholdPercent.ToString("0");
-        RamThresholdBox.Text = _alerts.Thresholds.RamThresholdPercent.ToString("0");
-        DiskThresholdBox.Text = _alerts.Thresholds.DiskFreeMinPercent.ToString("0");
-        TempThresholdBox.Text = _alerts.Thresholds.TempThresholdC.ToString("0");
+        var t = _alerts.Thresholds;
+        CpuThresholdBox.Text = t.CpuThresholdPercent.ToString("0");
+        RamThresholdBox.Text = t.RamThresholdPercent.ToString("0");
+        DiskThresholdBox.Text = t.DiskFreeMinPercent.ToString("0");
+        TempThresholdBox.Text = t.TempThresholdC.ToString("0");
+
+        AlertBlockedSiteCheck.IsChecked = t.AlertOnBlockedSite;
+        AlertOfflineCheck.IsChecked = t.AlertOnOffline;
+        AlertCpuCheck.IsChecked = t.AlertOnHighCpu;
+        AlertRamCheck.IsChecked = t.AlertOnHighRam;
+        AlertDiskCheck.IsChecked = t.AlertOnLowDisk;
+        AlertTempCheck.IsChecked = t.AlertOnThermal;
+        AlertAgentWarnCheck.IsChecked = t.AlertOnAgentWarning;
+
+        AlertToastCheck.IsChecked = t.DesktopToastEnabled;
+        AlertSoundCheck.IsChecked = t.SoundEnabled;
+        AutoScanLanCheck.IsChecked = t.AutoScanLanEnabled;
+        AutoScanIntervalBox.Text = Math.Clamp(t.AutoScanIntervalSeconds, 10, 3600).ToString();
+        AutoConnectAlertsCheck.IsChecked = t.AutoConnectForAlerts;
 
         InitializeDeploy(); // MainWindow.Deploy.cs
+    }
+
+    private CancellationTokenSource? _toastHideCts;
+
+    private void OnAlertRaised(AlertItem item)
+    {
+        if (_alerts.Thresholds.SoundEnabled)
+        {
+            try { System.Media.SystemSounds.Exclamation.Play(); } catch { }
+        }
+        if (!_alerts.Thresholds.DesktopToastEnabled) return;
+
+        AlertToastTitle.Text = $"{item.Title} — {item.EndpointName}";
+        AlertToastTitle.Foreground = item.SeverityBrush;
+        AlertToastDetail.Text = item.Detail;
+        AlertToastBorder.Visibility = Visibility.Visible;
+
+        _toastHideCts?.Cancel();
+        _toastHideCts = new CancellationTokenSource();
+        var ct = _toastHideCts.Token;
+        _ = Task.Delay(6000, ct).ContinueWith(
+            _ => Dispatcher.BeginInvoke(() => AlertToastBorder.Visibility = Visibility.Collapsed),
+            ct, TaskContinuationOptions.OnlyOnRanToCompletion, TaskScheduler.Default);
+    }
+
+    private void OnDismissAlertToastClick(object sender, RoutedEventArgs e)
+    {
+        _toastHideCts?.Cancel();
+        AlertToastBorder.Visibility = Visibility.Collapsed;
     }
 
     private void RefreshAlertBadge()
@@ -52,6 +97,11 @@ public partial class MainWindow
             AlertBadgeText.Text = count.ToString();
             AlertBadgeBorder.Background = count > 0 ? Themes.Palette.DangerSoft : Themes.Palette.NeutralSoft;
             AlertBadgeText.Foreground = count > 0 ? Themes.Palette.Danger : Themes.Palette.TextSecondary;
+            if (OverviewAlertsPill is not null)
+            {
+                OverviewAlertsPill.Content = count == 1 ? "1 active alert" : $"{count} active alerts";
+                OverviewAlertsPill.Foreground = count > 0 ? Themes.Palette.Danger : Themes.Palette.TextSecondary;
+            }
             UpdateNavBadges(); // MainWindow.Shell.cs
         });
     }
@@ -123,13 +173,32 @@ public partial class MainWindow
 
     private void OnSaveAlertThresholdsClick(object sender, RoutedEventArgs e)
     {
-        if (double.TryParse(CpuThresholdBox.Text, out var cpu)) _alerts.Thresholds.CpuThresholdPercent = Math.Clamp(cpu, 10, 100);
-        if (double.TryParse(RamThresholdBox.Text, out var ram)) _alerts.Thresholds.RamThresholdPercent = Math.Clamp(ram, 10, 100);
-        if (double.TryParse(DiskThresholdBox.Text, out var dsk)) _alerts.Thresholds.DiskFreeMinPercent = Math.Clamp(dsk, 1, 90);
-        if (double.TryParse(TempThresholdBox.Text, out var tmp)) _alerts.Thresholds.TempThresholdC = Math.Clamp(tmp, 40, 115);
+        var t = _alerts.Thresholds;
+        if (double.TryParse(CpuThresholdBox.Text, out var cpu)) t.CpuThresholdPercent = Math.Clamp(cpu, 10, 100);
+        if (double.TryParse(RamThresholdBox.Text, out var ram)) t.RamThresholdPercent = Math.Clamp(ram, 10, 100);
+        if (double.TryParse(DiskThresholdBox.Text, out var dsk)) t.DiskFreeMinPercent = Math.Clamp(dsk, 1, 90);
+        if (double.TryParse(TempThresholdBox.Text, out var tmp)) t.TempThresholdC = Math.Clamp(tmp, 40, 115);
+
+        t.AlertOnBlockedSite = AlertBlockedSiteCheck.IsChecked == true;
+        t.AlertOnOffline = AlertOfflineCheck.IsChecked == true;
+        t.AlertOnHighCpu = AlertCpuCheck.IsChecked == true;
+        t.AlertOnHighRam = AlertRamCheck.IsChecked == true;
+        t.AlertOnLowDisk = AlertDiskCheck.IsChecked == true;
+        t.AlertOnThermal = AlertTempCheck.IsChecked == true;
+        t.AlertOnAgentWarning = AlertAgentWarnCheck.IsChecked == true;
+
+        t.DesktopToastEnabled = AlertToastCheck.IsChecked == true;
+        t.SoundEnabled = AlertSoundCheck.IsChecked == true;
+        t.AutoScanLanEnabled = AutoScanLanCheck.IsChecked == true;
+        if (int.TryParse(AutoScanIntervalBox.Text, out var sec))
+            t.AutoScanIntervalSeconds = Math.Clamp(sec, 10, 3600);
+        AutoScanIntervalBox.Text = t.AutoScanIntervalSeconds.ToString();
+        t.AutoConnectForAlerts = AutoConnectAlertsCheck.IsChecked == true;
+
         _alerts.SaveThresholds();
-        AddActivity("ALERT", "Alert Center thresholds saved.");
-        StatusText.Text = "Alert thresholds updated.";
+        ConfigureAutoScanTimer();
+        AddActivity("ALERT", "Alert Center settings saved.");
+        StatusText.Text = "Alert settings updated.";
     }
 
     // ---------------- Multi-Monitor 3 Modes & Agentless RDP ----------------

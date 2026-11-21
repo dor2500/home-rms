@@ -101,6 +101,36 @@ public partial class MainWindow
         if (report.Changes.Count > 0) UpdateOverviewMetrics();
     }
 
+    /// <summary>
+    /// Periodic LAN scan for alerts: discovers agents on the network, saves new ones,
+    /// probes them, and connects (non-interactively) so real-time alerts stream automatically.
+    /// </summary>
+    private async Task AutoScanAndConnectForAlertsAsync()
+    {
+        if (_scanRunning || _healRunning || IsConsoleLocked) return;
+        var before = _machines.ToHashSet();
+        var report = await RunHealAsync(addNew: true);
+        if (report is null) return;
+
+        var newlyAdded = _machines.Where(m => !before.Contains(m)).ToList();
+        var moved = report.Changes.Where(c => c.Plan.MovesHost && !c.Profile.IsConnected).Select(c => c.Profile);
+        foreach (var m in newlyAdded.Concat(moved).Distinct())
+            await ProbeOneAsync(m);
+
+        if (_alerts.Thresholds.AutoConnectForAlerts)
+        {
+            foreach (var m in _machines.Where(m => m.IsAgentEndpoint && (m.IsOnline || m.IsConnected) && _pool.GetCachedInfo(m) is null).ToList())
+            {
+                try { await _pool.GetPairedAsync(m, interactive: false); }
+                catch { /* unpaired (2FA required) or offline; skip quietly */ }
+            }
+        }
+
+        _telemetry.Sync(_machines);
+        _eventWatcher.Sync(_machines);
+        if (newlyAdded.Count > 0 || report.Changes.Count > 0) UpdateOverviewMetrics();
+    }
+
     /// <summary>Drops pooled connections that still point at an endpoint's old address.</summary>
     private void AfterHeal(HealReport report)
     {

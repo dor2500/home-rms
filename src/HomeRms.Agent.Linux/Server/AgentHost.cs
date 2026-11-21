@@ -39,6 +39,9 @@ public static class AgentHost
         builder.Services.AddSingleton(new FileManagerOps(log.Write));
         builder.Services.AddSingleton(consent);
         builder.Services.AddSingleton(log);
+        // Hosts editor / website blocker; its loopback sinkhole listener stays OFF unless enabled from the console.
+        var hosts = new HomeRms.Shared.Hosts.HostsManager(null, log.Write);
+        builder.Services.AddSingleton(hosts);
 
         // "Call home": signed unicast announces to the pinned controllers that connected to this agent.
         var announcer = new AgentAnnouncer(agentCert, port, announce, security.TrustedStorePath, log.Write);
@@ -75,6 +78,8 @@ public static class AgentHost
         });
         app.Lifetime.ApplicationStarted.Register(announcer.Start);
         app.Lifetime.ApplicationStopping.Register(announcer.Dispose);
+        app.Lifetime.ApplicationStarted.Register(hosts.Start);
+        app.Lifetime.ApplicationStopping.Register(hosts.Dispose);
         app.MapGrpcService<RemoteManagementService>();
         log.Write($"[host] listening on port {port} (Linux mutual TLS required)");
         return app;

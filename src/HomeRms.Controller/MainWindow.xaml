@@ -228,6 +228,12 @@
                                     <TextBlock x:Name="NavLabelServices" Text="Services &amp; tasks" Margin="12,0,0,0" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
                                 </DockPanel>
                             </RadioButton>
+                            <RadioButton x:Name="NavHosts" Style="{StaticResource RailTab}" Checked="OnNavTabChanged" ToolTip="Hosts file editor &amp; website blocker">
+                                <DockPanel>
+                                    <Path Style="{StaticResource VectorIcon}" Data="{StaticResource GeoShield}"/>
+                                    <TextBlock x:Name="NavLabelHosts" Text="Hosts &amp; blocker" Margin="12,0,0,0" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+                                </DockPanel>
+                            </RadioButton>
                             <RadioButton x:Name="NavSystem" Style="{StaticResource RailTab}" Checked="OnNavTabChanged" ToolTip="System &amp; settings">
                                 <DockPanel>
                                     <Path Style="{StaticResource VectorIcon}" Data="{StaticResource GeoSettings}"/>
@@ -387,7 +393,10 @@
 
                                 <Border Grid.Column="2" Style="{StaticResource CardStyle}" Padding="16,14,10,10">
                                     <DockPanel>
-                                        <TextBlock DockPanel.Dock="Top" Text="Audit &amp; relay events" Style="{StaticResource SectionTitle}" Margin="0,0,0,8"/>
+                                        <DockPanel DockPanel.Dock="Top" Margin="0,0,0,8">
+                                            <Button DockPanel.Dock="Right" x:Name="OverviewAlertsPill" Style="{StaticResource SmallPillButton}" Click="OnOpenAlertCenterClick" Content="0 active alerts" Padding="8,2"/>
+                                            <TextBlock Text="Audit &amp; relay events" Style="{StaticResource SectionTitle}" VerticalAlignment="Center"/>
+                                        </DockPanel>
                                         <ListBox x:Name="OverviewEventsList" ItemContainerStyle="{StaticResource FeedItem}"
                                                  ItemTemplate="{StaticResource ActivityRowTemplate}"
                                                  ScrollViewer.HorizontalScrollBarVisibility="Disabled"/>
@@ -932,6 +941,7 @@
                 <ContentControl x:Name="FilesHost" Visibility="Collapsed"/>
                 <ContentControl x:Name="ServicesHost" Visibility="Collapsed"/>
                 <ContentControl x:Name="ScriptsHost" Visibility="Collapsed"/>
+                <ContentControl x:Name="HostsHost" Visibility="Collapsed"/>
 
             </Grid>
 
@@ -1150,7 +1160,7 @@
 
                     <Border DockPanel.Dock="Bottom" Style="{StaticResource WellStyle}" Padding="12" Margin="0,12,0,0">
                         <StackPanel>
-                            <TextBlock Text="Alert thresholds" Style="{StaticResource Caption}" Margin="0,0,0,8"/>
+                            <TextBlock Text="Alert thresholds" Style="{StaticResource Caption}" Margin="0,0,0,6"/>
                             <Grid>
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="*"/>
@@ -1178,7 +1188,33 @@
                                     <TextBox x:Name="TempThresholdBox" FontFamily="{StaticResource MonoFont}" Text="85"/>
                                 </StackPanel>
                             </Grid>
-                            <Button Content="Save thresholds" Style="{StaticResource SmallPillButton}" HorizontalAlignment="Right" Margin="0,10,0,0" Click="OnSaveAlertThresholdsClick"/>
+
+                            <TextBlock Text="Alert types to receive" Style="{StaticResource Caption}" Margin="0,10,0,4"/>
+                            <WrapPanel Orientation="Horizontal">
+                                <CheckBox x:Name="AlertBlockedSiteCheck" Content="Blocked sites" Margin="0,2,12,2"/>
+                                <CheckBox x:Name="AlertOfflineCheck" Content="Offline" Margin="0,2,12,2"/>
+                                <CheckBox x:Name="AlertCpuCheck" Content="High CPU" Margin="0,2,12,2"/>
+                                <CheckBox x:Name="AlertRamCheck" Content="High RAM" Margin="0,2,12,2"/>
+                                <CheckBox x:Name="AlertDiskCheck" Content="Low disk" Margin="0,2,12,2"/>
+                                <CheckBox x:Name="AlertTempCheck" Content="Thermal" Margin="0,2,12,2"/>
+                                <CheckBox x:Name="AlertAgentWarnCheck" Content="Agent warnings" Margin="0,2,0,2"/>
+                            </WrapPanel>
+
+                            <TextBlock Text="Notifications &amp; background LAN discovery" Style="{StaticResource Caption}" Margin="0,8,0,4"/>
+                            <WrapPanel Orientation="Horizontal" Margin="0,0,0,6">
+                                <CheckBox x:Name="AlertToastCheck" Content="Desktop toast popup" Margin="0,2,14,2"/>
+                                <CheckBox x:Name="AlertSoundCheck" Content="Play alert sound" Margin="0,2,0,2"/>
+                            </WrapPanel>
+                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                <CheckBox x:Name="AutoScanLanCheck" Content="Auto-scan LAN every" VerticalAlignment="Center" Margin="0,0,6,0"
+                                          ToolTip="Periodically scan the local network for Home RMS agents and connect to receive alerts"/>
+                                <TextBox x:Name="AutoScanIntervalBox" Width="46" FontFamily="{StaticResource MonoFont}" Text="30" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                                <TextBlock Text="sec" Style="{StaticResource MetaText}" VerticalAlignment="Center" Margin="0,0,10,0"/>
+                                <CheckBox x:Name="AutoConnectAlertsCheck" Content="Auto-connect" VerticalAlignment="Center"
+                                          ToolTip="Automatically save and connect to discovered agents for real-time alerts"/>
+                            </StackPanel>
+
+                            <Button Content="Save alert settings" Style="{StaticResource SmallPillButton}" HorizontalAlignment="Right" Margin="0,10,0,0" Click="OnSaveAlertThresholdsClick"/>
                         </StackPanel>
                     </Border>
 
@@ -1390,5 +1426,21 @@
                 </StackPanel>
             </Border>
         </Grid>
+
+        <!-- ==================== DESKTOP ALERT TOAST ==================== -->
+        <Border x:Name="AlertToastBorder" Grid.Row="1" Visibility="Collapsed"
+                HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,22,22" MaxWidth="380"
+                Style="{StaticResource CardStyle}" Padding="14,10" Panel.ZIndex="90">
+            <DockPanel>
+                <Button DockPanel.Dock="Right" Style="{StaticResource SubtleButton}" Width="24" Height="24" Padding="0" Margin="8,0,0,0"
+                        VerticalAlignment="Top" Click="OnDismissAlertToastClick" ToolTip="Dismiss">
+                    <Path Style="{StaticResource VectorIcon}" Data="{StaticResource GeoClose}" Width="10" Height="10"/>
+                </Button>
+                <StackPanel>
+                    <TextBlock x:Name="AlertToastTitle" Text="Alert" FontWeight="SemiBold" FontSize="{StaticResource FontSizeSmall}" Foreground="{DynamicResource WarnBrush}"/>
+                    <TextBlock x:Name="AlertToastDetail" Text="" Style="{StaticResource MetaText}" TextWrapping="Wrap" Margin="0,2,0,0"/>
+                </StackPanel>
+            </DockPanel>
+        </Border>
     </Grid>
 </Window>

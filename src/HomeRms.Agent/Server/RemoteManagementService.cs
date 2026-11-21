@@ -16,7 +16,8 @@ namespace HomeRms.Agent.Server;
 /// <summary>Server-side implementation of the consent-gated remote management RPCs.</summary>
 [SupportedOSPlatform("windows")]
 public sealed class RemoteManagementService(
-    ConsentCoordinator consent, ActivityLog log, ControllerPairing pairing, FileManagerOps files, AgentUpdater updater)
+    ConsentCoordinator consent, ActivityLog log, ControllerPairing pairing, FileManagerOps files, AgentUpdater updater,
+    HomeRms.Shared.Hosts.HostsManager hosts)
     : RemoteManagement.RemoteManagementBase
 {
     private volatile int _activeMonitorIndex;
@@ -665,6 +666,25 @@ public sealed class RemoteManagementService(
     // ---------------- Telemetry ----------------
     public override Task GetTelemetry(TelemetryRequest request, IServerStreamWriter<TelemetrySample> responseStream, ServerCallContext context) =>
         TelemetryStreamer.RunAsync(new TelemetrySampler(), request, responseStream, context, OperatorOf(context), log.Write);
+
+    // ---------------- Hosts file & website blocker ----------------
+    public override Task<HostsConfig> GetHostsConfig(Empty request, ServerCallContext context)
+    {
+        log.Write($"[hosts] '{OperatorOf(context)}' read the hosts file");
+        return Task.FromResult(hosts.GetConfig());
+    }
+
+    public override Task<HostsOpResult> SetHostsBlocklist(HostsBlocklistRequest request, ServerCallContext context) =>
+        hosts.SetBlocklistAsync(request, OperatorOf(context));
+
+    public override Task<HostsOpResult> SetHostsRaw(HostsRawRequest request, ServerCallContext context) =>
+        hosts.SetRawAsync(request, OperatorOf(context));
+
+    public override Task<HostsOpResult> SetBlockListener(BlockListenerRequest request, ServerCallContext context) =>
+        hosts.SetListenerAsync(request, OperatorOf(context));
+
+    public override Task WatchAgentEvents(Empty request, IServerStreamWriter<AgentEvent> responseStream, ServerCallContext context) =>
+        hosts.Events.StreamAsync(responseStream, context, OperatorOf(context), log.Write);
 
     public override Task<ClipboardAck> SetPrivacyMode(PrivacyModeRequest request, ServerCallContext context)
     {

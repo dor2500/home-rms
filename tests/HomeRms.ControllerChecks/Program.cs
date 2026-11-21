@@ -6,6 +6,7 @@ using System.Net.Http;
 using System.Text;
 using HomeRms.Controller.Models;
 using HomeRms.Controller.Services;
+using HomeRms.ControllerChecks;
 using HomeRms.Shared.Server;
 
 // Offline checks of controller-side logic that the agent loopback test cannot reach:
@@ -232,6 +233,10 @@ try
     // ---------------- 9. Update All output parsing ----------------
     Console.WriteLine("[checks] Update All: winget and Linux package-manager output parsing");
     UpgradeChecks.Run(Check);
+
+    // ---------------- 10. Hosts file editor & website blocker ----------------
+    Console.WriteLine("[checks] Hosts file editor & website blocker");
+    await HostsBlockerChecks.RunAsync(Check);
 }
 catch (Exception ex)
 {
