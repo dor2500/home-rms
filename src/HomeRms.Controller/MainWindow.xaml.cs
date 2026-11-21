@@ -2329,6 +2329,12 @@ public partial class MainWindow : Window
         await Task.Delay(1200);
         SaveWindowPng(Path.Combine(outDir, "controller-desktop.png"));
         StopStream();
+        // Custom preset: the FPS / JPEG / resolution fields appear in the toolbar (not persisted in screenshot runs)
+        var shownPreset = _streamPreset;
+        SelectPreset(StreamPreset.Custom);
+        await Task.Delay(300);
+        SaveWindowPng(Path.Combine(outDir, "controller-desktop-custom.png"));
+        SelectPreset(shownPreset);
 
         // Switch to Deploy (winstall-style catalog) and capture its sub-views
         NavDeploy.IsChecked = true;
