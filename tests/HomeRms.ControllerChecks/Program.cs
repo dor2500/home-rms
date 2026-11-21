@@ -50,6 +50,22 @@ try
     scripts["library: body with indented '@ line"] = ScriptExecutor.BuildPowerShell(ScriptShell.PowerShell, "Write-Output 'a'\n   '@\n", "x");
     scripts["library: cmd body with quotes"] = ScriptExecutor.BuildPowerShell(ScriptShell.Cmd, "echo \"a'b\" & echo '@", "t\nitle");
 
+    scripts["winget-install pinned version (WinRM)"] =
+        WingetCatalogService.BuildWingetInstallScript("Google.Chrome", silent: true, machineScope: false, upgradeIfInstalled: true, version: "158.0.8127.37");
+
+    // Install view "PowerShell" tab: defaults, every option, hostile advanced values ($, backticks, quotes, braces).
+    WingetScriptApp[] genApps =
+    [
+        new("Google.Chrome"),
+        new("Notepad++.Notepad++", Version: "8.7.1"),
+        new("7zip.7zip", Scope: InstallScope.User, Interactive: true, Force: true,
+            Override: "/S /D=C:\\Program Files\\7 $(calc) `whoami` 'q' \"dq\" {x}", Log: "C:\\Logs\\it's.log", Location: "D:\\Apps\\7zip"),
+    ];
+    foreach (var upgrade in new[] { false, true })
+    foreach (var scope in Enum.GetValues<InstallScope>())
+        scripts[$"generator PowerShell scope={scope} upgrade={upgrade}"] =
+            WingetScriptGenerator.PowerShell(genApps, new WingetScriptOptions(scope, Interactive: false, Force: upgrade, Silent: !upgrade, UpgradeIfInstalled: upgrade));
+
     var parseErrors = ParsePowerShell(work, scripts);
     foreach (var name in scripts.Keys)
         Check(!parseErrors.TryGetValue(name, out var err), $"parses: {name}{(parseErrors.TryGetValue(name, out var e2) ? " -> " + e2 : "")}");
@@ -87,6 +103,68 @@ try
     Check(WinstallImporter.TryGetPackId("https://winstall.app/packs/abc_DEF-12", out var packId) && packId == "abc_DEF-12", "pack URL detection");
     Check(WingetRules.IsValidPackageId("Notepad++.Notepad++") && !WingetRules.IsValidPackageId("a'b") && !WingetRules.IsValidPackageId("--id"),
         "package ID validation");
+
+    // ---------------- 4b. Install view script generators ----------------
+    Console.WriteLine("[checks] Batch / PowerShell / winget import generators");
+    var psGen = WingetScriptGenerator.PowerShell(genApps, new WingetScriptOptions());
+    Check(psGen.Contains("winget install --id=Notepad++.Notepad++ -e -v 8.7.1 --silent") && psGen.Contains("--scope user --interactive --force")
+          && !psGen.Contains("--interactive --silent"),
+        "PowerShell: pinned version, per-app scope / interactive / force, interactive suppresses --silent");
+    Check(psGen.Contains("--log 'C:\\Logs\\it''s.log'"), "PowerShell: single quotes are doubled inside single-quoted values");
+
+    // The hostile override is evaluated by PowerShell as one literal argument (no $(), backtick or quote breakout).
+    var echoScript = WingetScriptGenerator.PowerShell([genApps[2]], new WingetScriptOptions())
+        .Replace("winget install", "& { $args | ForEach-Object { 'ARG:' + $_ } }");
+    var (_, echoOut) = RunPowerShell(work, echoScript);
+    Check(echoOut.Contains("ARG:/S /D=C:\\Program Files\\7 $(calc) `whoami` 'q' \"dq\" {x}"),
+        $"PowerShell: --override value reaches winget unchanged{(echoOut.Contains("ARG:/S") ? "" : " -> " + echoOut.Trim())}");
+
+    var batApps = new[] { new WingetScriptApp("Google.Chrome"), new WingetScriptApp("VideoLAN.VLC", "3.0.21", InstallScope.Machine, Override: "/S /L=100%") };
+    var bat = WingetScriptGenerator.Batch(batApps, new WingetScriptOptions(UpgradeIfInstalled: true));
+    Check(bat.StartsWith("@echo off\r\n") && bat.Contains("winget upgrade --id=Google.Chrome -e --silent")
+          && bat.Contains($"if %ERRORLEVEL% EQU {WingetScriptGenerator.NoPackageFoundExit} winget install --id=VideoLAN.VLC -e -v 3.0.21 --scope machine")
+          && bat.Contains("--override \"/S /L=100%%\""),
+        "Batch: upgrade-then-install, pinned version, machine scope, % doubled inside quotes");
+    var batRejected = false;
+    try { WingetScriptGenerator.Batch([new WingetScriptApp("Google.Chrome", Override: "a\" & calc & \"")], new WingetScriptOptions()); }
+    catch (ArgumentException) { batRejected = true; }
+    Check(batRejected, "Batch: a double quote in --override is rejected (cannot be quoted safely)");
+    var badIdRejected = false;
+    try { WingetScriptGenerator.PowerShell([new WingetScriptApp("bad id; calc")], new WingetScriptOptions()); }
+    catch (ArgumentException) { badIdRejected = true; }
+    Check(badIdRejected, "generators reject invalid package IDs");
+    var badVersionRejected = false;
+    try { WingetScriptGenerator.Batch([new WingetScriptApp("Google.Chrome", "1.0 & calc")], new WingetScriptOptions()); }
+    catch (ArgumentException) { badVersionRejected = true; }
+    Check(badVersionRejected, "generators reject invalid versions");
+
+    var importJson = WingetScriptGenerator.WingetImportJson(genApps, new DateTime(2026, 11, 21, 0, 0, 0, DateTimeKind.Utc));
+    using (var doc = System.Text.Json.JsonDocument.Parse(importJson))
+    {
+        var pkgs = doc.RootElement.GetProperty("Sources")[0].GetProperty("Packages");
+        var ids = pkgs.EnumerateArray().Select(e => e.GetProperty("PackageIdentifier").GetString()).ToList();
+        var pinnedVer = pkgs[1].GetProperty("Version").GetString();
+        Check(ids.SequenceEqual(genApps.Select(a => a.Id)) && pinnedVer == "8.7.1" && !pkgs[0].TryGetProperty("Version", out _)
+              && doc.RootElement.GetProperty("$schema").GetString()!.Contains("winget-packages"),
+            "winget import JSON: schema, ids in order, Version only when pinned");
+    }
+    var roundTrip = WinstallImporter.ParseText(importJson);
+    Check(roundTrip.Format == "winget export JSON" && roundTrip.Ids.SequenceEqual(genApps.Select(a => a.Id)) && roundTrip.Info["Notepad++.Notepad++"].Version == "8.7.1",
+        "winget import JSON round-trips through the pack importer (ids + pinned version)");
+    var batRoundTrip = WinstallImporter.ParseText(bat);
+    Check(batRoundTrip.Ids.SequenceEqual(["Google.Chrome", "VideoLAN.VLC"]), $"generated batch re-imports to the same IDs -> {string.Join(", ", batRoundTrip.Ids)}");
+    Check(WingetScriptGenerator.SingleCommand("Google.Chrome", null, false) == "winget install -e --id Google.Chrome"
+          && WingetScriptGenerator.SingleCommand("Google.Chrome", "157.0", true) == "winget upgrade -e --id Google.Chrome -v 157.0",
+        "app page command matches winstall's format");
+
+    // api.winstall.app response parsing (shapes observed on the live API)
+    var (wApps, wTotal) = WinstallApiClient.ParseAppList("{\"total\":16455,\"offset\":0,\"limit\":2,\"data\":[{\"_id\":\"Google.Chrome\",\"name\":\"Google Chrome\",\"publisher\":\"Google LLC\",\"desc\":\"Fast\\nbrowser\",\"latestVersion\":\"158.0\",\"categories\":[\"browser\"]},{\"_id\":\"bad id\"}]}");
+    Check(wTotal == 16455 && wApps.Count == 1 && wApps[0].Description == "Fast browser", "winstall app list: total, invalid ids dropped, control characters cleaned");
+    var wDetail = WinstallApiClient.ParseAppDetails("{\"_id\":\"Google.Chrome\",\"name\":\"Google Chrome\",\"latestVersion\":\"158.0\",\"homepage\":\"javascript:alert(1)\",\"licenseUrl\":\"https://x.example/l\",\"updatedAt\":\"2026-11-19T04:15:03.938Z\",\"versions\":[{\"version\":\"158.0\"},{\"version\":\"157.0\"},{\"version\":\"1 & calc\"}]}");
+    Check(wDetail.Versions.SequenceEqual(["158.0", "157.0"]) && wDetail.Homepage == "" && wDetail.LicenseUrl == "https://x.example/l" && wDetail.UpdatedUtc?.Day == 19,
+        "winstall app details: invalid versions dropped, non-http links dropped, date parsed");
+    var (wPacks, _) = WinstallApiClient.ParsePackList("{\"data\":[{\"_id\":\"H9Sz\",\"name\":\"Windows Essentials\",\"appCount\":14,\"apps\":[{\"_id\":\"Google.Chrome\",\"name\":\"Google Chrome\"}]}]}");
+    Check(wPacks.Count == 1 && wPacks[0].AppCount == 14 && wPacks[0].Apps.Count == 1, "winstall pack list: app count and preview apps");
 
     // ---------------- 5. Central Hub relay ----------------
     Console.WriteLine("[checks] Central Hub relay access control");
