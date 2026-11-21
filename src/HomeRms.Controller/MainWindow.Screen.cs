@@ -303,7 +303,9 @@ public partial class MainWindow
         if (controlling)
         {
             RemoteCursorImage.Visibility = Visibility.Collapsed;
-            ScreenImage.Cursor = !_cursorVisible ? Cursors.None : _cursorForControl;
+            // Never hide the local cursor (Cursors.None) when remote GetCursorInfo reports hidden
+            // (e.g. while typing, on headless PCs, or before the first shape arrives); fall back to the local arrow.
+            ScreenImage.Cursor = _cursorVisible && _cursorForControl is not null ? _cursorForControl : null;
             return;
         }
 
