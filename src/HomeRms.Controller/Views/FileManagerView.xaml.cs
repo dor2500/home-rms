@@ -235,7 +235,7 @@ public partial class FileManagerView : UserControl
         if (localDir.Length == 0) { LocalPane.ShowError("Open a local folder first."); return; }
         var remote = _remote;
 
-        var clashes = items.Where(i => File.Exists(Path.Combine(localDir, i.Name)) || Directory.Exists(Path.Combine(localDir, i.Name))).ToList();
+        var clashes = items.Where(i => File.Exists(Path.Combine(localDir, LocalSafeName(i.Name))) || Directory.Exists(Path.Combine(localDir, LocalSafeName(i.Name)))).ToList();
         var overwrite = false;
         if (clashes.Count > 0)
         {
@@ -256,9 +256,24 @@ public partial class FileManagerView : UserControl
         if (LocalPane.CurrentPath == localDir) await LocalPane.RefreshAsync();
     }
 
+    /// <summary>
+    /// Linux file names may contain characters Windows does not allow (':' would even address an alternate
+    /// data stream, '\' a sub-folder): replace them so a download always lands as one plain local file.
+    /// </summary>
+    public static string LocalSafeName(string name)
+    {
+        var invalid = Path.GetInvalidFileNameChars();
+        var safe = new string(name.Select(c => invalid.Contains(c) || c == ':' ? '_' : c).ToArray()).TrimEnd(' ', '.');
+        if (safe.Length == 0 || safe is "." or "..") safe = "_";
+        var stem = safe.Split('.')[0].ToUpperInvariant();
+        return stem is "CON" or "PRN" or "AUX" or "NUL" || (stem.Length == 4 && (stem.StartsWith("COM") || stem.StartsWith("LPT")) && char.IsDigit(stem[3]))
+            ? "_" + safe
+            : safe;
+    }
+
     private async Task QueueDownloadAsync(RemoteFileSource remote, string remotePath, string name, bool isDir, string localDir, bool overwrite, List<Task> jobs)
     {
-        var dest = Path.Combine(localDir, name);
+        var dest = Path.Combine(localDir, LocalSafeName(name));
         if (isDir)
         {
             Directory.CreateDirectory(dest);

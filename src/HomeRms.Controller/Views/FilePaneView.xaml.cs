@@ -77,7 +77,9 @@ public partial class FilePaneView : UserControl
             _suppressDriveChange = true;
             DriveCombo.ItemsSource = drives;
             _suppressDriveChange = false;
-            var start = initialPath ?? drives.FirstOrDefault()?.Name;
+            // Linux agents list "/" plus mount points (/boot, /home ...): start at the root file system.
+            var start = initialPath ?? (drives.FirstOrDefault(d => d.Name == "/") ?? drives.FirstOrDefault())?.Name
+                        ?? (source is RemoteFileSource { Endpoint.IsLinuxAgent: true } ? "/" : null);
             if (start is not null) await NavigateAsync(start);
         }
         catch (Exception ex)
@@ -132,7 +134,7 @@ public partial class FilePaneView : UserControl
     {
         if (DriveCombo.ItemsSource is not IEnumerable<DriveItem> drives) return;
         var match = drives
-            .Where(d => CurrentPath.StartsWith(d.Name, StringComparison.OrdinalIgnoreCase))
+            .Where(d => CurrentPath.StartsWith(d.Name, d.Name.StartsWith('/') ? StringComparison.Ordinal : StringComparison.OrdinalIgnoreCase))
             .OrderByDescending(d => d.Name.Length)
             .FirstOrDefault();
         _suppressDriveChange = true;

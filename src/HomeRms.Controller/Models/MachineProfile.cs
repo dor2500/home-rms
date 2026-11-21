@@ -276,6 +276,28 @@ public sealed class MachineProfile : INotifyPropertyChanged
     [JsonIgnore]
     public bool IsAgentless => _connectionMode == ConnectionMode.Agentless && IsWindows;
 
+    /// <summary>
+    /// A Home RMS Linux agent (mTLS gRPC, bash shell): a Linux endpoint in agent mode, or an agent endpoint
+    /// whose reported OS is Linux (e.g. added by LAN scan before its kind was known).
+    /// </summary>
+    [JsonIgnore]
+    public bool IsLinuxAgent =>
+        (_kind == EndpointKind.Linux && _connectionMode == ConnectionMode.Agent) ||
+        (_kind == EndpointKind.WindowsAgent && ReportsLinux(_osName));
+
+    /// <summary>Windows or Linux agent endpoint that answers the agent RPCs.</summary>
+    [JsonIgnore]
+    public bool IsAgentEndpoint => _kind == EndpointKind.WindowsAgent || IsLinuxAgent;
+
+    /// <summary>A Windows agent endpoint (PowerShell shell, winget, Windows-only features).</summary>
+    [JsonIgnore]
+    public bool IsWindowsAgent => _kind == EndpointKind.WindowsAgent && !IsLinuxAgent;
+
+    /// <summary>True when an agent OS string names Linux ("Linux · Ubuntu 24.04", older agents: "Unix 6.8.0").</summary>
+    public static bool ReportsLinux(string? os) =>
+        !string.IsNullOrEmpty(os) &&
+        (os.Contains("Linux", StringComparison.OrdinalIgnoreCase) || os.StartsWith("Unix", StringComparison.OrdinalIgnoreCase));
+
     [JsonIgnore]
     public string ModeBadge => _kind switch
     {
@@ -283,7 +305,7 @@ public sealed class MachineProfile : INotifyPropertyChanged
         EndpointKind.WindowsAgentless => "Agentless: WinRM / RDP",
         EndpointKind.HomeAssistant => "Home Assistant",
         EndpointKind.Nas => "NAS / Storage",
-        EndpointKind.Linux => "Linux / SSH",
+        EndpointKind.Linux => _connectionMode == ConnectionMode.Agent ? "Linux agent: mTLS" : "Linux / SSH",
         EndpointKind.WebService => "Web Service",
         _ => "Endpoint",
     };
@@ -388,7 +410,7 @@ public sealed class MachineProfile : INotifyPropertyChanged
     public string OsName
     {
         get => _osName;
-        set { _osName = value; OnPropertyChanged(); OnPropertyChanged(nameof(OsTag)); OnPropertyChanged(nameof(OsGlyph)); }
+        set { _osName = value; OnPropertyChanged(); OnPropertyChanged(nameof(OsTag)); OnPropertyChanged(nameof(OsGlyph)); OnPropertyChanged(nameof(IsLinuxAgent)); }
     }
 
     [JsonIgnore]
@@ -399,7 +421,7 @@ public sealed class MachineProfile : INotifyPropertyChanged
         EndpointKind.Linux => "LNX",
         EndpointKind.WebService => "WEB",
         EndpointKind.WindowsAgentless => "RDP",
-        _ => _osName.Contains("Linux", StringComparison.OrdinalIgnoreCase) ? "LNX" : "WIN",
+        _ => ReportsLinux(_osName) ? "LNX" : "WIN",
     };
 
     [JsonIgnore]
@@ -413,7 +435,7 @@ public sealed class MachineProfile : INotifyPropertyChanged
             if (_kind == EndpointKind.WebService) return "Web UI";
             if (_kind == EndpointKind.WindowsAgentless) return "WinRM / RDP";
             if (_osName.Contains("WinFlex", StringComparison.OrdinalIgnoreCase)) return "WinFlexOS";
-            if (_osName.Contains("Linux", StringComparison.OrdinalIgnoreCase)) return "Linux";
+            if (ReportsLinux(_osName)) return "Linux";
             if (_osName.Contains("11", StringComparison.OrdinalIgnoreCase) || _osName.Contains("26", StringComparison.OrdinalIgnoreCase)) return "Windows 11";
             if (_osName.Contains("10", StringComparison.OrdinalIgnoreCase)) return "Windows 10";
             return string.IsNullOrWhiteSpace(_osName) ? "Windows" : _osName;

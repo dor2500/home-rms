@@ -136,17 +136,23 @@ public partial class MainWindow
     /// <summary>Mass Run: the broadcast command runs through the Script Library executor (pairing-aware, max 4 in parallel).</summary>
     private async Task MassRunAsync(string command)
     {
-        var targets = _machines.Where(m => (m.IsOnline || m.IsConnected) && m.IsWindows).ToList();
+        var targets = _machines.Where(m => (m.IsOnline || m.IsConnected) && (m.IsWindows || m.IsLinuxAgent)).ToList();
         if (targets.Count == 0)
         {
-            AddActivity("MASS RUN", "No online Windows endpoints found. Run Scan LAN first.");
+            AddActivity("MASS RUN", "No online Windows or Linux agent endpoints found. Run Scan LAN first.");
             return;
         }
 
-        AddActivity("MASS RUN", $"Executing on {targets.Count} online endpoint(s): {command}");
-        var (runs, completion) = _scriptExecutor.Start(targets, ScriptShell.PowerShell, command, "Mass Run",
+        // The same command line runs with PowerShell on Windows and with bash on Linux agents.
+        var linux = targets.Where(m => m.IsLinuxAgent).ToList();
+        var windows = targets.Except(linux).ToList();
+        AddActivity("MASS RUN", $"Executing on {targets.Count} online endpoint(s) ({windows.Count} PowerShell, {linux.Count} bash): {command}");
+        var (winRuns, winDone) = _scriptExecutor.Start(windows, ScriptShell.PowerShell, command, "Mass Run",
             TimeSpan.FromMinutes(3), CancellationToken.None);
-        await completion;
+        var (linuxRuns, linuxDone) = _scriptExecutor.Start(linux, ScriptShell.Bash, command, "Mass Run",
+            TimeSpan.FromMinutes(3), CancellationToken.None);
+        await Task.WhenAll(winDone, linuxDone);
+        var runs = winRuns.Concat(linuxRuns).ToList();
         foreach (var r in runs)
         {
             if (r.State == ScriptRunState.Succeeded)

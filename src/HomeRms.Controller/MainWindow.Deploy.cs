@@ -28,10 +28,17 @@ public sealed class DeployTarget : INotifyPropertyChanged
     public string Name => Profile.DisplayTitle;
     public string Address => Profile.Address;
 
+    /// <summary>False for endpoints winget cannot reach (Linux agents): listed as "Windows only", never checkable.</summary>
+    public bool IsSupported { get; init; } = true;
+
     public bool IsChecked
     {
         get => _isChecked;
-        set { _isChecked = value; PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(IsChecked))); }
+        set
+        {
+            _isChecked = value && IsSupported;
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(IsChecked)));
+        }
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;

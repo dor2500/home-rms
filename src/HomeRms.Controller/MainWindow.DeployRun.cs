@@ -149,12 +149,15 @@ public partial class MainWindow
     {
         var wasChecked = _deployTargets.Where(t => t.IsChecked).Select(t => t.Profile).ToHashSet();
         _deployTargets.Clear();
-        foreach (var m in _machines.Where(m => m.IsWindows))
+        foreach (var m in _machines.Where(m => m.IsWindows && !m.IsLinuxAgent))
         {
             var mode = m.IsAgentless ? "WinRM" : "agent";
             var state = m.IsConnected ? "connected" : m.IsOnline ? "online" : "offline";
             _deployTargets.Add(new DeployTarget { Profile = m, Detail = $"  {mode} · {state}", IsChecked = wasChecked.Contains(m) });
         }
+        // The winget catalog is Windows-only: Linux agents are shown but cannot be ticked.
+        foreach (var m in _machines.Where(m => m.IsLinuxAgent))
+            _deployTargets.Add(new DeployTarget { Profile = m, Detail = "  Linux agent · Windows only (winget)", IsSupported = false });
         InstallV.TargetHint.Text = _deployTargets.Count == 0
             ? "No saved Windows endpoints: deploys go to the connected session."
             : "Nothing checked = the connected (or selected WinRM) endpoint. Check several to deploy to each in turn.";
@@ -162,7 +165,7 @@ public partial class MainWindow
 
     private async Task<List<WingetTarget>?> ResolveWingetTargetsAsync()
     {
-        var picked = _deployTargets.Where(t => t.IsChecked).Select(t => t.Profile).ToList();
+        var picked = _deployTargets.Where(t => t.IsChecked && t.IsSupported).Select(t => t.Profile).ToList();
         if (picked.Count > 0)
             return picked.Select(p => new WingetTarget(p.DisplayTitle, p, p.IsAgentless)).ToList();
 

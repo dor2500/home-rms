@@ -57,7 +57,8 @@ public partial class ScriptLibraryView : UserControl
         if (_ctx is null) return;
         var ticked = _targets.Where(t => t.IsChecked).Select(t => t.Profile).ToHashSet();
         _targets.Clear();
-        foreach (var m in _ctx.Machines.Where(m => m.IsWindows))
+        // Windows endpoints run PowerShell / cmd snippets, Linux agents run bash snippets (others are skipped).
+        foreach (var m in _ctx.Machines.Where(m => m.IsWindows || m.IsLinuxAgent))
             _targets.Add(new TargetPick(m) { IsChecked = ticked.Contains(m) });
         UpdateRunButton();
     }
@@ -108,7 +109,7 @@ public partial class ScriptLibraryView : UserControl
         NameBox.Text = s.Name;
         DescriptionBox.Text = s.Description;
         TagsBox.Text = s.TagsText;
-        ShellCombo.SelectedIndex = s.Shell == ScriptShell.Cmd ? 1 : 0;
+        ShellCombo.SelectedIndex = s.Shell switch { ScriptShell.Cmd => 1, ScriptShell.Bash => 2, _ => 0 };
         BodyBox.Text = s.Body;
 
         var ro = s.IsBuiltIn;
@@ -131,7 +132,7 @@ public partial class ScriptLibraryView : UserControl
         updated.Name = name;
         updated.Description = DescriptionBox.Text.Trim();
         updated.Tags = TagsBox.Text.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
-        updated.Shell = ShellCombo.SelectedIndex == 1 ? ScriptShell.Cmd : ScriptShell.PowerShell;
+        updated.Shell = SelectedShell();
         updated.Body = BodyBox.Text;
 
         var idx = _snippets.IndexOf(_editing);
@@ -183,6 +184,23 @@ public partial class ScriptLibraryView : UserControl
         SnippetList.SelectedIndex = SnippetList.Items.Count > 0 ? 0 : -1;
     }
 
+    private ScriptShell SelectedShell() => ShellCombo.SelectedIndex switch
+    {
+        1 => ScriptShell.Cmd,
+        2 => ScriptShell.Bash,
+        _ => ScriptShell.PowerShell,
+    };
+
+    /// <summary>Warns before running that endpoints of the other OS family will be skipped.</summary>
+    private static string SkipNote(ScriptShell shell, IReadOnlyList<MachineProfile> targets)
+    {
+        var skipped = shell == ScriptShell.Bash ? targets.Count(t => !t.IsLinuxAgent) : targets.Count(t => t.IsLinuxAgent);
+        if (skipped == 0) return "";
+        return shell == ScriptShell.Bash
+            ? $"\n\n{skipped} Windows endpoint(s) will be skipped (bash snippets run on Linux agents only)."
+            : $"\n\n{skipped} Linux endpoint(s) will be skipped ({ScriptSnippet.ShellName(shell)} is Windows-only; use a bash snippet).";
+    }
+
     // ---------------- Run ----------------
     private async void OnRunClick(object sender, RoutedEventArgs e)
     {
@@ -192,14 +210,14 @@ public partial class ScriptLibraryView : UserControl
 
         var body = BodyBox.Text;
         if (body.Trim().Length == 0) { RunCaption.Text = "Results — the script body is empty"; return; }
-        var shell = ShellCombo.SelectedIndex == 1 ? ScriptShell.Cmd : ScriptShell.PowerShell;
+        var shell = SelectedShell();
         var title = NameBox.Text.Trim().Length > 0 ? NameBox.Text.Trim() : "Ad-hoc script";
         var minutes = double.TryParse(TimeoutBox.Text, out var t) ? Math.Clamp(t, 1, 240) : 15;
 
         var names = string.Join("\n", targets.Take(12).Select(m => "  • " + m.DisplayTitle));
         if (targets.Count > 12) names += $"\n  … and {targets.Count - 12} more";
         if (MessageBox.Show(Window.GetWindow(this)!,
-                $"Run '{title}' ({(shell == ScriptShell.Cmd ? "cmd" : "PowerShell")}) on {targets.Count} endpoint(s)?\n\n{names}",
+                $"Run '{title}' ({ScriptSnippet.ShellName(shell)}) on {targets.Count} endpoint(s)?\n\n{names}{SkipNote(shell, targets)}",
                 "Home RMS — Run Script", MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes)
             return;
 
