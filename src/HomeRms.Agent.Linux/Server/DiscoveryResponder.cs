@@ -1,19 +1,20 @@
 using System.Net;
 using System.Net.Sockets;
 using System.Text;
+using HomeRms.Shared.Network;
 using HomeRms.Agent.Linux.Core;
 
 namespace HomeRms.Agent.Linux.Server;
 
 /// <summary>
 /// Listens on UDP 7443 for Home RMS LAN discovery probes ("HOMERMS_DISCOVER_V1") and replies
-/// with "HOMERMS_AGENT_V1|{MachineName}|{GrpcPort}" (RFC1918 LAN only, rate-limited).
+/// with "HOMERMS_AGENT_V1|{MachineName}|{GrpcPort}|{ip1,ip2,...}" (addresses: v2.3+) (RFC1918 LAN only, rate-limited).
 /// </summary>
 public sealed class DiscoveryResponder(int grpcPort, ActivityLog log) : IDisposable
 {
-    public const int DiscoveryUdpPort = 7443;
-    public const string ProbeToken = "HOMERMS_DISCOVER_V1";
-    public const string ReplyPrefix = "HOMERMS_AGENT_V1";
+    public const int DiscoveryUdpPort = RmsNetwork.DiscoveryUdpPort;
+    public const string ProbeToken = RmsNetwork.ProbeToken;
+    public const string ReplyPrefix = RmsNetwork.ReplyPrefix;
 
     private readonly CancellationTokenSource _cts = new();
     private UdpClient? _udp;
@@ -54,7 +55,7 @@ public sealed class DiscoveryResponder(int grpcPort, ActivityLog log) : IDisposa
                 if (string.Equals(msg, ProbeToken, StringComparison.Ordinal))
                 {
                     lastReplyUtc = now;
-                    var reply = $"{ReplyPrefix}|{Environment.MachineName}|{grpcPort}";
+                    var reply = RmsNetwork.BuildDiscoveryReply(Environment.MachineName, grpcPort, RmsNetwork.GetLocalAddresses());
                     var bytes = Encoding.UTF8.GetBytes(reply);
                     await _udp.SendAsync(bytes, received.RemoteEndPoint, ct);
                 }

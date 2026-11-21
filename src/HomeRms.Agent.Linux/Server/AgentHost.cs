@@ -15,7 +15,8 @@ namespace HomeRms.Agent.Linux.Server;
 /// <summary>Builds the Kestrel + gRPC host on Linux with strict mutual TLS and HTTP/2 keepalive.</summary>
 public static class AgentHost
 {
-    public static WebApplication Build(ConsentCoordinator consent, ActivityLog log, int port, AgentSecurityOptions? security = null)
+    public static WebApplication Build(ConsentCoordinator consent, ActivityLog log, int port, AgentSecurityOptions? security = null,
+        AgentAnnouncerOptions? announce = null)
     {
         var agentCert = DevCertificates.Load(RmsPaths.CertDir, DevCertificates.AgentFileName, RmsPaths.CertPassword);
         var caCert = DevCertificates.LoadCaPublicOnly(RmsPaths.CertDir, RmsPaths.CertPassword);
@@ -39,6 +40,10 @@ public static class AgentHost
         builder.Services.AddSingleton(consent);
         builder.Services.AddSingleton(log);
 
+        // "Call home": signed unicast announces to the pinned controllers that connected to this agent.
+        var announcer = new AgentAnnouncer(agentCert, port, announce, security.TrustedStorePath, log.Write);
+        builder.Services.AddSingleton(announcer);
+
         builder.WebHost.ConfigureKestrel(k =>
         {
             k.Limits.MaxRequestBodySize = 512L * 1024 * 1024;
@@ -61,6 +66,15 @@ public static class AgentHost
         });
 
         var app = builder.Build();
+        var storePath = security.TrustedStorePath;
+        app.Use(async (ctx, next) =>
+        {
+            announcer.ObserveController(ctx.Connection.RemoteIpAddress, ctx.Connection.ClientCertificate,
+                cert => TrustedControllerStore.IsPinned(cert, storePath));
+            await next(ctx);
+        });
+        app.Lifetime.ApplicationStarted.Register(announcer.Start);
+        app.Lifetime.ApplicationStopping.Register(announcer.Dispose);
         app.MapGrpcService<RemoteManagementService>();
         log.Write($"[host] listening on port {port} (Linux mutual TLS required)");
         return app;
