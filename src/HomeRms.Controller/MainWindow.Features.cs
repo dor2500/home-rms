@@ -47,6 +47,17 @@ public partial class MainWindow
             SelectedEndpoints = SelectedFleetEndpoints,
         };
 
+        // Browser web console (Central Hub /api/v2): same pairing-aware pool, live telemetry, winget index.
+        _centralHub.Console = new HubConsoleServices
+        {
+            Pool = _pool,
+            WingetIndex = _wingetIndex,
+            AllowWingetIndexRefresh = true,
+            Telemetry = m => Dispatcher.Invoke(() => _telemetry.Find(m) is { } et ? WebTelemetry.From(et) : null,
+                System.Windows.Threading.DispatcherPriority.Normal, CancellationToken.None, TimeSpan.FromSeconds(3)),
+            // TODO(UpgradeAll): set UpgradeAll = (m, log, ct) => ... once the UpgradeAll RPC client is merged.
+        };
+
         _telemetryView.Initialize(_features);
         _fileManagerView.Initialize(_features);
         _servicesView.Initialize(_features);

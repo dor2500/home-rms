@@ -205,6 +205,10 @@ try
     Console.WriteLine("[checks] Central Hub relay access control");
     await CheckHubAsync(Check);
 
+    // ---------------- 5b. Web console API ----------------
+    Console.WriteLine("[checks] Web console (/api/v2) access control and validation");
+    await HubWebChecks.RunAsync(Check);
+
     // ---------------- 6. Connect by computer name / IP healing ----------------
     Console.WriteLine("[checks] endpoint addressing, discovery replies and IP healing");
     EndpointChecks.Run(Check);
@@ -333,7 +337,9 @@ static async Task CheckHubAsync(Action<bool, string> check)
         new() { Name = "<img src=x onerror=alert(1)>", Host = "127.0.0.1", Port = 1, StatusLabel = "Offline" },
     };
     var log = new List<string>();
-    using var hub = new CentralHubService(() => machines, () => Task.CompletedTask, (c, m) => { lock (log) log.Add($"{c}: {m}"); });
+    // In-memory relay settings: the user's hub-relay.json is neither read nor written by the checks.
+    using var hub = new CentralHubService(() => machines, () => Task.CompletedTask, (c, m) => { lock (log) log.Add($"{c}: {m}"); },
+        settings: HubRelaySettings.CreateEphemeral(requireAuth: true, allowLan: false));
     hub.Start(47480);
     check(hub.IsRunning, $"hub started on port {hub.Port}");
     if (!hub.IsRunning) return;
@@ -350,7 +356,7 @@ static async Task CheckHubAsync(Action<bool, string> check)
     }
 
     var page = await http.GetStringAsync("/");
-    check(page.Contains("function esc(") && !page.Contains("JSON.stringify(e)"), "hub page escapes endpoint data and no longer inlines JSON into onclick");
+    check(page.Contains("/app.js") && !page.Contains("JSON.stringify(e)"), "hub page is the web console SPA (data only via the signed-in API)");
     check(hub.AuthRequired, "sign-in is required by default");
     check(await Status(HttpMethod.Get, "api/endpoints") == HttpStatusCode.Unauthorized, "API without a session -> 401");
     check(await Status(HttpMethod.Get, "proxy/example.com/") == HttpStatusCode.Unauthorized, "reverse proxy without a session -> 401");
