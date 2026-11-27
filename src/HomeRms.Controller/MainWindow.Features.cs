@@ -267,7 +267,7 @@ public partial class MainWindow
         }
     }
 
-    private void OnWakeAllOfflineClick(object sender, RoutedEventArgs e)
+    private async void OnWakeAllOfflineClick(object sender, RoutedEventArgs e)
     {
         var targets = _machines
             .Where(m => !m.IsOnline && !m.IsConnected && PowerActions.NormalizeMac(m.MacAddress) is not null)
@@ -278,23 +278,30 @@ public partial class MainWindow
             return;
         }
 
+        WakeAllOfflineBtn.IsEnabled = false;
         var sent = 0;
-        foreach (var m in targets)
+        try
         {
-            try
+            foreach (var m in targets)
             {
-                if (PowerActions.SendWakeOnLan(m.MacAddress))
+                try
                 {
+                    var mac = PowerActions.NormalizeMac(m.MacAddress)!;
+                    await HomeRms.Shared.Network.WakeOnLan.SendAsync(mac);
                     sent++;
-                    AddActivity("WAKE", $"Sent Wake-on-LAN magic packet to {m.DisplayTitle} ({m.MacAddress}).");
+                    AddActivity("WAKE", $"Sent Wake-on-LAN magic packet to {m.DisplayTitle} ({mac}).");
+                }
+                catch (Exception ex)
+                {
+                    AddActivity("ALERT", $"Wake-on-LAN failed for {m.DisplayTitle}: {ex.Message}");
                 }
             }
-            catch (Exception ex)
-            {
-                AddActivity("ALERT", $"Wake-on-LAN failed for {m.DisplayTitle}: {ex.Message}");
-            }
+            StatusText.Text = $"Sent Wake-on-LAN to {sent} of {targets.Count} offline endpoint(s).";
         }
-        StatusText.Text = $"Sent Wake-on-LAN to {sent} of {targets.Count} offline endpoint(s).";
+        finally
+        {
+            WakeAllOfflineBtn.IsEnabled = true;
+        }
     }
 
     private void OnExportFleetReportClick(object sender, RoutedEventArgs e)
