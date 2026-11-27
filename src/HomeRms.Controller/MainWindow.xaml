@@ -298,8 +298,12 @@
                 <!-- ==================== 0. OVERVIEW ==================== -->
                 <DockPanel x:Name="OverviewPanel" Visibility="Visible">
                     <DockPanel DockPanel.Dock="Top" Style="{StaticResource PageHeader}">
-                        <Button DockPanel.Dock="Right" Content="View all endpoints" Style="{StaticResource GhostButton}" VerticalAlignment="Center"
-                                Click="OnGoToFleetClick"/>
+                        <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
+                            <Button Content="Export fleet report" Style="{StaticResource GhostButton}" Margin="0,0,8,0"
+                                    ToolTip="Export a CSV/Markdown health report of all managed endpoints" Click="OnExportFleetReportClick"/>
+                            <Button Content="View all endpoints" Style="{StaticResource GhostButton}" VerticalAlignment="Center"
+                                    Click="OnGoToFleetClick"/>
+                        </StackPanel>
                         <StackPanel>
                             <TextBlock Text="Overview" Style="{StaticResource PageTitle}"/>
                             <TextBlock Text="Relay metrics, fleet health and the audit trail of the central hub" Style="{StaticResource PageSubtitle}"/>
@@ -457,6 +461,8 @@
                                      ToolTip="Filter endpoints by name, IP, or OS" TextChanged="OnFleetFilterChanged"/>
                             <Button x:Name="UpdateAllAgentsBtn" Content="Update all agents" Style="{StaticResource GhostButton}" Margin="0,0,8,0"
                                     ToolTip="Update Home RMS Agent on every online Windows agent endpoint" Click="OnUpdateAllAgentsClick"/>
+                            <Button x:Name="WakeAllOfflineBtn" Content="Wake all offline" Style="{StaticResource GhostButton}" Margin="0,0,8,0"
+                                    ToolTip="Send Wake-on-LAN magic packets to every offline endpoint with a known MAC address" Click="OnWakeAllOfflineClick"/>
                             <Button Style="{StaticResource PrimaryButton}" Click="OnOpenAddEndpointDrawerClick">
                                 <StackPanel Orientation="Horizontal">
                                     <Path Style="{StaticResource VectorIcon}" Data="{StaticResource GeoPlus}" Width="12" Height="12" Margin="0,0,6,0"/>

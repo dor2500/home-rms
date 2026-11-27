@@ -266,4 +266,71 @@ public partial class MainWindow
             UpdateAllAgentsBtn.IsEnabled = true;
         }
     }
+
+    private void OnWakeAllOfflineClick(object sender, RoutedEventArgs e)
+    {
+        var targets = _machines
+            .Where(m => !m.IsOnline && !m.IsConnected && PowerActions.NormalizeMac(m.MacAddress) is not null)
+            .ToList();
+        if (targets.Count == 0)
+        {
+            StatusText.Text = "No offline endpoints with a known MAC address were found.";
+            return;
+        }
+
+        var sent = 0;
+        foreach (var m in targets)
+        {
+            try
+            {
+                if (PowerActions.SendWakeOnLan(m.MacAddress))
+                {
+                    sent++;
+                    AddActivity("WAKE", $"Sent Wake-on-LAN magic packet to {m.DisplayTitle} ({m.MacAddress}).");
+                }
+            }
+            catch (Exception ex)
+            {
+                AddActivity("ALERT", $"Wake-on-LAN failed for {m.DisplayTitle}: {ex.Message}");
+            }
+        }
+        StatusText.Text = $"Sent Wake-on-LAN to {sent} of {targets.Count} offline endpoint(s).";
+    }
+
+    private void OnExportFleetReportClick(object sender, RoutedEventArgs e)
+    {
+        var dlg = new Microsoft.Win32.SaveFileDialog
+        {
+            Filter = "CSV Report (*.csv)|*.csv|Markdown Report (*.md)|*.md",
+            FileName = $"homerms-fleet-report-{DateTime.Now:yyyyMMdd-HHmm}.csv",
+        };
+        if (dlg.ShowDialog() != true) return;
+
+        var sb = new System.Text.StringBuilder();
+        if (dlg.FileName.EndsWith(".md", StringComparison.OrdinalIgnoreCase))
+        {
+            sb.AppendLine($"# Home RMS Fleet Health Report ({DateTime.Now:yyyy-MM-dd HH:mm:ss})");
+            sb.AppendLine();
+            sb.AppendLine("| Endpoint | Host | OS | Status | CPU % | RAM % | MAC | Last Seen |");
+            sb.AppendLine("|---|---|---|---|---|---|---|---|");
+            foreach (var m in _machines)
+            {
+                var st = m.IsConnected ? "Connected" : m.IsOnline ? "Online" : "Offline";
+                sb.AppendLine($"| {m.DisplayTitle} | {m.Address} | {m.OsTag} | {st} | {m.CpuPercent:0} | {m.RamPercent:0} | {m.MacAddress} | {m.LastSeenUtc?.ToLocalTime():yyyy-MM-dd HH:mm} |");
+            }
+        }
+        else
+        {
+            sb.AppendLine("Endpoint,Host,OS,Status,CpuPercent,RamPercent,MacAddress,LastSeenLocal");
+            foreach (var m in _machines)
+            {
+                var st = m.IsConnected ? "Connected" : m.IsOnline ? "Online" : "Offline";
+                var name = m.DisplayTitle.Replace("\"", "\"\"");
+                sb.AppendLine($"\"{name}\",\"{m.Address}\",\"{m.OsTag}\",{st},{m.CpuPercent:0},{m.RamPercent:0},\"{m.MacAddress}\",\"{m.LastSeenUtc?.ToLocalTime():yyyy-MM-dd HH:mm:ss}\"");
+            }
+        }
+        System.IO.File.WriteAllText(dlg.FileName, sb.ToString());
+        StatusText.Text = $"Exported fleet report ({_machines.Count} endpoints) to {dlg.FileName}.";
+        AddActivity("FLEET", $"Exported fleet report: {dlg.FileName}");
+    }
 }

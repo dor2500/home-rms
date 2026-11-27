@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net11.0-android</TargetFramework>
+    <SupportedOSPlatformVersion>24</SupportedOSPlatformVersion>
+    <OutputType>Exe</OutputType>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <ApplicationId>com.homerms.controller</ApplicationId>
+    <ApplicationTitle>Home RMS</ApplicationTitle>
+    <AssemblyName>HomeRmsMobile</AssemblyName>
+    <RootNamespace>HomeRms.Mobile.Android</RootNamespace>
+    <AndroidPackageFormat>apk</AndroidPackageFormat>
+    <AndroidSdkDirectory>C:\Android\Sdk</AndroidSdkDirectory>
+    <AndroidUseDefaultAapt2>true</AndroidUseDefaultAapt2>
+    <EmbedAssembliesIntoApk>true</EmbedAssembliesIntoApk>
+  </PropertyGroup>
+</Project>
