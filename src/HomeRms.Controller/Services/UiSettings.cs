@@ -13,6 +13,7 @@ public sealed class UiSettings
     public bool SidebarCollapsed { get; set; }
     /// <summary>Active UI theme: "Dark" (default) or "Light".</summary>
     public string Theme { get; set; } = "Dark";
+    public string Language { get; set; } = "en";
     public bool MinimizeToTray { get; set; } = true;
     public bool CloseToTray { get; set; } = true;
 

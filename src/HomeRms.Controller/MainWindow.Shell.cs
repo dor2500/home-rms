@@ -28,6 +28,7 @@ public partial class MainWindow
     private bool _consoleChromeHidden;
 
     private bool _settingThemeCombo;
+    private bool _settingLangCombo;
 
     private void InitializeShell()
     {
@@ -35,6 +36,10 @@ public partial class MainWindow
         var theme = ThemeManager.Normalize(_ui.Theme);
         ThemeManager.Apply(theme, this);
         SelectThemeCombo(theme);
+        var lang = LocalizationService.Normalize(_ui.Language);
+        SelectLangCombo(lang);
+        if (lang == LocalizationService.Hebrew)
+            LocalizationService.Apply(this, lang);
         SourceInitialized += (_, _) => ThemeManager.ApplyWindowChrome(this);
         Palette.ThemeChanged += OnThemeChanged;
 
@@ -61,6 +66,29 @@ public partial class MainWindow
         UpdateConsoleCount();
         UpdateNavBadges();
         InitializeTrayIcon();
+    }
+
+    private void OnLangComboChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_settingLangCombo || LangCombo?.SelectedItem is not ComboBoxItem item || item.Tag is not string next) return;
+        _ui.Language = next;
+        _ui.Save();
+        LocalizationService.Apply(this, next);
+    }
+
+    private void SelectLangCombo(string lang)
+    {
+        if (LangCombo is null) return;
+        _settingLangCombo = true;
+        foreach (ComboBoxItem item in LangCombo.Items)
+        {
+            if (string.Equals(item.Tag as string, lang, StringComparison.OrdinalIgnoreCase))
+            {
+                LangCombo.SelectedItem = item;
+                break;
+            }
+        }
+        _settingLangCombo = false;
     }
 
     private void OnThemeComboChanged(object sender, SelectionChangedEventArgs e)

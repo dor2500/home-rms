@@ -91,6 +91,12 @@
                     <Button x:Name="UpdateBtn" Content="Updates" Style="{StaticResource HeaderPillButton}"
                             Margin="0,0,6,0" ToolTip="Check GitHub Releases (dor2500/home-rms) for updates"
                             Click="OnCheckOrApplyUpdateClick"/>
+                    <ComboBox x:Name="LangCombo" Width="88" Height="28" Margin="0,0,6,0" VerticalContentAlignment="Center"
+                              ToolTip="Switch UI language (English / עברית)"
+                              SelectionChanged="OnLangComboChanged">
+                        <ComboBoxItem Content="English" Tag="en"/>
+                        <ComboBoxItem Content="עברית" Tag="he"/>
+                    </ComboBox>
                     <ComboBox x:Name="ThemeCombo" Width="108" Height="28" Margin="0,0,6,0" VerticalContentAlignment="Center"
                               ToolTip="Select theme (System, Dark, Light, Midnight, Nordic, Emerald)"
                               SelectionChanged="OnThemeComboChanged">

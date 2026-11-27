@@ -21,13 +21,21 @@ public class MainActivity : Activity
 {
     private const string PrefsName = "homerms_prefs";
     private const string KeyHubUrl = "hub_url";
+    private const string KeyLang = "lang";
     private const string ChannelId = "homerms_alerts";
 
     private LinearLayout _connectPanel = null!;
     private LinearLayout _webPanel = null!;
     private EditText _urlBox = null!;
     private TextView _statusText = null!;
+    private TextView _subTitleText = null!;
+    private TextView _urlLabel = null!;
+    private Button _connectBtn = null!;
     private Button _scanBtn = null!;
+    private Button _langBtn = null!;
+    private Button _refreshBtn = null!;
+    private Button _switchBtn = null!;
+    private bool _isHebrew;
     private WebView _webView = null!;
     private CancellationTokenSource? _alertPollCts;
     private readonly HashSet<string> _seenAlertIds = new(StringComparer.Ordinal);
@@ -56,6 +64,9 @@ public class MainActivity : Activity
         SetContentView(root);
 
         var prefs = GetSharedPreferences(PrefsName, FileCreationMode.Private)!;
+        _isHebrew = prefs.GetString(KeyLang, "en") == "he";
+        ApplyAndroidLanguage();
+
         var saved = prefs.GetString(KeyHubUrl, "");
         if (!string.IsNullOrWhiteSpace(saved))
         {
@@ -81,21 +92,21 @@ public class MainActivity : Activity
         };
         title.SetTextColor(Color.ParseColor("#E7EAF0"));
 
-        var sub = new TextView(this)
+        _subTitleText = new TextView(this)
         {
             Text = "Central Operations Mobile Console (.NET Android)",
             TextSize = 14
         };
-        sub.SetTextColor(Color.ParseColor("#A7AFBE"));
-        sub.SetPadding(0, 6, 0, 36);
+        _subTitleText.SetTextColor(Color.ParseColor("#A7AFBE"));
+        _subTitleText.SetPadding(0, 6, 0, 36);
 
-        var label = new TextView(this)
+        _urlLabel = new TextView(this)
         {
             Text = "Central Hub URL (PC running Home RMS Console)",
             TextSize = 13
         };
-        label.SetTextColor(Color.ParseColor("#A7AFBE"));
-        label.SetPadding(0, 0, 0, 8);
+        _urlLabel.SetTextColor(Color.ParseColor("#A7AFBE"));
+        _urlLabel.SetPadding(0, 0, 0, 8);
 
         _urlBox = new EditText(this)
         {
@@ -107,10 +118,10 @@ public class MainActivity : Activity
         _urlBox.SetBackgroundColor(Color.ParseColor("#151922"));
         _urlBox.SetPadding(24, 24, 24, 24);
 
-        var connectBtn = new Button(this) { Text = "Connect to Hub" };
-        connectBtn.SetBackgroundColor(Color.ParseColor("#5D69EB"));
-        connectBtn.SetTextColor(Color.White);
-        connectBtn.Click += (_, _) =>
+        _connectBtn = new Button(this) { Text = "Connect to Hub" };
+        _connectBtn.SetBackgroundColor(Color.ParseColor("#5D69EB"));
+        _connectBtn.SetTextColor(Color.White);
+        _connectBtn.Click += (_, _) =>
         {
             var raw = (_urlBox.Text ?? "").Trim();
             if (string.IsNullOrWhiteSpace(raw)) return;
@@ -127,6 +138,11 @@ public class MainActivity : Activity
         _scanBtn.SetTextColor(Color.ParseColor("#E7EAF0"));
         _scanBtn.Click += async (_, _) => await ScanLanForHubAsync();
 
+        _langBtn = new Button(this) { Text = "עברית / English" };
+        _langBtn.SetBackgroundColor(Color.ParseColor("#151922"));
+        _langBtn.SetTextColor(Color.ParseColor("#A7AFBE"));
+        _langBtn.Click += (_, _) => ToggleAndroidLanguage();
+
         _statusText = new TextView(this)
         {
             Text = "Tip: Make sure 'Allow LAN access' is enabled in Server & PKI if connecting from another device.",
@@ -137,15 +153,18 @@ public class MainActivity : Activity
 
         var spacer1 = new Space(this) { LayoutParameters = new LinearLayout.LayoutParams(1, 24) };
         var spacer2 = new Space(this) { LayoutParameters = new LinearLayout.LayoutParams(1, 16) };
+        var spacer3 = new Space(this) { LayoutParameters = new LinearLayout.LayoutParams(1, 16) };
 
         _connectPanel.AddView(title);
-        _connectPanel.AddView(sub);
-        _connectPanel.AddView(label);
+        _connectPanel.AddView(_subTitleText);
+        _connectPanel.AddView(_urlLabel);
         _connectPanel.AddView(_urlBox);
         _connectPanel.AddView(spacer1);
-        _connectPanel.AddView(connectBtn);
+        _connectPanel.AddView(_connectBtn);
         _connectPanel.AddView(spacer2);
         _connectPanel.AddView(_scanBtn);
+        _connectPanel.AddView(spacer3);
+        _connectPanel.AddView(_langBtn);
         _connectPanel.AddView(_statusText);
     }
 
@@ -175,24 +194,30 @@ public class MainActivity : Activity
         };
         barTitle.SetTextColor(Color.ParseColor("#E7EAF0"));
 
-        var refreshBtn = new Button(this) { Text = "Refresh" };
-        refreshBtn.SetBackgroundColor(Color.ParseColor("#1A1F2A"));
-        refreshBtn.SetTextColor(Color.ParseColor("#E7EAF0"));
-        refreshBtn.Click += (_, _) => _webView.Reload();
+        _refreshBtn = new Button(this) { Text = "Refresh" };
+        _refreshBtn.SetBackgroundColor(Color.ParseColor("#1A1F2A"));
+        _refreshBtn.SetTextColor(Color.ParseColor("#E7EAF0"));
+        _refreshBtn.Click += (_, _) => _webView.Reload();
 
-        var switchBtn = new Button(this) { Text = "Hubs" };
-        switchBtn.SetBackgroundColor(Color.ParseColor("#1A1F2A"));
-        switchBtn.SetTextColor(Color.ParseColor("#E7EAF0"));
-        switchBtn.Click += (_, _) =>
+        _switchBtn = new Button(this) { Text = "Hubs" };
+        _switchBtn.SetBackgroundColor(Color.ParseColor("#1A1F2A"));
+        _switchBtn.SetTextColor(Color.ParseColor("#E7EAF0"));
+        _switchBtn.Click += (_, _) =>
         {
             _alertPollCts?.Cancel();
             _webPanel.Visibility = ViewStates.Gone;
             _connectPanel.Visibility = ViewStates.Visible;
         };
 
+        var webLangBtn = new Button(this) { Text = "EN/עב" };
+        webLangBtn.SetBackgroundColor(Color.ParseColor("#1A1F2A"));
+        webLangBtn.SetTextColor(Color.ParseColor("#E7EAF0"));
+        webLangBtn.Click += (_, _) => ToggleAndroidLanguage();
+
         bar.AddView(barTitle);
-        bar.AddView(refreshBtn);
-        bar.AddView(switchBtn);
+        bar.AddView(webLangBtn);
+        bar.AddView(_refreshBtn);
+        bar.AddView(_switchBtn);
 
         _webView = new WebView(this)
         {
@@ -208,6 +233,40 @@ public class MainActivity : Activity
 
         _webPanel.AddView(bar);
         _webPanel.AddView(_webView);
+    }
+
+    private void ToggleAndroidLanguage()
+    {
+        _isHebrew = !_isHebrew;
+        var prefs = GetSharedPreferences(PrefsName, FileCreationMode.Private)!;
+        prefs.Edit()!.PutString(KeyLang, _isHebrew ? "he" : "en")!.Apply();
+        ApplyAndroidLanguage();
+    }
+
+    private void ApplyAndroidLanguage()
+    {
+        if (_isHebrew)
+        {
+            _subTitleText.Text = "קונסולת ניהול לנייד (.NET Android)";
+            _urlLabel.Text = "כתובת שרת ה-Central Hub (המחשב שמריץ את הקונסולה)";
+            _connectBtn.Text = "התחבר ל-Hub";
+            _scanBtn.Text = "סרוק רשת למציאת Hub (:7480)";
+            _langBtn.Text = "Switch to English";
+            _statusText.Text = "טיפ: ודא ש-'Allow LAN access' מופעל תחת Server & PKI.";
+            _refreshBtn.Text = "רענן";
+            _switchBtn.Text = "שרתים";
+        }
+        else
+        {
+            _subTitleText.Text = "Central Operations Mobile Console (.NET Android)";
+            _urlLabel.Text = "Central Hub URL (PC running Home RMS Console)";
+            _connectBtn.Text = "Connect to Hub";
+            _scanBtn.Text = "Scan LAN for Hub (:7480)";
+            _langBtn.Text = "עברית / English";
+            _statusText.Text = "Tip: Make sure 'Allow LAN access' is enabled in Server & PKI if connecting from another device.";
+            _refreshBtn.Text = "Refresh";
+            _switchBtn.Text = "Hubs";
+        }
     }
 
     private void OpenHub(string url)
