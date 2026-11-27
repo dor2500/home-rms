@@ -20,7 +20,9 @@ public sealed class RemoteManagementService(
     HomeRms.Shared.Hosts.HostsManager hosts)
     : RemoteManagement.RemoteManagementBase
 {
-    private volatile int _activeMonitorIndex;
+    // gRPC creates a new service instance per call, so the monitor chosen by StreamScreen must
+    // outlive that call for SendInput (a separate call) to map clicks onto the same display.
+    private static volatile int _activeMonitorIndex;
 
     private static string OperatorOf(ServerCallContext ctx)
     {
